@@ -4,6 +4,15 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { BADGE_COLOR_OPTIONS, type BadgeColor } from "@/lib/rewards";
 
+const badgeColorPreviewClasses: Record<BadgeColor, string> = {
+  yellow: "bg-yellow-400",
+  green: "bg-emerald-500",
+  sky: "bg-sky-300",
+  navy: "bg-blue-900",
+  red: "bg-red-600",
+  admin: "bg-slate-950",
+};
+
 export default function BadgeActions({ userId }: { userId: string }) {
   const router = useRouter();
   const [badgeType, setBadgeType] = useState("improvement");
@@ -56,21 +65,32 @@ export default function BadgeActions({ userId }: { userId: string }) {
           </select>
         </label>
         <label className="space-y-2">
-          <span className="text-xs font-black text-slate-500">バッジ色</span>
-          <select
-            value={badgeColor}
-            onChange={(event) => setBadgeColor(event.target.value as BadgeColor)}
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold"
-          >
-            {BADGE_COLOR_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-2">
           <span className="text-xs font-black text-slate-500">表示名</span>
           <input value={label} onChange={(event) => setLabel(event.target.value)} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold" />
         </label>
+        <div className="space-y-2 md:col-span-2">
+          <span className="text-xs font-black text-slate-500">バッジ色</span>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {BADGE_COLOR_OPTIONS.map((option) => {
+              const isSelected = badgeColor === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setBadgeColor(option.value)}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-black transition active:scale-[0.98] ${isSelected
+                    ? "border-primary bg-primary/5 text-slate-900 ring-2 ring-primary/20"
+                    : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"
+                    }`}
+                  aria-pressed={isSelected}
+                >
+                  <span className={`h-4 w-4 rounded-full border border-black/10 ${badgeColorPreviewClasses[option.value]}`} />
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <label className="space-y-2 md:col-span-2">
           <span className="text-xs font-black text-slate-500">詳細</span>
           <textarea value={note} onChange={(event) => setNote(event.target.value)} rows={3} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold" placeholder="吹き出しに表示する詳細" />
