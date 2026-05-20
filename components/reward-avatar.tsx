@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { BookOpen, User } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { getListingFrameTone, type UserBadge } from "@/lib/rewards";
+import { getListingFrameTone, normalizeBadgeColor, type UserBadge } from "@/lib/rewards";
 
 const frameClasses: Record<string, string> = {
   white: "reward-avatar-frame--white",
@@ -13,6 +13,15 @@ const frameClasses: Record<string, string> = {
   navy: "reward-avatar-frame--navy",
   red: "reward-avatar-frame--red",
   admin: "reward-avatar-frame--admin",
+};
+
+const badgeColorClasses: Record<string, string> = {
+  yellow: "reward-book-badge-icon--yellow",
+  green: "reward-book-badge-icon--green",
+  sky: "reward-book-badge-icon--sky",
+  navy: "reward-book-badge-icon--navy",
+  red: "reward-book-badge-icon--red",
+  admin: "reward-book-badge-icon--admin",
 };
 
 export function RewardAvatar({
@@ -80,6 +89,7 @@ export function RewardBadges({ badges }: { badges?: UserBadge[] }) {
     <div ref={containerRef} className="mt-2 flex flex-wrap gap-2">
       {badges.map((badge) => {
         const isOpen = openId === badge.id;
+        const badgeColor = normalizeBadgeColor(badge.badge_color);
         return (
           <div key={badge.id} className="relative">
             <button
@@ -91,7 +101,7 @@ export function RewardBadges({ badges }: { badges?: UserBadge[] }) {
               }}
               onMouseDown={(event) => event.stopPropagation()}
               onTouchStart={(event) => event.stopPropagation()}
-              className="reward-book-badge-icon group"
+              className={`reward-book-badge-icon ${badgeColorClasses[badgeColor]} group`}
               aria-expanded={isOpen}
               aria-label={`${badge.label}の詳細`}
             >

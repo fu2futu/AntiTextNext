@@ -697,3 +697,27 @@
   box-shadow: none;
   animation: none;
 }
+
+.reward-book-badge-icon--yellow {
+  --reward-book-badge-color: #facc15;
+}
+
+.reward-book-badge-icon--green {
+  --reward-book-badge-color: #10b981;
+}
+
+.reward-book-badge-icon--sky {
+  --reward-book-badge-color: #38bdf8;
+}
+
+.reward-book-badge-icon--navy {
+  --reward-book-badge-color: #1e3a8a;
+}
+
+.reward-book-badge-icon--red {
+  --reward-book-badge-color: #dc2626;
+}
+
+.reward-book-badge-icon--admin {
+  --reward-book-badge-color: #0f172a;
+}

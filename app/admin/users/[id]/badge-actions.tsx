@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { BADGE_COLOR_OPTIONS, type BadgeColor } from "@/lib/rewards";
 
 export default function BadgeActions({ userId }: { userId: string }) {
   const router = useRouter();
   const [badgeType, setBadgeType] = useState("improvement");
+  const [badgeColor, setBadgeColor] = useState<BadgeColor>("red");
   const [label, setLabel] = useState("改善提案");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -20,7 +22,7 @@ export default function BadgeActions({ userId }: { userId: string }) {
       const response = await fetch("/api/admin/rewards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, badgeType, label, note }),
+        body: JSON.stringify({ userId, badgeType, badgeColor, label, note }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "付与に失敗しました");
@@ -51,6 +53,18 @@ export default function BadgeActions({ userId }: { userId: string }) {
             <option value="improvement">改善提案</option>
             <option value="bug_report">バグ発見</option>
             <option value="supporter">運営協力</option>
+          </select>
+        </label>
+        <label className="space-y-2">
+          <span className="text-xs font-black text-slate-500">バッジ色</span>
+          <select
+            value={badgeColor}
+            onChange={(event) => setBadgeColor(event.target.value as BadgeColor)}
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold"
+          >
+            {BADGE_COLOR_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
           </select>
         </label>
         <label className="space-y-2">

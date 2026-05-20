@@ -9,7 +9,25 @@ export type UserBadge = {
   badge_type: string;
   label: string;
   note?: string | null;
+  badge_color?: BadgeColor | null;
 };
+
+export type BadgeColor = "yellow" | "green" | "sky" | "navy" | "red" | "admin";
+
+export const BADGE_COLOR_OPTIONS: Array<{ value: BadgeColor; label: string }> = [
+  { value: "yellow", label: "黄色" },
+  { value: "green", label: "緑" },
+  { value: "sky", label: "薄い青" },
+  { value: "navy", label: "紺" },
+  { value: "red", label: "赤" },
+  { value: "admin", label: "黒" },
+];
+
+export function normalizeBadgeColor(color?: string | null): BadgeColor {
+  return BADGE_COLOR_OPTIONS.some((option) => option.value === color)
+    ? (color as BadgeColor)
+    : "red";
+}
 
 export type RewardOverride = {
   early_registration_override?: "auto" | "force_on" | "force_off" | null;

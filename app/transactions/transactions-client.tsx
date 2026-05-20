@@ -591,6 +591,8 @@ export default function TransactionsClient({
 }
 
 function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
+    const [activeRole, setActiveRole] = useState<"seller" | "buyer">("seller");
+
     const sellerFlow = [
         "購入リクエストが届くと、承認前のチャットが作られます。",
         "承認前は、メッセージで日程や受け渡し条件を確認します。",
@@ -619,7 +621,7 @@ function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
                 onClick={onClose}
                 aria-label="閉じる"
             />
-            <div className="relative w-full max-w-2xl rounded-[32px] bg-white p-5 shadow-2xl sm:p-6">
+            <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-5 shadow-2xl sm:p-6">
                 <div className="mb-5 flex items-start justify-between gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-primary/60">Transaction Flow</p>
@@ -638,9 +640,44 @@ function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
                     </button>
                 </div>
 
+                <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl bg-gray-100 p-1 md:hidden">
+                    {[
+                        { key: "seller" as const, label: "出品者" },
+                        { key: "buyer" as const, label: "購入者" },
+                    ].map((role) => {
+                        const isActive = activeRole === role.key;
+                        return (
+                            <button
+                                key={role.key}
+                                type="button"
+                                onClick={() => setActiveRole(role.key)}
+                                className={`rounded-xl px-3 py-2 text-sm font-black transition active:scale-[0.98] ${isActive
+                                    ? "bg-white text-gray-900 shadow-sm"
+                                    : "text-gray-500"
+                                    }`}
+                                aria-pressed={isActive}
+                            >
+                                {role.label}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="md:hidden">
+                    {activeRole === "seller" ? (
+                        <FlowCard title="出品者の流れ" tone="seller" items={sellerFlow} />
+                    ) : (
+                        <FlowCard title="購入者の流れ" tone="buyer" items={buyerFlow} />
+                    )}
+                </div>
+
                 <div className="grid gap-4 md:grid-cols-2">
-                    <FlowCard title="出品者の流れ" tone="seller" items={sellerFlow} />
-                    <FlowCard title="購入者の流れ" tone="buyer" items={buyerFlow} />
+                    <div className="hidden md:block">
+                        <FlowCard title="出品者の流れ" tone="seller" items={sellerFlow} />
+                    </div>
+                    <div className="hidden md:block">
+                        <FlowCard title="購入者の流れ" tone="buyer" items={buyerFlow} />
+                    </div>
                 </div>
             </div>
         </div>

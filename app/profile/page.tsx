@@ -62,7 +62,7 @@ export default async function Mypage() {
             .select("item_id, status, items(*)")
             .eq("buyer_id", userId),
         (supabase as any).from("reward_settings").select("*").eq("id", "early_registration").single(),
-        (supabase as any).from("user_badges").select("id,badge_type,label,note").eq("user_id", userId).is("revoked_at", null).order("created_at", { ascending: false }),
+        (supabase as any).from("user_badges").select("id,badge_type,badge_color,label,note").eq("user_id", userId).is("revoked_at", null).order("created_at", { ascending: false }),
         (supabase as any).from("user_reward_overrides").select("early_registration_override").eq("user_id", userId).maybeSingle()
     ]);
 

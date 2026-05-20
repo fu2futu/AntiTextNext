@@ -163,7 +163,7 @@ export default function SellerDetailPage({
                     .single(),
                 (supabase as any)
                     .from("user_badges")
-                    .select("id,badge_type,label,note")
+                    .select("id,badge_type,badge_color,label,note")
                     .eq("user_id", params.id)
                     .is("revoked_at", null)
                     .order("created_at", { ascending: false }),

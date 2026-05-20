@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { adminLog, requireAdmin } from "@/lib/admin-utils";
+import { normalizeBadgeColor } from "@/lib/rewards";
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -59,10 +60,11 @@ export async function PATCH(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, badgeType, label, note } = await request.json();
+    const { userId, badgeType, badgeColor, label, note } = await request.json();
     if (!userId || !badgeType || !label) {
       return NextResponse.json({ error: "ユーザーID、バッジ種別、表示名が必要です" }, { status: 400 });
     }
+    const normalizedBadgeColor = normalizeBadgeColor(badgeColor);
 
     const { supabase, user } = await requireAdmin();
     const { data, error } = await (supabase as any)
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
       .insert({
         user_id: userId,
         badge_type: badgeType,
+        badge_color: normalizedBadgeColor,
         label,
         note: note || null,
         granted_by: user.id,
@@ -82,6 +85,7 @@ export async function POST(request: NextRequest) {
     await adminLog(supabase, "user_badge_grant", "user", userId, `バッジ付与: ${label}`, {
       badgeId: data?.id,
       badgeType,
+      badgeColor: normalizedBadgeColor,
       note: note || null,
     });
 

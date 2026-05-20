@@ -3,7 +3,7 @@ import { AdminPageHeader, StatusBadge } from "../../_components/admin-shell";
 import { RevealEmailButton } from "../../_components/reveal-email-button";
 import { formatAdminDate, maskEmail, requireAdmin } from "@/lib/admin-utils";
 import { RewardAvatar, RewardBadges } from "@/components/reward-avatar";
-import { resolveEarlyRegistrationEligible } from "@/lib/rewards";
+import { BADGE_COLOR_OPTIONS, normalizeBadgeColor, resolveEarlyRegistrationEligible } from "@/lib/rewards";
 import RestrictionActions from "./restriction-actions";
 import BadgeActions from "./badge-actions";
 import EarlyRewardActions from "./early-reward-actions";
@@ -212,7 +212,9 @@ function BadgeList({ badges }: { badges: any[] }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-sm font-black">{badge.label}</p>
-                <p className="mt-1 text-xs font-bold text-slate-500">{badge.badge_type} / {formatAdminDate(badge.created_at)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">
+                  {badge.badge_type} / {getBadgeColorLabel(badge.badge_color)} / {formatAdminDate(badge.created_at)}
+                </p>
                 {badge.note && <p className="mt-2 whitespace-pre-wrap text-xs font-bold text-slate-600">{badge.note}</p>}
               </div>
               <RevokeBadgeButton badgeId={badge.id} />
@@ -223,6 +225,11 @@ function BadgeList({ badges }: { badges: any[] }) {
       </div>
     </div>
   );
+}
+
+function getBadgeColorLabel(color?: string | null) {
+  const normalizedColor = normalizeBadgeColor(color);
+  return BADGE_COLOR_OPTIONS.find((option) => option.value === normalizedColor)?.label ?? "赤";
 }
 
 function Field({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
