@@ -96,7 +96,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const targetTransactionId = searchParams.get("tx");
   const { user, loading: authLoading, avatarUrl } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
+  const [hasDraftMessage, setHasDraftMessage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [item, setItem] = useState<ItemWithTransaction | null>(null);
@@ -119,7 +119,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const scheduleCandidatesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const loadedRef = useRef(false);
+  const loadedRef = useRef<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const userScrolledUpRef = useRef(false);
   const previousMessagesLengthRef = useRef(0);
@@ -191,7 +191,20 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               real.message === temp.message
             )
           );
-          return [...realMessages, ...filteredTemp];
+          const nextMessages = [...realMessages, ...filteredTemp];
+          if (
+            nextMessages.length === prev.length &&
+            nextMessages.every((message, index) => {
+              const current = prev[index];
+              return current &&
+                current.id === message.id &&
+                current.is_read === message.is_read &&
+                current.message === message.message;
+            })
+          ) {
+            return prev;
+          }
+          return nextMessages;
         });
 
         // 自分宛ての未読メッセージがあれば既読にする
@@ -215,10 +228,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       return;
     }
 
-    if (loadedRef.current) return;
-    loadedRef.current = true;
+    if (loadedRef.current === params.id) return;
+    loadedRef.current = params.id;
     loadItemAndMessages();
+  }, [params.id, user, authLoading, router]);
 
+  useEffect(() => {
+    if (!user || !otherUserId) return;
     // リアルタイム購読
     const channel = supabase
       .channel(`item-chat-${params.id}`)
@@ -278,7 +294,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         clearInterval(pollingRef.current);
       }
     };
-  }, [params.id, user, authLoading, router, fetchMessages, markMessagesAsRead]);
+  }, [params.id, user, otherUserId, fetchMessages, markMessagesAsRead]);
 
   useEffect(() => {
     // 新しいメッセージが追加された場合のみスクロール
@@ -494,7 +510,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   };
 
   const handleSend = async (textOverride?: string, imageUrlOverride?: string) => {
-    const messageText = textOverride || newMessage.trim();
+    const messageText = textOverride || inputRef.current?.value.trim() || "";
     if (!messageText && !imageUrlOverride) return;
     if (!user || !item || !otherUserId || sending) return;
     if (!textOverride && messageText.length > INPUT_LIMITS.chatMessageMax) {
@@ -502,7 +518,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       return;
     }
 
-    if (!textOverride) setNewMessage("");
+    if (!textOverride) {
+      if (inputRef.current) inputRef.current.value = "";
+      setHasDraftMessage(false);
+    }
     setSending(true);
 
     const tempMessage: Message = {
@@ -533,7 +552,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       setTimeout(() => fetchMessages(), 300);
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
-      if (!textOverride) setNewMessage(messageText); // 元に戻す
+      if (!textOverride) {
+        if (inputRef.current) inputRef.current.value = messageText;
+        setHasDraftMessage(messageText.trim().length > 0);
+      }
       alert("メッセージの送信に失敗しました: " + err.message);
     } finally {
       setSending(false);
@@ -1303,8 +1325,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           <input
             ref={inputRef}
             type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              const hasText = e.target.value.trim().length > 0;
+              setHasDraftMessage((current) => current === hasText ? current : hasText);
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
@@ -1319,8 +1343,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           />
           <button
             type="submit"
-            disabled={isClosedTransaction || (!newMessage.trim() && !isUploadingImage) || sending}
-            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(newMessage.trim() || isUploadingImage) && !sending
+            disabled={isClosedTransaction || (!hasDraftMessage && !isUploadingImage) || sending}
+            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(hasDraftMessage || isUploadingImage) && !sending
               ? "bg-primary text-white shadow-md active:scale-95"
               : "bg-gray-200 text-gray-400"
               }`}
