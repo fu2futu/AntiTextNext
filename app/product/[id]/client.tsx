@@ -247,7 +247,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
         } else if (eligibility.reason === 'request_limit_reached') {
           alert("現在この商品には複数の購入希望があるため、新しいリクエストを受け付けていません。");
         } else if (eligibility.reason === 'active_transaction_exists') {
-          alert("この商品はすでに取引中です。");
+          alert("この商品はすでに相談中です。");
         } else if (eligibility.reason === 'seller_cannot_buy_own_item') {
           alert("自分の商品にはリクエストできません。");
         }
@@ -298,7 +298,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const isReserved = currentStatus === "reserved";
   const isAvailable = currentStatus === "available";
 
-  // 他のユーザーが予約中または取引中の商品にアクセスした場合
+  // 他のユーザーが予約中または相談中の商品にアクセスした場合
   const isReservedByOther = (isReserved || isPending) && !isOwnItem;
 
   const scrollToImage = (index: number) => {
@@ -321,11 +321,11 @@ export default function ProductDetailClient({ item }: { item: Item }) {
             <ShoppingCart className="w-8 h-8 text-yellow-600" />
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">
-            {isPending ? "取引中" : "予約済み"}
+            {isPending ? "相談中" : "予約済み"}
           </h2>
           <p className="text-gray-600 mb-6">
             {isPending
-              ? "この商品は現在取引中です。"
+              ? "この商品は現在ほかの方と相談中です。"
               : "この商品は他のユーザーが購入手続き中です。しばらくお待ちください。"
             }
           </p>
@@ -533,7 +533,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
                 <div className={`inline-block px-3 py-1 rounded-full text-sm font-semibold mb-4 ${
                   isSold ? "bg-gray-200 text-gray-600" : "bg-yellow-100 text-yellow-700"
                 }`}>
-                  {isSold ? "売り切れ" : "取引中"}
+                  {isSold ? "売り切れ" : "相談中"}
                 </div>
               )}
 
@@ -716,7 +716,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
                   className="flex-1 py-3 md:py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
                 >
                   <ShoppingCart className="w-5 h-5" />
-                  {isAcquiringLock ? "確認中..." : isSold ? t('product.sold') : isPending ? t('product.in_transaction') : t('product.buy')}
+                  {isAcquiringLock ? "確認中..." : isSold ? t('product.sold') : isPending ? "相談中" : t('product.buy')}
                 </button>
               </>
             )}

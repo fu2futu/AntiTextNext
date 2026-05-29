@@ -717,26 +717,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const handleCancelTransaction = async (reason: string) => {
     if (isFinalizing || !item || !transaction || !user) return;
     if (user.id !== transaction.buyer_id && user.id !== transaction.seller_id) return;
-    if (!['accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction.status)) return;
+    if (!['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction.status)) return;
     setIsFinalizing(true);
     try {
-      // Update transaction status to cancelled with reason
-      const { error: txError } = await (supabase.from("transactions") as any)
-        .update({
-          status: 'cancelled',
-          cancellation_reason: reason
-        })
-        .eq("id", transaction.id);
-      if (txError) throw txError;
-
-      // Reset item status to available
-      const { error: itemError } = await (supabase.from("items") as any)
-        .update({ status: 'available' })
-        .eq("id", item.id);
-      if (itemError) throw itemError;
-
-      // Send notification message to other user
-      await handleSend(`【取引がキャンセルされました】\n\n理由: ${reason}`);
+      const { error } = await (supabase as any).rpc("cancel_consultation_and_reopen_item", {
+        target_transaction_id: transaction.id,
+        reason,
+      });
+      if (error) throw error;
 
       // Redirect to home
       router.push('/');
@@ -750,15 +738,31 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   };
 
   // アバターコンポーネント
-  const ChatAvatar = ({ isOwn }: { isOwn: boolean }) => (
-    <RewardAvatar
+  const ChatAvatar = ({ isOwn }: { isOwn: boolean }) => {
+    const avatar = (
+      <RewardAvatar
       src={isOwn ? avatarUrl : otherUserProfile?.avatar_url || null}
       alt="avatar"
       size={40}
       listingCount={isOwn ? ownAvatarReward.listingCount : otherUserProfile?.listing_count ?? 0}
       earlyRegistration={isOwn ? ownAvatarReward.earlyRegistration : otherUserProfile?.early_registration}
-    />
-  );
+      />
+    );
+
+    if (isOwn || !otherUserId || otherUserProfile?.is_deactivated) {
+      return avatar;
+    }
+
+    return (
+      <Link
+        href={`/seller/${otherUserId}`}
+        className="block rounded-full transition-transform active:scale-95"
+        aria-label="相手の情報を見る"
+      >
+        {avatar}
+      </Link>
+    );
+  };
 
   if (authLoading || loading) {
     return (
@@ -800,8 +804,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const transactionStatusLabel = {
     requested: "承認待ち",
     pending_approval: "承認待ち",
-    accepted: "取引中",
-    scheduling: "日程調整中",
+    accepted: "相談中",
+    scheduling: "相談中",
     scheduled: "予定確定済み",
     awaiting_rating: "評価待ち",
     completed: "取引完了",
@@ -814,8 +818,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   const statusLabel = transactionStatusLabel || ({
     available: "出品中",
-    transaction_pending: "取引中",
-    trading: "取引中",
+    transaction_pending: "相談中",
+    trading: "相談中",
     awaiting_rating: "評価待ち",
     sold: "取引完了",
   }[item.status] || item.status);
@@ -1024,7 +1028,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           className="flex-1 flex items-center justify-center gap-2 bg-primary/80 hover:bg-primary text-white font-bold py-2.5 rounded-xl transition-all shadow-lg shadow-black/5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <CheckCircle2 className="w-4 h-4" />
-          取引を完了する
+          取引終了
         </button>
       </div>
       )}
@@ -1246,7 +1250,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 className="w-full text-center py-2 text-gray-500 hover:text-gray-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
               >
                 <AlertCircle className="w-4 h-4" />
-                取引キャンセルを行う場合
+                別の人を選ぶ場合
                 <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showCancellationSection ? "rotate-90" : "-rotate-90"}`} />
               </button>
 
@@ -1254,14 +1258,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 <div className="mt-2 pb-2 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-4">
                     <p className="text-xs text-gray-600 mb-3 leading-relaxed">
-                      取引をキャンセルする場合は、取引相手への配慮が必要です。キャンセル理由を記入してお送りください。
+                      相談を終了して商品を再公開します。理由は相手に伝わります。不当だと感じた場合はお問い合わせできます。
                     </p>
                     <button
                       onClick={() => setIsCancellationModalOpen(true)}
                       className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                     >
                       <XIcon className="w-4 h-4" />
-                      取引をキャンセルする
+                      別の人を選ぶ
                     </button>
                   </div>
                 </div>
@@ -1875,7 +1879,7 @@ function CompletionConfirmationModal({
                   : "bg-gray-100 text-gray-400 shadow-none cursor-not-allowed"
               }`}
             >
-              取引を完了して評価へ
+              取引終了して評価へ
             </button>
             <button
               onClick={onClose}
@@ -1890,7 +1894,7 @@ function CompletionConfirmationModal({
   );
 }
 
-// --- Transaction Cancellation Confirmation Modal ---
+// --- Consultation Cancellation Confirmation Modal ---
 function CancellationConfirmationModal({
   isOpen,
   onClose,
@@ -1915,7 +1919,7 @@ function CancellationConfirmationModal({
           </div>
 
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            取引をキャンセルしますか?
+            別の人を選びますか?
           </h2>
           <p className="text-gray-500 text-sm text-center mb-8 font-medium">
             以下の内容を確認してください
@@ -1927,7 +1931,15 @@ function CancellationConfirmationModal({
                 <XIcon className="w-3 h-3 text-white" strokeWidth={4} />
               </div>
               <p className="text-sm font-bold text-gray-700">
-                取引をキャンセルすると、取引相手へ通知が送信され、この取引は終了します。
+                この相談は終了し、商品はほかの人にも見える状態へ戻ります。
+              </p>
+            </div>
+            <div className="flex items-start gap-3 bg-red-50 p-4 rounded-2xl border border-red-100">
+              <div className="w-5 h-5 mt-0.5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
+                <XIcon className="w-3 h-3 text-white" strokeWidth={4} />
+              </div>
+              <p className="text-sm font-bold text-gray-700">
+                入力した理由は取引相手に伝わります。不当だと感じた場合はお問い合わせできます。
               </p>
             </div>
           </div>
@@ -1937,7 +1949,7 @@ function CancellationConfirmationModal({
               onClick={onConfirm}
               className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98]"
             >
-              取引をキャンセルして申請する
+              理由を入力して終了する
             </button>
             <button
               onClick={onClose}
@@ -1952,7 +1964,7 @@ function CancellationConfirmationModal({
   );
 }
 
-// --- Cancellation Reason Modal ---
+// --- Reopen Item Reason Modal ---
 function CancellationReasonModal({
   isOpen,
   onClose,
@@ -1970,7 +1982,7 @@ function CancellationReasonModal({
 
   const handleSubmit = () => {
     if (!reason.trim()) {
-      alert("キャンセル理由を入力してください");
+      alert("理由を入力してください");
       return;
     }
     onConfirm(reason.trim());
@@ -1989,16 +2001,16 @@ function CancellationReasonModal({
           </div>
 
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            キャンセル理由を入力
+            別の人を選ぶ理由
           </h2>
           <p className="text-gray-500 text-sm text-center mb-6 font-medium">
-            取引相手への配慮のため、キャンセル理由を記入してください
+            相談相手へ伝わる内容です。できるだけ具体的に記入してください
           </p>
 
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="ここに入力"
+            placeholder="例: 日程が合わなかったため、別の方との相談に切り替えます"
             disabled={isSubmitting}
             className="w-full h-40 px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-red-500 focus:bg-white transition-all resize-none text-gray-700 placeholder:text-gray-400 font-medium mb-6"
             maxLength={500}
