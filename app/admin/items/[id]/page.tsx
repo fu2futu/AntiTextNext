@@ -70,6 +70,8 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
 
             <AdminItemActions itemId={item.id} currentStatus={item.status} activeTransactionCount={activeTransactionCount} />
 
+            <ThirdPartyPreview item={item} imageUrl={getItemImageUrl(item, "front", "thumbnail")} />
+
             <section className="grid gap-6 lg:grid-cols-2">
               <List
                 title="関連取引"
@@ -99,6 +101,82 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
         )}
       </main>
     </>
+  );
+}
+
+function ThirdPartyPreview({ item, imageUrl }: { item: any; imageUrl?: string | null }) {
+  const isListVisible = item.status === "available";
+  const isDirectHidden = item.status === "deleted";
+  const directState =
+    item.status === "trading" || item.status === "transaction_pending"
+      ? { label: "相談中", description: "商品詳細URLを直接開いても、第三者には「ほかの方と相談中」と表示されます。" }
+      : item.status === "sold"
+        ? { label: "売り切れ", description: "商品詳細では購入不可として表示されます。" }
+        : item.status === "paused"
+          ? { label: "一時停止", description: "商品詳細では購入ボタンが無効になります。" }
+          : item.status === "deleted"
+            ? { label: "非表示", description: "商品詳細URLを直接開いても、一般ユーザーには商品が見つからない扱いになります。" }
+            : { label: "購入する", description: "第三者は商品詳細から購入リクエストを送れます。" };
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-slate-900">第三者表示プレビュー</h2>
+          <p className="mt-1 text-sm font-bold text-slate-500">
+            管理者・出品者・購入者ではないユーザーから見た、一覧と商品詳細の表示想定です。
+          </p>
+        </div>
+        <Link
+          href={`/product/${item.id}`}
+          className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+        >
+          実際の商品詳細を開く
+        </Link>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p className="mb-3 text-xs font-black text-slate-500">一覧カード表示</p>
+          {isListVisible ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 aspect-[3/4] overflow-hidden rounded-xl bg-slate-100">
+                {imageUrl ? <Image src={imageUrl} alt="" width={240} height={320} className="h-full w-full object-cover" /> : null}
+              </div>
+              <p className="truncate text-sm font-black text-slate-900">{item.title}</p>
+              <p className="mt-1 text-lg font-black text-primary">{Number(item.selling_price ?? 0).toLocaleString()}円</p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-center">
+              <p className="text-sm font-black text-slate-700">一覧には表示されません</p>
+              <p className="mt-2 text-xs font-bold leading-relaxed text-slate-500">
+                ホーム・検索などの一般向け一覧は `status = available` の出品だけを表示します。
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-2">
+          <PreviewState label="現在のstatus" value={<StatusBadge value={item.status} />} />
+          <PreviewState label="一般一覧" value={isListVisible ? "表示される" : "表示されない"} />
+          <PreviewState label="商品詳細URL" value={isDirectHidden ? "商品が見つからない表示" : "開ける"} />
+          <PreviewState label="第三者の購入ボタン" value={directState.label} />
+          <div className="md:col-span-2 rounded-xl bg-white p-4">
+            <p className="mb-1 text-xs font-black text-slate-500">補足</p>
+            <p className="text-sm font-bold leading-relaxed text-slate-700">{directState.description}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PreviewState({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-xl bg-white p-4">
+      <p className="mb-1 text-xs font-black text-slate-500">{label}</p>
+      <div className="text-sm font-black text-slate-900">{value}</div>
+    </div>
   );
 }
 

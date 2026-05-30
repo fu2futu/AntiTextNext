@@ -18,6 +18,7 @@ const navItems = [
   { href: "/admin", label: "ダッシュボード", icon: Gauge },
   { href: "/admin/access", label: "アクセス分析", icon: Eye },
   { href: "/admin/users", label: "ユーザー管理", icon: Users },
+  { href: "/admin/home-preview", label: "ホームSimulation", icon: Eye },
   { href: "/admin/items", label: "出品管理", icon: BookOpen },
   { href: "/admin/transactions", label: "取引管理", icon: ClipboardList },
   { href: "/admin/reports", label: "通報管理", icon: FileWarning },

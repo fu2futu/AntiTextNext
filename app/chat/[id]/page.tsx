@@ -112,12 +112,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [isCancellationReasonModalOpen, setIsCancellationReasonModalOpen] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [showCancellationSection, setShowCancellationSection] = useState(false);
+  const [isScheduleCandidatesOpen, setIsScheduleCandidatesOpen] = useState(false);
   const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [backHref, setBackHref] = useState("/transactions");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const scheduleCandidatesRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const loadedRef = useRef<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -328,14 +328,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
     messagesEndRef.current?.scrollIntoView({ behavior: isUserTyping() ? "auto" : "smooth" });
   };
-
-  const scrollToScheduleCandidates = useCallback(() => {
-    userScrolledUpRef.current = true;
-    scheduleCandidatesRef.current?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, []);
 
   // スクロール位置を監視してユーザーが上にスクロールしたかを追跡
   const handleScroll = useCallback(() => {
@@ -1103,127 +1095,99 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto px-4 py-4 scroll-smooth"
         >
-          {/* Sticky Schedule Summary */}
-          {transaction && (
+          {transaction?.final_meetup_time && (
             <div className="sticky top-0 z-30 -mx-4 mb-4 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
-              {transaction.final_meetup_time ? (
-                <div className="bg-green-500/10 backdrop-blur-sm border-2 border-green-500/20 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                  <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-500/20">
-                    <CheckCheck className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-green-600 uppercase tracking-widest">受け渡し日時</p>
-                    <p className="text-sm font-black text-green-900">{transaction.final_meetup_time}</p>
-                    <p className="text-[10px] text-green-700/60 font-medium">場所: {transaction.final_meetup_location}</p>
-                  </div>
+              <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/20">
+                  <CheckCheck className="h-5 w-5" />
                 </div>
-              ) : transaction.schedule_change_requested_by ? (
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={scrollToScheduleCandidates}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      scrollToScheduleCandidates();
-                    }
-                  }}
-                  className="cursor-pointer bg-amber-50 backdrop-blur-sm border-2 border-amber-200 rounded-2xl p-4 shadow-sm transition-all hover:border-amber-300 hover:bg-amber-100/70 active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center text-white shadow-lg shadow-amber-400/20">
-                      <Clock className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">変更提案中</p>
-                      <p className="text-sm font-black text-amber-950">
-                        {isPendingApproval
-                          ? "この候補で取引できそうか相談中です"
-                          : isScheduleChangeRequester
-                            ? "相手の承認待ちです"
-                            : "候補から行ける日時を選んで承認してください"}
-                      </p>
-                    </div>
-                  </div>
-                  {transaction.previous_final_meetup_time && (
-                    <div className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-xs text-amber-900">
-                      変更前: {transaction.previous_final_meetup_time}
-                      {transaction.previous_final_meetup_location ? ` / ${transaction.previous_final_meetup_location}` : ""}
-                    </div>
-                  )}
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-green-600">受け渡し日時</p>
+                  <p className="truncate text-sm font-black text-green-900">{transaction.final_meetup_time}</p>
+                  <p className="truncate text-[10px] font-medium text-green-700/70">場所: {transaction.final_meetup_location}</p>
                 </div>
-              ) : transaction.meetup_time_slots && transaction.meetup_time_slots.length > 0 ? (
-                <div className="bg-gray-100/80 backdrop-blur-sm border-2 border-gray-200 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-                  <div className="w-10 h-10 bg-gray-400 rounded-xl flex items-center justify-center text-white shadow-lg shadow-gray-400/20">
-                    <Calendar className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black text-gray-600 uppercase tracking-widest">受け渡し日時</p>
-                    <p className="text-sm font-bold text-gray-700">候補から日程を決定してください。</p>
-                  </div>
-                </div>
-              ) : null}
+              </div>
             </div>
           )}
 
-          {/* Scheduling Component (Injected at the top like a pinned post) */}
           {transaction && transaction.meetup_time_slots?.length > 0 && !transaction.final_meetup_time && (
-            <div ref={scheduleCandidatesRef} className="scroll-mt-4 mb-6 animate-in fade-in slide-in-from-top-4 duration-500">
-              <div className="bg-white/90 backdrop-blur-md rounded-3xl p-5 shadow-xl border border-white/20">
-                <div className="flex items-center gap-2 mb-4 text-primary font-black">
-                  <Calendar className="w-5 h-5" />
-                  <span className="text-sm uppercase tracking-wider">
-                    {transaction.schedule_change_requested_by ? "変更候補の確認" : "受け渡し日程調整"}
-                  </span>
-                </div>
+            <div className="sticky top-0 z-30 -mx-4 mb-4 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
+              <div className="overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleCandidatesOpen((current) => !current)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-primary/5 active:bg-primary/10"
+                >
+                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Calendar className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary">変更候補の確認</p>
+                    <p className="truncate text-sm font-black text-gray-900">
+                      {isScheduleCandidatesOpen
+                        ? "候補から日時を確認できます"
+                        : "タップして候補日時を表示"}
+                    </p>
+                  </div>
+                  <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
+                </button>
 
-                <p className="text-xs text-gray-500 font-bold mb-4 px-1">
-                  {isPendingApproval
-                    ? "承認前のため、ここでは日程確定はできません。候補を確認し、必要なら再提案してください。"
-                    : transaction.schedule_change_requested_by
-                    ? isScheduleChangeRequester
-                      ? "相手が承認するまでお待ちください。候補は以下の内容で提案されています。"
-                      : "提案された候補から行けそうな日時を選ぶと、変更が承認されます。"
-                    : "募集された候補から都合の良い日時を選択してください："}
-                </p>
+                {isScheduleCandidatesOpen && (
+                  <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                    <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
+                      日程が決まり、こちらに記録していただくと予定管理に反映されます。
+                    </p>
+                    <p className="mb-3 rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">
+                      {isPendingApproval
+                        ? "承認前のため、ここでは日程確定はできません。候補を確認し、必要なら再提案してください。"
+                        : transaction.schedule_change_requested_by
+                          ? isScheduleChangeRequester
+                            ? "相手が承認するまでお待ちください。候補は以下の内容で提案されています。"
+                            : "提案された候補から行けそうな日時を選ぶと、変更が承認されます。"
+                          : "募集された候補から都合の良い日時を選択してください。"}
+                    </p>
 
-                <div className="space-y-2.5">
-                  {transaction.meetup_time_slots.map((slot) => {
-                    const label = formatTimeSlotLabel(slot);
+                    <div className="space-y-2">
+                      {transaction.meetup_time_slots.map((slot) => {
+                        const label = formatTimeSlotLabel(slot);
 
-                    return (
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => {
+                              if (canConfirmSchedule && !transaction.final_meetup_time) {
+                                handleFinalizeSchedule(slot, transaction.meetup_locations[0]);
+                              }
+                            }}
+                            disabled={isFinalizing || !canConfirmSchedule || !!transaction.final_meetup_time}
+                            className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-all disabled:opacity-50 ${canConfirmSchedule && !transaction.final_meetup_time
+                              ? "border-primary/25 bg-primary/5 text-primary active:scale-[0.99]"
+                              : "border-gray-200 bg-gray-50 text-gray-500"
+                              }`}
+                          >
+                            <span className="text-sm font-black">{label}</span>
+                            <Clock className="h-4 w-4 opacity-60" />
+                          </button>
+                        );
+                      })}
+
                       <button
-                        key={slot}
+                        type="button"
                         onClick={() => {
-                          if (canConfirmSchedule && !transaction.final_meetup_time) {
-                            handleFinalizeSchedule(slot, transaction.meetup_locations[0]);
+                          if (canAdjustSchedule && !transaction.final_meetup_time) {
+                            handleReschedule();
                           }
                         }}
-                        disabled={isFinalizing || !canConfirmSchedule || !!transaction.final_meetup_time}
-                        className={`w-full text-left bg-primary/5 border-2 rounded-2xl p-4 transition-all group flex items-center justify-between active:scale-95 disabled:opacity-50 ${canConfirmSchedule && !transaction.final_meetup_time
-                          ? "hover:bg-primary/10 border-primary/20 hover:border-primary/40 cursor-pointer"
-                          : "border-primary/10 cursor-default"
-                          }`}
+                        disabled={isFinalizing || !canAdjustSchedule || !!transaction.final_meetup_time}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-center text-xs font-bold text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 disabled:opacity-30 disabled:hover:bg-transparent"
                       >
-                        <span className={`text-primary font-black ${canConfirmSchedule && !transaction.final_meetup_time ? "group-hover:translate-x-1" : ""} transition-transform`}>{label}</span>
-                        <Clock className={`w-4 h-4 transition-colors ${canConfirmSchedule && !transaction.final_meetup_time ? "text-primary/40 group-hover:text-primary" : "text-primary/20"}`} />
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        再度日程調整をお願いする
                       </button>
-                    );
-                  })}
-
-                  <button
-                    onClick={() => {
-                      if (canAdjustSchedule && !transaction.final_meetup_time) {
-                        handleReschedule();
-                      }
-                    }}
-                    disabled={isFinalizing || !canAdjustSchedule || !!transaction.final_meetup_time}
-                    className="w-full text-center py-3 text-gray-400 hover:text-gray-600 font-bold text-xs flex items-center justify-center gap-2 hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    再度日程調整をお願いする
-                  </button>
-                </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1255,7 +1219,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                     </div>
 
                     {/* メッセージバブル */}
-                    <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"} max-w-[85%]`}>
+                    <div className={`flex max-w-[55%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
                       <div
                         className={`w-fit min-w-[50px] px-4 py-2.5 rounded-2xl shadow-sm border ${isOwnMessage
                           ? "rounded-br-sm bg-sky-50 border-sky-200"
