@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Heart, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw } from "lucide-react";
+import { Search, Heart, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2, Grid3X3 } from "lucide-react";
 import { useState, useCallback, memo, useMemo, useEffect, useRef, TouchEvent as ReactTouchEvent } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -27,6 +27,48 @@ type Item = {
   status?: string;
 };
 
+const HOME_ITEM_PAGE_SIZE = 7;
+type MobileHomeLayout = "list" | "square" | "image";
+
+const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
+
+function MobileLayoutSwitcher({
+  value,
+  onChange,
+}: {
+  value: MobileHomeLayout;
+  onChange: (value: MobileHomeLayout) => void;
+}) {
+  return (
+    <div className="mb-3 md:hidden">
+      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-gray-200 bg-gray-50 p-1">
+        {[
+          { value: "list" as const, label: "列", icon: Rows3 },
+          { value: "square" as const, label: "2列", icon: Grid2X2 },
+          { value: "image" as const, label: "画像", icon: Grid3X3 },
+        ].map((option) => {
+          const Icon = option.icon;
+          const active = value === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onChange(option.value)}
+              className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-black transition ${
+                active ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:bg-white/70"
+              }`}
+              aria-pressed={active}
+            >
+              <Icon className="h-4 w-4" />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // アイテムカードをメモ化して再レンダリングを防止
 const ItemCard = memo(function ItemCard({
   item,
@@ -34,19 +76,108 @@ const ItemCard = memo(function ItemCard({
   onToggleFavorite,
   showLoginPrompt,
   index,
+  mobileLayout,
 }: {
   item: Item;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
   showLoginPrompt: boolean;
   index: number;
+  mobileLayout: MobileHomeLayout;
 }) {
   const isTrading = item.status === "trading" || item.status === "transaction_pending";
+  const imageUrl = getItemImageUrl(item, "front", "thumbnail");
+
+  const HeartButton = ({ compact = false }: { compact?: boolean }) => (
+    <div className="relative flex items-center gap-1">
+      <LoginRequiredBubble visible={showLoginPrompt} />
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onToggleFavorite(item.id);
+        }}
+        className={`${compact ? "h-9 w-9 bg-white/95 shadow-md ring-1 ring-black/5" : "p-2 -m-2 hover:bg-red-50"} group/heart relative rounded-full transition-all active:scale-90 flex items-center justify-center heart-container`}
+        aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
+      >
+        <div className={`heart-ring ${isFavorite ? 'active' : ''}`} />
+        <div className={`heart-particle-container ${isFavorite ? 'active' : ''}`}>
+          {[...Array(7)].map((_, i) => (
+            <div key={i} className="heart-dot" />
+          ))}
+        </div>
+        <Heart
+          className={`${compact ? "h-5 w-5" : "h-5 w-5"} transition-all duration-300 relative heart-main ${isFavorite
+            ? "fill-red-500 text-red-500 heart-pop"
+            : "text-gray-300 group-hover/heart:text-red-300"
+          }`}
+        />
+      </button>
+      {!compact && item.favorite_count !== undefined && item.favorite_count > 0 && (
+        <span className={`text-xs font-bold transition-colors duration-300 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
+          {item.favorite_count}
+        </span>
+      )}
+      {compact && item.favorite_count !== undefined && item.favorite_count > 0 && (
+        <span className="absolute -bottom-1 -right-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[9px] font-black text-white">
+          {item.favorite_count}
+        </span>
+      )}
+    </div>
+  );
+
+  const ImageBlock = ({ className = "w-full h-full" }: { className?: string }) => (
+    imageUrl ? (
+      <Image
+        src={imageUrl}
+        alt={item.title}
+        width={160}
+        height={160}
+        className={`${className} object-cover`}
+        loading="lazy"
+        quality={55}
+      />
+    ) : (
+      <div className={`${className} flex items-center justify-center bg-gray-100 text-gray-400`}>
+        <BookOpen className="h-8 w-8" />
+      </div>
+    )
+  );
 
   return (
     <Link href={`/product/${item.id}`} className="block h-full">
+      {mobileLayout !== "list" && (
+        <div
+          className={`relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-300 animate-slide-in-up md:hidden ${
+            isTrading ? "border-gray-200 bg-gray-100" : "border-gray-200"
+          }`}
+          style={{ animationDelay: `${index * 80}ms` }}
+        >
+          <div className={`relative aspect-square overflow-hidden bg-gray-100 ${isTrading ? "grayscale opacity-75" : ""}`}>
+            <ImageBlock />
+            <div className="absolute right-2 top-2 z-10">
+              <HeartButton compact />
+            </div>
+            {isTrading && (
+              <div className="absolute left-2 top-2 z-10 rounded-full bg-gray-700 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
+                取引中
+              </div>
+            )}
+          </div>
+          {mobileLayout === "square" && (
+            <div className="px-2.5 py-2">
+              <p className={`truncate text-xs font-black ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
+                {compactTitle(item.title)}
+              </p>
+              <p className={`mt-0.5 text-sm font-black ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
+                ¥{item.selling_price.toLocaleString()}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
       <div 
-        className={`relative h-full rounded-2xl border p-4 shadow-md transition-all duration-300 animate-slide-in-up ${
+        className={`relative h-full rounded-xl border p-3 shadow-sm transition-all duration-300 animate-slide-in-up ${mobileLayout !== "list" ? "hidden md:block" : ""} ${
           isTrading
             ? "border-gray-200 bg-gray-100 hover:shadow-lg"
             : "border-gray-200 bg-white hover:shadow-xl hover:border-primary/30 hover:-translate-y-1"
@@ -58,70 +189,23 @@ const ItemCard = memo(function ItemCard({
             取引中
           </div>
         )}
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-3">
           {/* サムネイル画像 */}
           <div className={`w-20 h-20 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden ${isTrading ? "grayscale opacity-70" : ""}`}>
-            {getItemImageUrl(item, "front", "thumbnail") ? (
-              <Image
-                src={getItemImageUrl(item, "front", "thumbnail")!}
-                alt={item.title}
-                width={80}
-                height={80}
-                className="w-full h-full object-cover"
-                loading="lazy"
-                quality={55}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400">
-                <BookOpen className="w-8 h-8" />
-              </div>
-            )}
+            <ImageBlock />
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className={`text-base font-bold mb-1 line-clamp-2 ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
+            <h3 className={`text-sm font-bold mb-1 line-clamp-2 leading-snug ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
               {item.title}
             </h3>
-            <p className={`text-xl font-bold ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
+            <p className={`text-lg font-bold ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
               ¥{item.selling_price.toLocaleString()}
             </p>
           </div>
 
           {/* ハートボタン & カウント */}
-          <div className="relative flex items-center gap-1">
-            <LoginRequiredBubble visible={showLoginPrompt} />
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onToggleFavorite(item.id);
-              }}
-              className="group/heart relative p-2 -m-2 hover:bg-red-50 rounded-full transition-all active:scale-90 flex items-center justify-center heart-container"
-              aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
-            >
-              {/* Expanding Ring */}
-              <div className={`heart-ring ${isFavorite ? 'active' : ''}`} />
-              
-              {/* Particles */}
-              <div className={`heart-particle-container ${isFavorite ? 'active' : ''}`}>
-                {[...Array(7)].map((_, i) => (
-                  <div key={i} className="heart-dot" />
-                ))}
-              </div>
-
-              <Heart
-                className={`w-5 h-5 transition-all duration-300 relative heart-main ${isFavorite
-                  ? "fill-red-500 text-red-500 heart-pop"
-                  : "text-gray-300 group-hover/heart:text-red-300"
-                }`}
-              />
-            </button>
-            {item.favorite_count !== undefined && item.favorite_count > 0 && (
-              <span className={`text-xs font-bold transition-colors duration-300 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
-                {item.favorite_count}
-              </span>
-            )}
-          </div>
+          <HeartButton />
         </div>
       </div>
     </Link>
@@ -138,11 +222,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const { user, avatarUrl, loading } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [mobileLayout, setMobileLayout] = useState<MobileHomeLayout>("list");
   const isAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   
   // 各アイテムの状態管理（サーバーのキャッシュを上書きできるようにState化）
   const [recommendedItems, setRecommendedItems] = useState<Item[]>(initialRecommendedItems);
   const [popularItems, setPopularItems] = useState<Item[]>(initialPopularItems);
+  const [totalVisiblePopularCount, setTotalVisiblePopularCount] = useState(totalPopularCount);
   
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [loadingMoreRecommended, setLoadingMoreRecommended] = useState(false);
@@ -169,13 +255,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // お気に入りセットをメモ化
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-  const recommendedIdSet = useMemo(
-    () => new Set(isAdminHomeView ? [] : recommendedItems.map(item => item.id)),
-    [recommendedItems, isAdminHomeView]
-  );
   const displayedPopularItems = useMemo(
-    () => popularItems.filter(item => !recommendedIdSet.has(item.id) && (!user || item.seller_id !== user.id)),
-    [popularItems, recommendedIdSet, user]
+    () => popularItems,
+    [popularItems]
   );
 
   useEffect(() => {
@@ -235,6 +317,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setRecommendedItems([]);
         setHasMoreRecommended(false);
         setTotalRecommendedCount(0);
+        setPopularItems(initialPopularItems);
+        setTotalVisiblePopularCount(totalPopularCount);
+        setHasMore(initialPopularItems.length < totalPopularCount);
         setLoadingRecommended(false);
       }
 
@@ -307,7 +392,34 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setRecommendedItems([]);
         setHasMoreRecommended(false);
         setTotalRecommendedCount(0);
+        setPopularItems(initialPopularItems);
+        setTotalVisiblePopularCount(totalPopularCount);
+        setHasMore(initialPopularItems.length < totalPopularCount);
         setLoadingRecommended(false);
+      }
+
+      if (user) {
+        let popularQuery = supabase
+          .from("items")
+          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
+          .in("status", ["available", "trading"])
+          .neq("seller_id", user.id)
+          .order("created_at", { ascending: false })
+          .range(0, HOME_ITEM_PAGE_SIZE - 1);
+
+        const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery;
+
+        if (!visiblePopularError && visiblePopular) {
+          if (cancelled || requestId !== requestIdRef.current) return;
+          const mapped = (visiblePopular as any[]).map(item => ({
+            ...item,
+            favorite_count: item.favorites?.[0]?.count || 0,
+            favorites: undefined,
+          })) as Item[];
+          setPopularItems(mapped);
+          setTotalVisiblePopularCount(visiblePopularCount || 0);
+          setHasMore(mapped.length < (visiblePopularCount || 0));
+        }
       }
 
       // 2. パーソナライズされたおすすめの取得
@@ -332,7 +444,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         
         const { data: majorData, count, error } = await query
           .order("created_at", { ascending: false })
-          .limit(15);
+          .limit(HOME_ITEM_PAGE_SIZE);
 
         if (!error && majorData) {
           if (cancelled || requestId !== requestIdRef.current) return;
@@ -481,7 +593,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
         const { data, error } = await query
           .order("created_at", { ascending: false })
-          .range(currentLength, currentLength + 14);
+          .range(currentLength, currentLength + HOME_ITEM_PAGE_SIZE - 1);
 
         if (!error && data) {
           const newItems = (data as any[]).map(item => ({
@@ -507,12 +619,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     setLoadingMore(true);
     try {
       const currentLength = popularItems.length;
-      const { data, error } = await supabase
+      let query = supabase
         .from("items")
         .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
         .in("status", ["available", "trading"])
-        .order("created_at", { ascending: false })
-        .range(currentLength, currentLength + 14);
+        .order("created_at", { ascending: false });
+
+      if (user) {
+        query = query.neq("seller_id", user.id);
+      }
+
+      const { data, error } = await query.range(currentLength, currentLength + HOME_ITEM_PAGE_SIZE - 1);
 
       if (!error && data) {
         const newItems = (data as any[]).map(item => ({
@@ -520,7 +637,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           favorite_count: item.favorites?.[0]?.count || 0
         })) as Item[];
         setPopularItems(prev => [...prev, ...newItems]);
-        if (currentLength + newItems.length >= totalPopularCount || newItems.length < 15) {
+        if (currentLength + newItems.length >= totalVisiblePopularCount || newItems.length < HOME_ITEM_PAGE_SIZE) {
           setHasMore(false);
         }
       }
@@ -557,12 +674,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       try {
         // みんなの出品を再取得
-        const { data: freshPopular } = await supabase
+        let popularQuery = supabase
           .from("items")
-          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
+          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
-          .order("created_at", { ascending: false })
-          .range(0, 14);
+          .order("created_at", { ascending: false });
+
+        if (user) {
+          popularQuery = popularQuery.neq("seller_id", user.id);
+        }
+
+        const { data: freshPopular, count: freshPopularCount } = await popularQuery.range(0, HOME_ITEM_PAGE_SIZE - 1);
 
         if (freshPopular) {
           const mapped = (freshPopular as any[]).map(item => ({
@@ -571,6 +693,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorites: undefined
           })) as Item[];
           setPopularItems(mapped);
+          setTotalVisiblePopularCount(freshPopularCount || 0);
+          setHasMore(mapped.length < (freshPopularCount || 0));
         }
       } catch (err) {
         console.error("Refresh error:", err);
@@ -581,7 +705,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     } else {
       setPullDistance(0);
     }
-  }, [pullDistance, isRefreshing]);
+  }, [pullDistance, isRefreshing, user]);
 
   return (
     <div
@@ -707,41 +831,49 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {recommendedItems.map((item, index) => (
-                  <div key={item.id} className="min-w-0">
-                    <ItemCard
-                      item={item}
-                      isFavorite={favoriteSet.has(item.id)}
-                      onToggleFavorite={toggleFavorite}
-                      showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
-                      index={index}
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {hasMoreRecommended && (
-                <div className="mt-8 text-center">
-                  <button
-                    onClick={loadMoreRecommended}
-                    disabled={loadingMoreRecommended}
-                    className="inline-flex items-center gap-2 px-8 py-3 bg-white border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 hover:border-primary/50 transition-all disabled:opacity-50"
-                  >
-                    {loadingMoreRecommended ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
-                        {t('home.loading')}
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="w-5 h-5" />
-                        {t('home.load_more')}
-                      </>
-                    )}
-                  </button>
+              <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
+              <div className="h-[29rem] max-h-[70vh] overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain">
+                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
+                  mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+                }`}>
+                  {recommendedItems.map((item, index) => {
+                    const showLoadMoreHere = hasMoreRecommended && index === recommendedItems.length - 1;
+                    return (
+                    <div key={item.id} className="relative min-w-0">
+                      <ItemCard
+                        item={item}
+                        isFavorite={favoriteSet.has(item.id)}
+                        onToggleFavorite={toggleFavorite}
+                        showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
+                        index={index}
+                        mobileLayout={mobileLayout}
+                      />
+                      {showLoadMoreHere && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-1/2 items-end justify-center rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent p-3">
+                          <button
+                            type="button"
+                            onClick={loadMoreRecommended}
+                            disabled={loadingMoreRecommended}
+                            className="pointer-events-auto inline-flex h-10 w-32 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            {loadingMoreRecommended ? (
+                              <>
+                                <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
+                                {t('home.loading')}
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-4 w-4" />
+                                {t('home.load_more')}
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )})}
                 </div>
-              )}
+              </div>
             </>
           )}
         </div>
@@ -757,41 +889,75 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {displayedPopularItems.map((item, index) => (
-              <div key={`popular-${item.id}`} className="min-w-0">
-                <ItemCard
-                  item={item}
-                  isFavorite={favoriteSet.has(item.id)}
-                  onToggleFavorite={toggleFavorite}
-                  showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
-                  index={index}
-                />
+          <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
+          <div className="h-[29rem] max-h-[70vh] overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain">
+            <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
+              mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+            }`}>
+              {displayedPopularItems.map((item, index) => {
+                const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
+                return (
+                <div key={`popular-${item.id}`} className="relative min-w-0">
+                  <ItemCard
+                    item={item}
+                    isFavorite={favoriteSet.has(item.id)}
+                    onToggleFavorite={toggleFavorite}
+                    showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
+                    index={index}
+                    mobileLayout={mobileLayout}
+                  />
+                  {showLoadMoreHere && (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-1/2 items-end justify-center rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent p-3">
+                      <button
+                        type="button"
+                        onClick={loadMorePopular}
+                        disabled={loadingMore}
+                        className="pointer-events-auto inline-flex h-10 w-32 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        {loadingMore ? (
+                          <>
+                            <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
+                            {t('home.loading')}
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-4 w-4" />
+                            {t('home.load_more')}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )})}
+            </div>
+            {displayedPopularItems.length === 0 && hasMore && (
+              <div className="flex h-full items-center justify-center">
+                <button
+                  type="button"
+                  onClick={loadMorePopular}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
+                >
+                  {loadingMore ? (
+                    <>
+                      <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
+                      {t('home.loading')}
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      {t('home.load_more')}
+                    </>
+                  )}
+                </button>
               </div>
-            ))}
+            )}
           </div>
 
           {/* もっと見る / 出品物は以上です */}
           <div className="mt-8 text-center">
-            {hasMore ? (
-              <button
-                onClick={loadMorePopular}
-                disabled={loadingMore}
-                className="inline-flex items-center gap-2 px-8 py-3 bg-white border border-gray-300 rounded-xl font-semibold text-gray-700 hover:bg-gray-50 hover:border-primary/50 transition-all disabled:opacity-50"
-              >
-                {loadingMore ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
-                    {t('home.loading')}
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="w-5 h-5" />
-                    {t('home.load_more')}
-                  </>
-                )}
-              </button>
-            ) : (
+            {!hasMore && (
               <p className="text-gray-500 py-4">
                 出品物は以上です...!
               </p>
