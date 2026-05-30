@@ -344,6 +344,11 @@ export default function ListingPage() {
         let frontThumbnailStoragePath = null;
         let backThumbnailStoragePath = null;
 
+        // Persist the scanned ISBN-13 so the listing can be matched to a textbook.
+        // Store only a clean 978/979 13-digit value; otherwise leave it null.
+        const normalizedIsbn = formData.barcode.replace(/[^0-9]/g, "");
+        const isbn = /^97[89]\d{10}$/.test(normalizedIsbn) ? normalizedIsbn : null;
+
         const { error: draftError } = await (supabase.from("items") as any).insert({
           id: itemId,
           seller_id: user!.id,
@@ -357,6 +362,7 @@ export default function ListingPage() {
           front_thumbnail_url: null,
           back_thumbnail_url: null,
           image_storage_provider: "r2",
+          isbn,
         });
 
         if (draftError) throw draftError;

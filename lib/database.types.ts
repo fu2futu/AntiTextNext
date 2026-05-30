@@ -75,6 +75,7 @@ export interface Database {
                     status: string
                     front_image_url: string | null
                     back_image_url: string | null
+                    isbn: string | null
                     created_at: string
                 }
                 Insert: {
@@ -87,6 +88,7 @@ export interface Database {
                     status?: string
                     front_image_url?: string | null
                     back_image_url?: string | null
+                    isbn?: string | null
                     created_at?: string
                 }
                 Update: {
@@ -99,6 +101,7 @@ export interface Database {
                     status?: string
                     front_image_url?: string | null
                     back_image_url?: string | null
+                    isbn?: string | null
                     created_at?: string
                 }
             }
