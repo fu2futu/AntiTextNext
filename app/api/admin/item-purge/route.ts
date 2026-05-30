@@ -63,7 +63,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "出品が見つかりません" }, { status: 404 });
     }
 
-    if (item.transactions?.length > 0) {
+    const { count: transactionCount, error: transactionCountError } = await (supabase as any)
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("item_id", itemId);
+
+    if (transactionCountError) throw transactionCountError;
+
+    if ((transactionCount ?? 0) > 0) {
       return NextResponse.json({ error: "関連取引がある出品は完全削除できません。非表示で対応してください。" }, { status: 400 });
     }
 
@@ -102,7 +109,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (purgeError) {
-      return NextResponse.json({ error: purgeError.message }, { status: 500 });
+      const message = purgeError.message === "cannot purge item with transactions"
+        ? "関連取引がある出品は完全削除できません。非表示で対応してください。"
+        : purgeError.message;
+      return NextResponse.json({ error: message }, { status: 500 });
     }
 
     await adminLog(supabase, "item_purged", "item", itemId, trimmedReason, {

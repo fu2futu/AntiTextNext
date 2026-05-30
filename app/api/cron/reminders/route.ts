@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
         const results = {
             remindersSent: 0,
             expiredRequests: 0,
+            dataRetention: null as unknown,
             errors: [] as string[],
         };
 
@@ -146,6 +147,16 @@ export async function POST(request: NextRequest) {
 
                 results.expiredRequests++;
             }
+        }
+
+        const { data: retentionResult, error: retentionError } = await supabase.rpc("admin_run_data_retention", {
+            dry_run: false,
+        });
+
+        if (retentionError) {
+            results.errors.push(`Data retention error: ${retentionError.message}`);
+        } else {
+            results.dataRetention = retentionResult;
         }
 
         return NextResponse.json({ success: true, results });

@@ -34,6 +34,7 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
   const activeTransactionCount = ((transactions ?? []) as any[]).filter((tx) =>
     ["requested", "accepted", "scheduling", "scheduled", "awaiting_rating"].includes(tx.status)
   ).length;
+  const transactionCount = ((transactions ?? []) as any[]).length;
 
   return (
     <>
@@ -68,7 +69,12 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
               </div>
             </section>
 
-            <AdminItemActions itemId={item.id} currentStatus={item.status} activeTransactionCount={activeTransactionCount} />
+            <AdminItemActions
+              itemId={item.id}
+              currentStatus={item.status}
+              activeTransactionCount={activeTransactionCount}
+              transactionCount={transactionCount}
+            />
 
             <ThirdPartyPreview item={item} imageUrl={getItemImageUrl(item, "front", "thumbnail")} />
 

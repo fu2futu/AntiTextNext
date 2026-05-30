@@ -27,10 +27,12 @@ export default function AdminItemActions({
   itemId,
   currentStatus,
   activeTransactionCount,
+  transactionCount,
 }: {
   itemId: string;
   currentStatus: string;
   activeTransactionCount: number;
+  transactionCount: number;
 }) {
   const router = useRouter();
   const [reasonCode, setReasonCode] = useState("reported_item");
@@ -84,8 +86,8 @@ export default function AdminItemActions({
   };
 
   const purge = async () => {
-    if (activeTransactionCount > 0) {
-      setError("関連取引がある出品は完全削除できません。非表示で対応してください。");
+    if (transactionCount > 0) {
+      setError("関連取引履歴がある出品は完全削除できません。管理者削除（非表示）で対応してください。");
       return;
     }
     if (purgeConfirm !== "完全削除" || purgeReason.trim().length < 5) {
@@ -126,6 +128,11 @@ export default function AdminItemActions({
         {activeTransactionCount > 0 && (
           <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold leading-5 text-red-700">
             進行中の取引が {activeTransactionCount} 件あります。掲載停止や非表示を行う場合は、取引当事者への連絡状況も確認してください。
+          </div>
+        )}
+        {transactionCount > 0 && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold leading-5 text-slate-700">
+            関連取引履歴が {transactionCount} 件あります。証跡保持のため、この出品は完全削除できません。
           </div>
         )}
       </div>
@@ -199,7 +206,7 @@ export default function AdminItemActions({
         <button
           type="button"
           onClick={purge}
-          disabled={purging || activeTransactionCount > 0}
+          disabled={purging || transactionCount > 0}
           className="inline-flex items-center gap-2 rounded-xl bg-red-700 px-4 py-3 text-sm font-black text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {purging && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -9,6 +9,7 @@ import {
   Gauge,
   Gift,
   Inbox,
+  Database,
   ScrollText,
   Users,
   Eye,
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/admin/inquiries", label: "問い合わせ管理", icon: Inbox },
   { href: "/admin/restrictions", label: "BAN・制限管理", icon: Ban },
   { href: "/admin/rewards", label: "特典付与", icon: Gift },
+  { href: "/admin/data-retention", label: "保存期間管理", icon: Database },
   { href: "/admin/logs", label: "操作ログ", icon: ScrollText },
   { href: "/admin/errors", label: "エラー/ログ", icon: Activity },
 ];
