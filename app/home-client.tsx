@@ -265,7 +265,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const { user, avatarUrl, loading } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [mobileLayout, setMobileLayout] = useState<MobileHomeLayout>("list");
+  const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("list");
+  const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("list");
   const isAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   
   // 各アイテムの状態管理（サーバーのキャッシュを上書きできるようにState化）
@@ -449,7 +450,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .neq("seller_id", user.id)
           .order("created_at", { ascending: false });
 
-        const initialVisiblePopularCount = getMobileLayoutPageSize(mobileLayout);
+        const initialVisiblePopularCount = getMobileLayoutPageSize(popularMobileLayout);
         const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery.range(0, initialVisiblePopularCount - 1);
 
         if (!visiblePopularError && visiblePopular) {
@@ -608,7 +609,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     favoriteSyncTimersRef.current.set(id, timer);
   }, [user, loginPrompt]);
 
-  const loadMoreRecommended = async (requestedCount = getMobileLayoutPageSize(mobileLayout)) => {
+  const loadMoreRecommended = async (requestedCount = getMobileLayoutPageSize(recommendedMobileLayout)) => {
     if (loadingMoreRecommended || !hasMoreRecommended || !user) return;
 
     setLoadingMoreRecommended(true);
@@ -656,7 +657,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     }
   };
 
-  const loadMorePopular = async (requestedCount = getMobileLayoutPageSize(mobileLayout)) => {
+  const loadMorePopular = async (requestedCount = getMobileLayoutPageSize(popularMobileLayout)) => {
     if (loadingMore || !hasMore) return;
     
     setLoadingMore(true);
@@ -692,25 +693,27 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   };
 
   useEffect(() => {
-    const targetCount = getMobileLayoutPageSize(mobileLayout);
+    const recommendedTargetCount = getMobileLayoutPageSize(recommendedMobileLayout);
+    const popularTargetCount = getMobileLayoutPageSize(popularMobileLayout);
 
     if (
       user &&
       !isAdminHomeView &&
       recommendedItems.length > 0 &&
-      recommendedItems.length < targetCount &&
+      recommendedItems.length < recommendedTargetCount &&
       hasMoreRecommended &&
       !loadingMoreRecommended
     ) {
-      void loadMoreRecommended(targetCount - recommendedItems.length);
+      void loadMoreRecommended(recommendedTargetCount - recommendedItems.length);
     }
 
-    if (popularItems.length < targetCount && hasMore && !loadingMore) {
-      void loadMorePopular(targetCount - popularItems.length);
+    if (popularItems.length < popularTargetCount && hasMore && !loadingMore) {
+      void loadMorePopular(popularTargetCount - popularItems.length);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    mobileLayout,
+    recommendedMobileLayout,
+    popularMobileLayout,
     user?.id,
     isAdminHomeView,
     recommendedItems.length,
@@ -757,7 +760,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           popularQuery = popularQuery.neq("seller_id", user.id);
         }
 
-        const refreshCount = getMobileLayoutPageSize(mobileLayout);
+        const refreshCount = getMobileLayoutPageSize(popularMobileLayout);
         const { data: freshPopular, count: freshPopularCount } = await popularQuery.range(0, refreshCount - 1);
 
         if (freshPopular) {
@@ -779,7 +782,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     } else {
       setPullDistance(0);
     }
-  }, [pullDistance, isRefreshing, user, mobileLayout]);
+  }, [pullDistance, isRefreshing, user, popularMobileLayout]);
 
   return (
     <div
@@ -905,10 +908,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
-              <div className={`${getBoardSizeClass(recommendedItems.length, getMobileLayoutPageSize(mobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
+              <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
+              <div className={`${getBoardSizeClass(recommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
-                  mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+                  recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {recommendedItems.map((item, index) => {
                     const showLoadMoreHere = hasMoreRecommended && index === recommendedItems.length - 1;
@@ -920,7 +923,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         onToggleFavorite={toggleFavorite}
                         showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                         index={index}
-                        mobileLayout={mobileLayout}
+                        mobileLayout={recommendedMobileLayout}
                       />
                       {showLoadMoreHere && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
@@ -956,10 +959,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </h2>
           </div>
 
-          <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
-          <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(mobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
+          <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
+          <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
             <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
-              mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+              popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
             }`}>
               {displayedPopularItems.map((item, index) => {
                 const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
@@ -971,7 +974,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     onToggleFavorite={toggleFavorite}
                     showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                     index={index}
-                    mobileLayout={mobileLayout}
+                    mobileLayout={popularMobileLayout}
                   />
                   {showLoadMoreHere && (
                     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
