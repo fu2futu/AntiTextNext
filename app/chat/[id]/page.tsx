@@ -124,6 +124,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const userScrolledUpRef = useRef(false);
   const previousMessagesLengthRef = useRef(0);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const inputFocusedRef = useRef(false);
+  const composingRef = useRef(false);
+  const lastInputAtRef = useRef(0);
+
+  const isUserTyping = useCallback(() => {
+    return inputFocusedRef.current || composingRef.current || Date.now() - lastInputAtRef.current < 1200;
+  }, []);
 
   useEffect(() => {
     const from = new URLSearchParams(window.location.search).get("from");
@@ -285,6 +292,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
     // ポーリング: 3秒ごとにメッセージを取得
     pollingRef.current = setInterval(() => {
+      if (isUserTyping()) return;
       fetchMessages();
     }, 3000);
 
@@ -294,7 +302,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         clearInterval(pollingRef.current);
       }
     };
-  }, [params.id, user, otherUserId, fetchMessages, markMessagesAsRead]);
+  }, [params.id, user, otherUserId, fetchMessages, markMessagesAsRead, isUserTyping]);
 
   useEffect(() => {
     // 新しいメッセージが追加された場合のみスクロール
@@ -302,16 +310,16 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     previousMessagesLengthRef.current = messages.length;
 
     // ユーザーが上にスクロールしていない場合、または新しいメッセージがある場合のみスクロール
-    if (hasNewMessages && !userScrolledUpRef.current) {
+    if (hasNewMessages && !userScrolledUpRef.current && !isUserTyping()) {
       scrollToBottom();
     }
-  }, [messages]);
+  }, [messages, isUserTyping]);
 
   const scrollToBottom = (force?: boolean) => {
     if (force) {
       userScrolledUpRef.current = false;
     }
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: isUserTyping() ? "auto" : "smooth" });
   };
 
   const scrollToScheduleCandidates = useCallback(() => {
@@ -562,8 +570,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         }),
       }).catch(e => console.error(e));
 
-      // 送信成功後、すぐにメッセージを再取得
-      setTimeout(() => fetchMessages(), 300);
+      // Realtimeで基本反映されるため、入力再開中は送信後の再取得を遅らせる。
+      setTimeout(() => {
+        if (!isUserTyping()) {
+          fetchMessages();
+        }
+      }, 800);
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
       if (!textOverride) {
@@ -1339,7 +1351,21 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           <input
             ref={inputRef}
             type="text"
+            onFocus={() => {
+              inputFocusedRef.current = true;
+            }}
+            onBlur={() => {
+              inputFocusedRef.current = false;
+            }}
+            onCompositionStart={() => {
+              composingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              composingRef.current = false;
+              lastInputAtRef.current = Date.now();
+            }}
             onChange={(e) => {
+              lastInputAtRef.current = Date.now();
               const hasText = e.target.value.trim().length > 0;
               setHasDraftMessage((current) => current === hasText ? current : hasText);
             }}
