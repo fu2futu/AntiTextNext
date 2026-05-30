@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, ShieldCheck, XCircle, BookOpen, Star } from "lucide-react";
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { memo, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -277,9 +277,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             }
           } else if (payload.eventType === "UPDATE") {
             const updatedMsg = payload.new as Message;
-            setMessages(current =>
-              current.map(m => m.id === updatedMsg.id ? updatedMsg : m)
-            );
+            setMessages(current => {
+              let changed = false;
+              const nextMessages = current.map((message) => {
+                if (message.id !== updatedMsg.id) return message;
+                if (
+                  message.is_read === updatedMsg.is_read &&
+                  message.message === updatedMsg.message &&
+                  message.image_url === updatedMsg.image_url
+                ) {
+                  return message;
+                }
+                changed = true;
+                return updatedMsg;
+              });
+              return changed ? nextMessages : current;
+            });
           }
         }
       )
@@ -792,19 +805,28 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
   };
 
-  // アバターコンポーネント
-  const ChatAvatar = ({ isOwn }: { isOwn: boolean }) => {
-    const avatar = (
-      <RewardAvatar
-      src={isOwn ? avatarUrl : otherUserProfile?.avatar_url || null}
+  const ownChatAvatar = useMemo(() => (
+    <RewardAvatar
+      src={avatarUrl}
       alt="avatar"
       size={40}
-      listingCount={isOwn ? ownAvatarReward.listingCount : otherUserProfile?.listing_count ?? 0}
-      earlyRegistration={isOwn ? ownAvatarReward.earlyRegistration : otherUserProfile?.early_registration}
+      listingCount={ownAvatarReward.listingCount}
+      earlyRegistration={ownAvatarReward.earlyRegistration}
+    />
+  ), [avatarUrl, ownAvatarReward.earlyRegistration, ownAvatarReward.listingCount]);
+
+  const otherChatAvatar = useMemo(() => {
+    const avatar = (
+      <RewardAvatar
+        src={otherUserProfile?.avatar_url || null}
+        alt="avatar"
+        size={40}
+        listingCount={otherUserProfile?.listing_count ?? 0}
+        earlyRegistration={otherUserProfile?.early_registration}
       />
     );
 
-    if (isOwn || !otherUserId || otherUserProfile?.is_deactivated) {
+    if (!otherUserId || otherUserProfile?.is_deactivated) {
       return avatar;
     }
 
@@ -817,7 +839,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         {avatar}
       </Link>
     );
-  };
+  }, [
+    otherUserId,
+    otherUserProfile?.avatar_url,
+    otherUserProfile?.early_registration,
+    otherUserProfile?.is_deactivated,
+    otherUserProfile?.listing_count,
+  ]);
 
   if (authLoading || loading) {
     return (
@@ -895,6 +923,27 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       ? transaction.schedule_change_requested_by !== user?.id
       : isSeller
   );
+  const hasScheduleCandidates = !!transaction?.meetup_time_slots?.length && !transaction.final_meetup_time;
+  const isScheduleAnswerer = hasScheduleCandidates && !isPendingApproval && canConfirmSchedule;
+  const scheduleCandidateTone = isScheduleAnswerer
+    ? {
+        border: "border-red-200",
+        panel: "bg-red-50",
+        icon: "bg-red-100 text-red-500",
+        label: "text-red-600",
+        title: "text-red-950",
+        hover: "hover:bg-red-100/70 active:bg-red-100",
+        text: "候補日時を確認し、回答してください",
+      }
+    : {
+        border: "border-amber-200",
+        panel: "bg-amber-50",
+        icon: "bg-amber-100 text-amber-600",
+        label: "text-amber-700",
+        title: "text-amber-950",
+        hover: "hover:bg-amber-100/70 active:bg-amber-100",
+        text: "候補日時を相手が選択中です",
+      };
 
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     const touch = event.touches[0];
@@ -1089,182 +1138,114 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       )}
 
       <div className={`flex-1 overflow-hidden ${isPendingApproval ? "pt-[190px]" : "pt-[116px]"} flex flex-col`}>
+        {transaction?.final_meetup_time && (
+          <div className="flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
+            <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/20">
+                <CheckCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-green-600">受け渡し日時</p>
+                <p className="truncate text-sm font-black text-green-900">{transaction.final_meetup_time}</p>
+                <p className="truncate text-[10px] font-medium text-green-700/70">場所: {transaction.final_meetup_location}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {transaction && hasScheduleCandidates && (
+          <div className="relative z-30 flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
+            <div className={`relative rounded-2xl border ${scheduleCandidateTone.border} ${scheduleCandidateTone.panel} shadow-sm`}>
+              <button
+                type="button"
+                onClick={() => setIsScheduleCandidatesOpen((current) => !current)}
+                className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${scheduleCandidateTone.hover}`}
+              >
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${scheduleCandidateTone.icon}`}>
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${scheduleCandidateTone.label}`}>変更候補の確認</p>
+                  <p className={`truncate text-sm font-black ${scheduleCandidateTone.title}`}>
+                    {isScheduleCandidatesOpen ? "候補から日時を確認できます" : scheduleCandidateTone.text}
+                  </p>
+                </div>
+                <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
+              </button>
+
+              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-xl shadow-black/10 backdrop-blur-md transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[440px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
+                <div className="px-4 pb-4 pt-3">
+                  <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
+                    日程が決まり、こちらに記録していただくと予定管理に反映されます。
+                  </p>
+                  <p className="mb-3 rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">
+                    {isPendingApproval
+                      ? "承認前のため、ここでは日程確定はできません。候補を確認し、必要なら再提案してください。"
+                      : transaction.schedule_change_requested_by
+                        ? isScheduleChangeRequester
+                          ? "相手が承認するまでお待ちください。候補は以下の内容で提案されています。"
+                          : "提案された候補から行けそうな日時を選ぶと、変更が承認されます。"
+                        : "募集された候補から都合の良い日時を選択してください。"}
+                  </p>
+
+                  <div className="space-y-2">
+                    {transaction.meetup_time_slots.map((slot) => {
+                      const label = formatTimeSlotLabel(slot);
+
+                      return (
+                        <button
+                          key={slot}
+                          type="button"
+                          onClick={() => {
+                            if (canConfirmSchedule && !transaction.final_meetup_time) {
+                              handleFinalizeSchedule(slot, transaction.meetup_locations[0]);
+                            }
+                          }}
+                          disabled={isFinalizing || !canConfirmSchedule || !!transaction.final_meetup_time}
+                          className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-all disabled:opacity-50 ${canConfirmSchedule && !transaction.final_meetup_time
+                            ? "border-primary/25 bg-primary/5 text-primary active:scale-[0.99]"
+                            : "border-gray-200 bg-gray-50 text-gray-500"
+                            }`}
+                        >
+                          <span className="text-sm font-black">{label}</span>
+                          <Clock className="h-4 w-4 opacity-60" />
+                        </button>
+                      );
+                    })}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (canAdjustSchedule && !transaction.final_meetup_time) {
+                          handleReschedule();
+                        }
+                      }}
+                      disabled={isFinalizing || !canAdjustSchedule || !!transaction.final_meetup_time}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-center text-xs font-bold text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" />
+                      再度日程調整をお願いする
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Messages Area */}
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-4 py-4 scroll-smooth"
+          className="flex-1 overflow-y-auto px-4 py-4"
         >
-          {transaction?.final_meetup_time && (
-            <div className="sticky top-0 z-30 -mx-4 mb-4 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
-              <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/20">
-                  <CheckCheck className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-green-600">受け渡し日時</p>
-                  <p className="truncate text-sm font-black text-green-900">{transaction.final_meetup_time}</p>
-                  <p className="truncate text-[10px] font-medium text-green-700/70">場所: {transaction.final_meetup_location}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {transaction && transaction.meetup_time_slots?.length > 0 && !transaction.final_meetup_time && (
-            <div className="sticky top-0 z-30 -mx-4 mb-4 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
-              <div className="overflow-hidden rounded-2xl border border-primary/15 bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setIsScheduleCandidatesOpen((current) => !current)}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-primary/5 active:bg-primary/10"
-                >
-                  <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Calendar className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary">変更候補の確認</p>
-                    <p className="truncate text-sm font-black text-gray-900">
-                      {isScheduleCandidatesOpen
-                        ? "候補から日時を確認できます"
-                        : "タップして候補日時を表示"}
-                    </p>
-                  </div>
-                  <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
-                </button>
-
-                {isScheduleCandidatesOpen && (
-                  <div className="border-t border-gray-100 px-4 pb-4 pt-3">
-                    <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
-                      日程が決まり、こちらに記録していただくと予定管理に反映されます。
-                    </p>
-                    <p className="mb-3 rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">
-                      {isPendingApproval
-                        ? "承認前のため、ここでは日程確定はできません。候補を確認し、必要なら再提案してください。"
-                        : transaction.schedule_change_requested_by
-                          ? isScheduleChangeRequester
-                            ? "相手が承認するまでお待ちください。候補は以下の内容で提案されています。"
-                            : "提案された候補から行けそうな日時を選ぶと、変更が承認されます。"
-                          : "募集された候補から都合の良い日時を選択してください。"}
-                    </p>
-
-                    <div className="space-y-2">
-                      {transaction.meetup_time_slots.map((slot) => {
-                        const label = formatTimeSlotLabel(slot);
-
-                        return (
-                          <button
-                            key={slot}
-                            type="button"
-                            onClick={() => {
-                              if (canConfirmSchedule && !transaction.final_meetup_time) {
-                                handleFinalizeSchedule(slot, transaction.meetup_locations[0]);
-                              }
-                            }}
-                            disabled={isFinalizing || !canConfirmSchedule || !!transaction.final_meetup_time}
-                            className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition-all disabled:opacity-50 ${canConfirmSchedule && !transaction.final_meetup_time
-                              ? "border-primary/25 bg-primary/5 text-primary active:scale-[0.99]"
-                              : "border-gray-200 bg-gray-50 text-gray-500"
-                              }`}
-                          >
-                            <span className="text-sm font-black">{label}</span>
-                            <Clock className="h-4 w-4 opacity-60" />
-                          </button>
-                        );
-                      })}
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (canAdjustSchedule && !transaction.final_meetup_time) {
-                            handleReschedule();
-                          }
-                        }}
-                        disabled={isFinalizing || !canAdjustSchedule || !!transaction.final_meetup_time}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-center text-xs font-bold text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 disabled:opacity-30 disabled:hover:bg-transparent"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        再度日程調整をお願いする
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Messages List */}
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-white/80 text-sm">
-                メッセージを送信して取引を開始しましょう
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {messages.map((msg, index) => {
-                const isOwnMessage = msg.sender_id === user?.id;
-                const prevMsg = messages[index - 1];
-                const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex items-end gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}
-                  >
-                    {/* アバター */}
-                    <div className="flex-shrink-0" style={{ width: 40 }}>
-                      {showAvatar && (
-                        <ChatAvatar isOwn={isOwnMessage} />
-                      )}
-                    </div>
-
-                    {/* メッセージバブル */}
-                    <div className={`flex max-w-[55%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-                      <div
-                        className={`w-fit min-w-[50px] px-4 py-2.5 rounded-2xl shadow-sm border ${isOwnMessage
-                          ? "rounded-br-sm bg-sky-50 border-sky-200"
-                          : "rounded-bl-sm bg-sky-100 border-sky-300"
-                          }`}
-                      >
-                        {msg.image_url && (
-                          <div className="mb-2 -mx-2 -mt-1 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
-                            <Image
-                              src={msg.image_url}
-                              alt="添付画像"
-                              width={300}
-                              height={300}
-                              className="w-full h-auto object-cover max-h-[300px] hover:scale-105 transition-transform duration-500 cursor-pointer"
-                              onClick={() => window.open(msg.image_url!, '_blank')}
-                            />
-                          </div>
-                        )}
-                        <p className="whitespace-pre-wrap break-all text-[15px] leading-relaxed text-slate-800 font-medium">
-                          {msg.message}
-                        </p>
-                      </div>
-                      {/* 既読表示（自分のメッセージのみ） */}
-                      {isOwnMessage && (
-                        <div className="flex items-center gap-1 mt-1 mr-1">
-                          {msg.is_read ? (
-                            <span className="text-[10px] text-blue-200 flex items-center gap-0.5">
-                              <CheckCheck className="w-3 h-3" />
-                              既読
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-white/50 flex items-center gap-0.5">
-                              <Check className="w-3 h-3" />
-                              送信済み
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              <div ref={messagesEndRef} />
-            </div>
-          )}
+          <MessageList
+            messages={messages}
+            currentUserId={user?.id}
+            ownAvatar={ownChatAvatar}
+            otherAvatar={otherChatAvatar}
+            messagesEndRef={messagesEndRef}
+          />
         </div>
 
       {/* Cancellation Section */}
@@ -1561,6 +1542,112 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     </div>
   );
 }
+
+const MessageList = memo(function MessageList({
+  messages,
+  currentUserId,
+  ownAvatar,
+  otherAvatar,
+  messagesEndRef,
+}: {
+  messages: Message[];
+  currentUserId?: string;
+  ownAvatar: React.ReactNode;
+  otherAvatar: React.ReactNode;
+  messagesEndRef: React.RefObject<HTMLDivElement>;
+}) {
+  if (messages.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-white/80 text-sm">
+          メッセージを送信して取引を開始しましょう
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {messages.map((msg, index) => {
+        const prevMsg = messages[index - 1];
+        const isOwnMessage = msg.sender_id === currentUserId;
+        const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
+
+        return (
+          <MessageRow
+            key={msg.id}
+            message={msg}
+            isOwnMessage={isOwnMessage}
+            showAvatar={showAvatar}
+            avatar={isOwnMessage ? ownAvatar : otherAvatar}
+          />
+        );
+      })}
+      <div ref={messagesEndRef} />
+    </div>
+  );
+});
+
+const MessageRow = memo(function MessageRow({
+  message,
+  isOwnMessage,
+  showAvatar,
+  avatar,
+}: {
+  message: Message;
+  isOwnMessage: boolean;
+  showAvatar: boolean;
+  avatar: React.ReactNode;
+}) {
+  return (
+    <div className={`flex items-end gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
+      <div className="flex-shrink-0" style={{ width: 40 }}>
+        {showAvatar && avatar}
+      </div>
+
+      <div className={`flex max-w-[55%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+        <div
+          className={`w-fit min-w-[50px] px-4 py-2.5 rounded-2xl shadow-sm border ${isOwnMessage
+            ? "rounded-br-sm bg-sky-50 border-sky-200"
+            : "rounded-bl-sm bg-sky-100 border-sky-300"
+            }`}
+        >
+          {message.image_url && (
+            <div className="mb-2 -mx-2 -mt-1 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+              <Image
+                src={message.image_url}
+                alt="添付画像"
+                width={300}
+                height={300}
+                className="w-full h-auto object-cover max-h-[300px] hover:scale-105 transition-transform duration-500 cursor-pointer"
+                onClick={() => window.open(message.image_url!, "_blank")}
+              />
+            </div>
+          )}
+          <p className="whitespace-pre-wrap break-all text-[15px] leading-relaxed text-slate-800 font-medium">
+            {message.message}
+          </p>
+        </div>
+
+        {isOwnMessage && (
+          <div className="flex items-center gap-1 mt-1 mr-1">
+            {message.is_read ? (
+              <span className="text-[10px] text-blue-200 flex items-center gap-0.5">
+                <CheckCheck className="w-3 h-3" />
+                既読
+              </span>
+            ) : (
+              <span className="text-[10px] text-white/50 flex items-center gap-0.5">
+                <Check className="w-3 h-3" />
+                送信済み
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 // --- Sub-components for Schedule Adjustment ---
 
