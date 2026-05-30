@@ -52,14 +52,14 @@ export default async function Mypage() {
         { data: badges },
         { data: rewardOverride }
     ] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", userId).single(),
+        supabase.from("profiles").select("user_id,nickname,department,avatar_url,created_at").eq("user_id", userId).single(),
         supabase.from("ratings").select("score").eq("rated_id", userId),
-        supabase.from("favorites").select("item_id, items(*)").eq("user_id", userId),
-        supabase.from("items").select("*").eq("seller_id", userId),
+        supabase.from("favorites").select("item_id, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", userId),
+        supabase.from("items").select("id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId),
         supabase.from("transactions").select("item_id, status").eq("seller_id", userId),
         supabase
             .from("transactions")
-            .select("item_id, status, items(*)")
+            .select("item_id, status, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)")
             .eq("buyer_id", userId),
         (supabase as any).from("reward_settings").select("*").eq("id", "early_registration").single(),
         (supabase as any).from("user_badges").select("id,badge_type,badge_color,label,note").eq("user_id", userId).is("revoked_at", null).order("created_at", { ascending: false }),
@@ -88,7 +88,9 @@ export default async function Mypage() {
     );
 
     // Extract favorite items
-    const favoriteItems = (favoritesData || []).map(f => f.items).filter(Boolean);
+    const favoriteItems = (favoritesData || [])
+        .map(f => f.items)
+        .filter((item: any) => item && ["available", "trading", "transaction_pending"].includes(item.status));
 
     return (
         <MypageClient 

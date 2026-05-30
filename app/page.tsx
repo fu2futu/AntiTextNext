@@ -10,8 +10,8 @@ export default async function HomePage() {
   // みんなの出品（新着順 上位15件）
   const { data: popularData, error: popularError } = await supabase
     .from("items")
-    .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
-    .eq("status", "available")
+    .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
+    .in("status", ["available", "trading"])
     .order("created_at", { ascending: false })
     .range(0, 14);
 
@@ -19,7 +19,7 @@ export default async function HomePage() {
   const { count: totalCount } = await supabase
     .from("items")
     .select("*", { count: "exact", head: true })
-    .eq("status", "available");
+    .in("status", ["available", "trading"]);
 
   if (popularError) {
     console.error("Error loading popular items:", popularError);

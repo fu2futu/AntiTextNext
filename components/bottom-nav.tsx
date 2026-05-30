@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -15,6 +15,8 @@ export function BottomNav() {
   const { t } = useI18n();
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasUnreadMessages = unreadMessageCount > 0;
 
   // 未読通知数の取得
@@ -31,7 +33,7 @@ export function BottomNav() {
         .eq("is_read", false);
 
       if (!error && count !== null) {
-        setUnreadCount(count);
+        setUnreadCount((current) => current === count ? current : count);
       }
     } catch {
       // エラー時は無視
@@ -69,12 +71,22 @@ export function BottomNav() {
         const activeUnreadMessages = ((unreadMessages || []) as any[]).filter((message) =>
           activeMessageKeys.has(`${message.item_id}:${message.sender_id}`)
         );
-        setUnreadMessageCount(activeUnreadMessages.length);
+        setUnreadMessageCount((current) => current === activeUnreadMessages.length ? current : activeUnreadMessages.length);
       }
     } catch {
       // エラー時は無視
     }
   }, [user]);
+
+  const scheduleUnreadCountRefresh = useCallback(() => {
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+    notificationTimerRef.current = setTimeout(fetchUnreadCount, 250);
+  }, [fetchUnreadCount]);
+
+  const scheduleUnreadMessageRefresh = useCallback(() => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    messageTimerRef.current = setTimeout(fetchUnreadMessages, 250);
+  }, [fetchUnreadMessages]);
 
   useEffect(() => {
     fetchUnreadCount();
@@ -93,15 +105,16 @@ export function BottomNav() {
           filter: `user_id=eq.${user.id}`
         },
         () => {
-          fetchUnreadCount();
+          scheduleUnreadCountRefresh();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
     };
-  }, [user, fetchUnreadCount]);
+  }, [user, fetchUnreadCount, scheduleUnreadCountRefresh]);
 
   useEffect(() => {
     fetchUnreadMessages();
@@ -119,15 +132,16 @@ export function BottomNav() {
           filter: `receiver_id=eq.${user.id}`
         },
         () => {
-          fetchUnreadMessages();
+          scheduleUnreadMessageRefresh();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     };
-  }, [user, fetchUnreadMessages]);
+  }, [user, fetchUnreadMessages, scheduleUnreadMessageRefresh]);
 
   // おしらせページに移動した時にカウントをリフレッシュ
   useEffect(() => {

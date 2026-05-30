@@ -24,6 +24,7 @@ type Item = {
   image_storage_provider?: string | null;
   favorite_count?: number;
   seller_id?: string;
+  status?: string;
 };
 
 // アイテムカードをメモ化して再レンダリングを防止
@@ -40,15 +41,26 @@ const ItemCard = memo(function ItemCard({
   showLoginPrompt: boolean;
   index: number;
 }) {
+  const isTrading = item.status === "trading" || item.status === "transaction_pending";
+
   return (
-    <Link href={`/product/${item.id}`}>
+    <Link href={`/product/${item.id}`} className="block h-full">
       <div 
-        className="bg-white rounded-2xl border border-gray-200 p-4 shadow-md hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300 animate-slide-in-up"
+        className={`relative h-full rounded-2xl border p-4 shadow-md transition-all duration-300 animate-slide-in-up ${
+          isTrading
+            ? "border-gray-200 bg-gray-100 hover:shadow-lg"
+            : "border-gray-200 bg-white hover:shadow-xl hover:border-primary/30 hover:-translate-y-1"
+        }`}
         style={{ animationDelay: `${index * 80}ms` }}
       >
+        {isTrading && (
+          <div className="absolute right-3 top-3 z-10 rounded-full bg-gray-700 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
+            取引中
+          </div>
+        )}
         <div className="flex items-start gap-4">
           {/* サムネイル画像 */}
-          <div className="w-20 h-20 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden">
+          <div className={`w-20 h-20 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden ${isTrading ? "grayscale opacity-70" : ""}`}>
             {getItemImageUrl(item, "front", "thumbnail") ? (
               <Image
                 src={getItemImageUrl(item, "front", "thumbnail")!}
@@ -67,10 +79,10 @@ const ItemCard = memo(function ItemCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold text-gray-900 mb-1 line-clamp-2">
+            <h3 className={`text-base font-bold mb-1 line-clamp-2 ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
               {item.title}
             </h3>
-            <p className="text-xl font-bold gradient-text-price">
+            <p className={`text-xl font-bold ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
               ¥{item.selling_price.toLocaleString()}
             </p>
           </div>
@@ -242,7 +254,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             .from("items")
             .select("id, favorites(count)")
             .in("id", itemIds)
-            .eq("status", "available") // 削除されたアイテムや非公開アイテムを除外
+            .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
         );
       }
 
@@ -309,8 +321,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         
         let query = supabase
           .from("items")
-            .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)", { count: 'exact' })
-          .eq("status", "available")
+            .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)", { count: 'exact' })
+          .in("status", ["available", "trading"])
           .neq("seller_id", user.id)
           .eq("profiles.department", department);
         
@@ -458,8 +470,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       if (profile) {
         let query = supabase
           .from("items")
-          .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)")
-          .eq("status", "available")
+          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)")
+          .in("status", ["available", "trading"])
           .neq("seller_id", user.id)
           .eq("profiles.department", (profile as any).department);
         
@@ -497,8 +509,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       const currentLength = popularItems.length;
       const { data, error } = await supabase
         .from("items")
-        .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
-        .eq("status", "available")
+        .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
+        .in("status", ["available", "trading"])
         .order("created_at", { ascending: false })
         .range(currentLength, currentLength + 14);
 
@@ -547,8 +559,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         // みんなの出品を再取得
         const { data: freshPopular } = await supabase
           .from("items")
-          .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
-          .eq("status", "available")
+          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
+          .in("status", ["available", "trading"])
           .order("created_at", { ascending: false })
           .range(0, 14);
 
@@ -695,9 +707,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {recommendedItems.map((item, index) => (
-                  <div key={item.id}>
+                  <div key={item.id} className="min-w-0">
                     <ItemCard
                       item={item}
                       isFavorite={favoriteSet.has(item.id)}
@@ -745,9 +757,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </h2>
           </div>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {displayedPopularItems.map((item, index) => (
-              <div key={`popular-${item.id}`}>
+              <div key={`popular-${item.id}`} className="min-w-0">
                 <ItemCard
                   item={item}
                   isFavorite={favoriteSet.has(item.id)}

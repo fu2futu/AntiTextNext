@@ -31,6 +31,7 @@
     --bottom-nav-listing-lift: -0.6rem;
     --bottom-nav-listing-label-offset: 0.35rem;
     --bottom-nav-active-dot-bottom: 0.35rem;
+    --app-top-offset: 0px;
   }
 }
 

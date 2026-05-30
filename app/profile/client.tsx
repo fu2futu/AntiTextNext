@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -76,6 +76,8 @@ export default function MypageClient({
     const [activeTab, setActiveTab] = useState<"past" | "listing" | null>(null);
     const [favoriteItems, setFavoriteItems] = useState<Item[]>(initialFavoriteItems);
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
+    const favoriteRefreshInFlightRef = useRef(false);
+    const lastFavoriteRefreshAtRef = useRef(0);
 
     useEffect(() => {
         setFavoriteItems(initialFavoriteItems);
@@ -85,18 +87,38 @@ export default function MypageClient({
         setShowRewardsTutorial(false);
     };
 
-    const refreshFavoriteItems = async () => {
+    const refreshFavoriteItems = useCallback(async () => {
         if (!user) return;
+        const now = Date.now();
+        if (favoriteRefreshInFlightRef.current || now - lastFavoriteRefreshAtRef.current < 2500) return;
 
-        const { data, error } = await supabase
-            .from("favorites")
-            .select("item_id, items(*)")
-            .eq("user_id", user.id);
+        favoriteRefreshInFlightRef.current = true;
+        lastFavoriteRefreshAtRef.current = now;
 
-        if (!error && data) {
-            setFavoriteItems((data as any[]).map(f => f.items).filter(Boolean));
+        try {
+            const { data, error } = await supabase
+                .from("favorites")
+                .select("item_id, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)")
+                .eq("user_id", user.id);
+
+            if (!error && data) {
+                const nextItems = (data as any[])
+                    .map(f => f.items)
+                    .filter((item: any) => item && ["available", "trading", "transaction_pending"].includes(item.status));
+                setFavoriteItems((current) => {
+                    if (
+                        current.length === nextItems.length &&
+                        current.every((item, index) => item.id === nextItems[index]?.id && item.status === nextItems[index]?.status)
+                    ) {
+                        return current;
+                    }
+                    return nextItems;
+                });
+            }
+        } finally {
+            favoriteRefreshInFlightRef.current = false;
         }
-    };
+    }, [user]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -108,32 +130,22 @@ export default function MypageClient({
     useEffect(() => {
         if (!user) return;
 
-        refreshFavoriteItems();
-        const delayedRefresh = setTimeout(refreshFavoriteItems, 450);
-
         const refreshWhenVisible = () => {
             if (document.visibilityState === "visible") {
                 refreshFavoriteItems();
-                setTimeout(refreshFavoriteItems, 450);
             }
         };
 
-        const refreshTwice = () => {
-            refreshFavoriteItems();
-            setTimeout(refreshFavoriteItems, 450);
-        };
-
-        window.addEventListener("focus", refreshTwice);
-        window.addEventListener("pageshow", refreshTwice);
+        window.addEventListener("focus", refreshFavoriteItems);
+        window.addEventListener("pageshow", refreshFavoriteItems);
         document.addEventListener("visibilitychange", refreshWhenVisible);
 
         return () => {
-            clearTimeout(delayedRefresh);
-            window.removeEventListener("focus", refreshTwice);
-            window.removeEventListener("pageshow", refreshTwice);
+            window.removeEventListener("focus", refreshFavoriteItems);
+            window.removeEventListener("pageshow", refreshFavoriteItems);
             document.removeEventListener("visibilitychange", refreshWhenVisible);
         };
-    }, [user]);
+    }, [user, refreshFavoriteItems]);
 
     if (authLoading) {
         return <ProfileSkeleton />;
@@ -373,10 +385,10 @@ export default function MypageClient({
                                     ) : (
                                         <BookOpen className="w-8 h-8 text-gray-200" />
                                     )}
-                                    {item.status !== "available" && (
+                                    {(item.status === "trading" || item.status === "transaction_pending") && (
                                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <span className="bg-red-500 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg tracking-wider">
-                                                SOLD
+                                            <span className="bg-gray-700 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg tracking-wider">
+                                                取引中
                                             </span>
                                         </div>
                                     )}

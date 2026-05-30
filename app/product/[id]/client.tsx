@@ -298,8 +298,8 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const isReserved = currentStatus === "reserved";
   const isAvailable = currentStatus === "available";
 
-  // 他のユーザーが予約中または相談中の商品にアクセスした場合
-  const isReservedByOther = (isReserved || isPending) && !isOwnItem;
+  // 購入手続き中の一時ロックだけはブロックする。相談中の商品は詳細閲覧のみ許可する。
+  const isReservedByOther = isReserved && !isOwnItem;
 
   const scrollToImage = (index: number) => {
     const carousel = carouselRef.current;

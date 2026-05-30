@@ -30,6 +30,7 @@ export type Item = {
   image_storage_provider?: string | null;
   //condition: string;
   favorite_count?: number;
+  status?: string;
 };
 
 type Suggestion = {
@@ -100,8 +101,8 @@ function SearchContent() {
         searches.map(async (searchTerm) => {
           const { data, error } = await supabase
             .from("items")
-            .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)")
-            .eq("status", "available")
+            .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)")
+            .in("status", ["available", "trading"])
             .ilike("title", `%${searchTerm}%`)
             .order("created_at", { ascending: false })
             .limit(20);
@@ -173,7 +174,7 @@ function SearchContent() {
             const { data, error } = await supabase
               .from("items")
               .select("id, title")
-              .eq("status", "available")
+              .in("status", ["available", "trading"])
               .ilike("title", `%${searchTerm}%`)
               .limit(5);
 
@@ -426,12 +427,20 @@ function SearchContent() {
               {results.length}件の結果
             </h3>
             <div className="relative ml-2 space-y-4 border-l-2 border-primary/15 pl-5">
-              {results.map((item) => (
+              {results.map((item) => {
+                const isTrading = item.status === "trading" || item.status === "transaction_pending";
+
+                return (
                 <Link key={item.id} href={`/product/${item.id}`} prefetch={false}>
-                  <div className="relative bg-white rounded-2xl border border-gray-200 p-4 shadow-md hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300">
+                  <div className={`relative rounded-2xl border p-4 shadow-md transition-all duration-300 ${isTrading ? "border-gray-200 bg-gray-100" : "border-gray-200 bg-white hover:shadow-xl hover:border-primary/30 hover:-translate-y-1"}`}>
                     <div className="absolute -left-[31px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-white bg-primary/30 shadow-sm" />
+                    {isTrading && (
+                      <div className="absolute right-3 top-3 rounded-full bg-gray-700 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
+                        取引中
+                      </div>
+                    )}
                     <div className="flex items-center justify-between gap-4">
-                      <div className="h-20 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 border border-gray-100 shadow-sm">
+                      <div className={`h-20 w-14 flex-shrink-0 overflow-hidden rounded-xl bg-gray-100 border border-gray-100 shadow-sm ${isTrading ? "grayscale opacity-70" : ""}`}>
                         {getItemImageUrl(item, "front", "thumbnail") ? (
                           <Image
                             src={getItemImageUrl(item, "front", "thumbnail")!}
@@ -452,10 +461,10 @@ function SearchContent() {
                         {/* <div className="text-xs font-medium text-gray-500 mb-1">
                           {item.condition}
                         </div> */}
-                        <h3 className="text-lg font-bold text-gray-900 mb-2 truncate">
+                        <h3 className={`text-lg font-bold mb-2 truncate ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
                           {item.title}
                         </h3>
-                        <p className="text-xl font-bold text-primary">
+                        <p className={`text-xl font-bold ${isTrading ? "text-gray-500" : "text-primary"}`}>
                           ¥{item.selling_price.toLocaleString()}
                         </p>
                       </div>
@@ -483,7 +492,7 @@ function SearchContent() {
                     </div>
                   </div>
                 </Link>
-              ))}
+              )})}
             </div>
           </>
         ) : hasSearched ? (

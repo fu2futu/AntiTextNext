@@ -76,7 +76,7 @@ export default function RootLayout({
             <MobileGestureGuard />
             <RouteScrollReset />
             <ServiceWorkerRegister />
-            <main className="min-h-screen pb-[calc(var(--bottom-nav-height)+var(--bottom-nav-safe-padding-min)+env(safe-area-inset-bottom))]">{children}</main>
+            <main className="min-h-screen pt-[var(--app-top-offset)] pb-[calc(var(--bottom-nav-height)+var(--bottom-nav-safe-padding-min)+env(safe-area-inset-bottom))]">{children}</main>
             <BottomNav />
           </AuthProvider>
         </Providers>

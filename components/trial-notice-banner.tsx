@@ -19,25 +19,38 @@ export default function TrialNoticeBanner() {
   }, []);
 
   useEffect(() => {
+    if (pathname?.startsWith("/chat/")) {
+      document.documentElement.style.setProperty("--app-top-offset", "0px");
+      return;
+    }
+
     const banner = bannerRef.current;
     if (!banner) return;
 
     const updateHeight = () => {
-      setBannerHeight(banner.getBoundingClientRect().height);
+      const nextHeight = banner.getBoundingClientRect().height;
+      setBannerHeight(nextHeight);
+      document.documentElement.style.setProperty("--app-top-offset", `${nextHeight}px`);
     };
 
     updateHeight();
 
     if (typeof ResizeObserver === "undefined") {
       window.addEventListener("resize", updateHeight);
-      return () => window.removeEventListener("resize", updateHeight);
+      return () => {
+        window.removeEventListener("resize", updateHeight);
+        document.documentElement.style.setProperty("--app-top-offset", "0px");
+      };
     }
 
     const observer = new ResizeObserver(updateHeight);
     observer.observe(banner);
 
-    return () => observer.disconnect();
-  }, [collapsed, ready]);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.setProperty("--app-top-offset", "0px");
+    };
+  }, [collapsed, ready, pathname]);
 
   const toggle = () => {
     const next = !collapsed;
@@ -77,7 +90,7 @@ export default function TrialNoticeBanner() {
           </div>
         </div>
       </div>
-      <div aria-hidden="true" style={{ height: bannerHeight }} />
+      <div aria-hidden="true" className="hidden" style={{ height: bannerHeight }} />
     </>
   );
 }

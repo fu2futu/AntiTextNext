@@ -60,7 +60,7 @@ export default function TransactionsClient({
     const { user, avatarUrl, loading: authLoading } = useAuth();
     const { t } = useI18n();
     const [profile, setProfile] = useState<Profile | null>(initialProfile);
-    const [activeTab, setActiveTab] = useState<"upcoming" | "adjusting" | "requested">("upcoming");
+    const [activeTab, setActiveTab] = useState<"upcoming" | "adjusting">("upcoming");
     const [activeItems, setActiveItems] = useState<TransactionItem[]>(initialActiveItems);
     const [profileAvatar, setProfileAvatar] = useState({
         listingCount: initialListingCount,
@@ -314,9 +314,8 @@ export default function TransactionsClient({
         };
     }, [user, loadData, initialCheckDone]);
 
-    const requestedItems = activeItems.filter(item => item.transactionStatus === "requested");
     const adjustingItems = activeItems.filter(item =>
-        ["accepted", "scheduling", "pending"].includes(item.transactionStatus || "") && !item.final_meetup_time
+        ["requested", "pending_approval", "accepted", "scheduling", "pending"].includes(item.transactionStatus || "") && !item.final_meetup_time
     );
     const confirmedItems = activeItems.filter(item =>
         item.transactionStatus === "scheduled" || item.final_meetup_time
@@ -380,12 +379,7 @@ export default function TransactionsClient({
                         >
                             {item.isBuyer ? "購入" : "出品"}
                         </span>
-                        {item.transactionStatus === "requested" ? (
-                            <span className="text-[10px] uppercase font-black px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-full flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {t('chat.status_requested')}
-                            </span>
-                        ) : item.transactionStatus === "awaiting_rating" ? (
+                        {item.transactionStatus === "awaiting_rating" ? (
                             <span className="text-[10px] uppercase font-black px-2.5 py-1 bg-purple-50 text-purple-600 border border-purple-100 rounded-full flex items-center gap-1">
                                 <Star className="w-3 h-3" />
                                 評価待ち
@@ -518,15 +512,6 @@ export default function TransactionsClient({
                     >
                         日程調整中 ({adjustingItems.length})
                     </button>
-                    <button
-                        onClick={() => setActiveTab("requested")}
-                        className={`flex-1 py-4 text-sm font-black transition-all rounded-[24px] ${activeTab === "requested"
-                            ? "gradient-btn-tab"
-                            : "text-gray-400 hover:text-gray-600"
-                            }`}
-                    >
-                        承認前 ({requestedItems.length})
-                    </button>
                 </div>
             </div>
 
@@ -570,17 +555,6 @@ export default function TransactionsClient({
                             </div>
                         ) : (
                             adjustingItems.map((item, idx) => renderItem(item, idx))
-                        )}
-                    </div>
-                ) : activeTab === "requested" ? (
-                    <div className="space-y-4">
-                        {requestedItems.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-[40px] shadow-sm border border-gray-100">
-                                <Clock className="w-20 h-20 text-gray-100 mx-auto mb-4" />
-                                <p className="text-gray-400 font-black">承認待ちのリクエストはありません</p>
-                            </div>
-                        ) : (
-                            requestedItems.map((item, idx) => renderItem(item, idx))
                         )}
                     </div>
                 ) : null}

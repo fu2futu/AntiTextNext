@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, RefreshCw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, ShieldCheck, XCircle, BookOpen, Star } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, RefreshCw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, XCircle, BookOpen, Star } from "lucide-react";
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -694,9 +694,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (transaction.final_meetup_time) return;
     setIsFinalizing(true);
     try {
-      const nextStatus = ['requested', 'pending_approval'].includes(transaction.status)
-        ? transaction.status
-        : 'scheduling';
+      const nextStatus = 'scheduling';
 
       // 既存候補を取り下げてから、新しい候補を入力できる状態にする。
       const { error } = await (supabase.from("transactions") as any)
@@ -893,8 +891,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   }
 
   const transactionStatusLabel = {
-    requested: "承認待ち",
-    pending_approval: "承認待ち",
+    requested: "相談中",
+    pending_approval: "相談中",
     accepted: "相談中",
     scheduling: "相談中",
     scheduled: "予定確定済み",
@@ -915,12 +913,11 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     sold: "取引完了",
   }[item.status] || item.status);
 
-  const isPendingApproval = transaction?.status === 'requested' || transaction?.status === 'pending_approval';
   const isCancelled = transaction?.status === 'cancelled';
   const isAwaitingRating = transaction?.status === 'awaiting_rating';
   const isDeclined = ['rejected', 'declined', 'expired', 'auto_closed'].includes(transaction?.status || '');
   const isClosedTransaction = isCancelled || isDeclined || transaction?.status === 'completed';
-  const canUseTradeActions = ['accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
+  const canUseTradeActions = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canAdjustSchedule = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canCancelTransaction = canUseTradeActions && !isDeclined && transaction?.status !== 'completed' && transaction?.status !== 'cancelled';
 
@@ -932,7 +929,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       : isSeller
   );
   const hasScheduleCandidates = !!transaction?.meetup_time_slots?.length && !transaction.final_meetup_time;
-  const isScheduleAnswerer = hasScheduleCandidates && !isPendingApproval && canConfirmSchedule;
+  const isScheduleAnswerer = hasScheduleCandidates && canConfirmSchedule;
   const scheduleCandidateTone = isScheduleAnswerer
     ? {
         border: "border-red-200",
@@ -993,85 +990,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </div>
       </header>
 
-      {/* Approval Bar (only for pending_approval transactions) */}
-      {isPendingApproval && (
-        <div className="fixed top-16 left-0 right-0 bg-amber-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-amber-200">
-          {isSeller ? (
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <ShieldCheck className="w-4 h-4 text-amber-600" />
-                <span className="text-xs font-black text-amber-700">購入リクエストが届いています</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (isApproving || !transaction) return;
-                    setIsApproving(true);
-                    try {
-                      const { error } = await (supabase as any).rpc('accept_purchase_request', {
-                        target_transaction_id: transaction.id,
-                      });
-                      if (error) throw error;
-                      setTransaction(prev => prev ? { ...prev, status: 'accepted' } : prev);
-                      setItem(prev => prev ? { ...prev, status: 'trading' } : prev);
-
-                      // メール通知APIを非同期で呼び出し
-                      fetch("/api/notify/transaction", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          action: "approve",
-                          itemId: item.id,
-                          receiverId: transaction.buyer_id,
-                          extraData: { transactionId: transaction.id },
-                        }),
-                      }).catch(e => console.error(e));
-
-                    } catch (err: any) {
-                      alert('承認に失敗しました: ' + err.message);
-                    } finally {
-                      setIsApproving(false);
-                    }
-                  }}
-                  disabled={isApproving}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 rounded-xl transition-all text-sm disabled:opacity-50"
-                >
-                  {isApproving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" />承認する</>}
-                </button>
-                <button
-                  onClick={() => setIsDeclineModalOpen(true)}
-                  disabled={isApproving}
-                  className="flex-1 flex items-center justify-center gap-1.5 bg-white hover:bg-red-50 text-red-500 border-2 border-red-200 font-bold py-2.5 rounded-xl transition-all text-sm disabled:opacity-50"
-                >
-                  <XCircle className="w-4 h-4" />辞退する
-                </button>
-              </div>
-              <button
-                onClick={() => setIsScheduleModalOpen(true)}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 bg-white hover:bg-amber-100 text-amber-700 border-2 border-amber-200 font-bold py-2.5 rounded-xl transition-all text-sm"
-              >
-                <Calendar className="w-4 h-4" />
-                日程候補を提案・変更
-              </button>
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <span className="text-xs font-bold text-amber-700">出品者の承認を待っています...</span>
-              </div>
-              <button
-                onClick={() => setIsScheduleModalOpen(true)}
-                className="mt-2 w-full flex items-center justify-center gap-1.5 bg-white hover:bg-amber-100 text-amber-700 border-2 border-amber-200 font-bold py-2.5 rounded-xl transition-all text-sm"
-              >
-                <Calendar className="w-4 h-4" />
-                日程候補を提案・変更
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Declined Banner */}
       {isDeclined && (
         <div className="fixed top-16 left-0 right-0 bg-red-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-red-200">
@@ -1119,7 +1037,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </div>
       )}
 
-      {/* Action Bar (Below Header) — hide when pending_approval or declined */}
+      {/* Action Bar (Below Header) */}
       {canUseTradeActions && !isDeclined && !isCancelled && (
       <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 z-40 flex gap-1.5 border-b border-gray-100">
         <button
@@ -1155,7 +1073,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       </div>
       )}
 
-      <div className={`flex-1 overflow-hidden ${isPendingApproval ? "pt-[190px]" : "pt-[116px]"} flex flex-col`}>
+      <div className="flex-1 overflow-hidden pt-[116px] flex flex-col">
         {transaction?.final_meetup_time && (
           <div className="flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
             <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
@@ -1197,9 +1115,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                     日程が決まり、こちらに記録していただくと予定管理に反映されます。
                   </p>
                   <p className="mb-3 rounded-xl bg-gray-50 px-3 py-2 text-xs font-bold text-gray-500">
-                    {isPendingApproval
-                      ? "承認前のため、ここでは日程確定はできません。候補を確認し、必要なら再提案してください。"
-                      : transaction.schedule_change_requested_by
+                    {transaction.schedule_change_requested_by
                         ? isScheduleChangeRequester
                           ? "相手が承認するまでお待ちください。候補は以下の内容で提案されています。"
                           : "提案された候補から行けそうな日時を選ぶと、変更が承認されます。"
@@ -1350,14 +1266,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       {/* Schedule Adjustment Modal */}
       <ScheduleAdjustmentModal
         isOpen={isScheduleModalOpen}
-        allowRegister={canUseTradeActions && !isPendingApproval}
+        allowRegister={canUseTradeActions}
         onClose={() => setIsScheduleModalOpen(false)}
         onConfirm={async (slots: string[], locations: string[]) => {
           if (!transaction || !user) return;
           setIsFinalizing(true);
           const previousTime = transaction.final_meetup_time;
           const previousLocation = transaction.final_meetup_location;
-          const nextStatus = isPendingApproval ? transaction.status : 'scheduling';
+          const nextStatus = 'scheduling';
           try {
             const { error } = await (supabase.from("transactions") as any)
               .update({
@@ -1389,9 +1305,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               ? `変更前:\n・日時: ${previousTime}\n・場所: ${previousLocation || "未設定"}`
               : "変更前:\n・まだ受け渡し日時は決まっていません";
             await handleSend(
-              isPendingApproval
-                ? `【日程候補の再提案】\n\n${previousSchedule}\n\n変更後の候補:\n${formatScheduleCandidates(slots, locations)}\n\nこの候補で実際に取引できそうか、チャットで相談してください。`
-                : `【受け渡し日時の変更提案】\n\n${previousSchedule}\n\n変更後の候補:\n${formatScheduleCandidates(slots, locations)}\n\nこの候補で問題ないか、相手の方はチャット上部の候補から行けそうな日時を選んで承認してください。`
+              `【受け渡し日時の変更提案】\n\n${previousSchedule}\n\n変更後の候補:\n${formatScheduleCandidates(slots, locations)}\n\nこの候補で問題ないか、相手の方はチャット上部の候補から行けそうな日時を選んで承認してください。`
             );
           } catch (err: any) {
             alert("日程の変更に失敗しました: " + err.message);
