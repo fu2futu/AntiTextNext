@@ -31,6 +31,16 @@ const HOME_ITEM_PAGE_SIZE = 7;
 type MobileHomeLayout = "list" | "square" | "image";
 
 const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
+const getMobileLayoutPageSize = (layout: MobileHomeLayout) => {
+  if (layout === "image") return 18;
+  if (layout === "square") return 10;
+  return HOME_ITEM_PAGE_SIZE;
+};
+
+const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
+  itemCount < targetCount && !hasMore
+    ? "max-h-[70vh]"
+    : "h-[29rem] max-h-[70vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -66,6 +76,39 @@ function MobileLayoutSwitcher({
         })}
       </div>
     </div>
+  );
+}
+
+function LoadMoreButton({
+  loading,
+  onClick,
+  label,
+  loadingLabel,
+}: {
+  loading: boolean;
+  onClick: () => void;
+  label: string;
+  loadingLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loading}
+      className="inline-flex h-10 w-32 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
+    >
+      {loading ? (
+        <>
+          <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
+          {loadingLabel}
+        </>
+      ) : (
+        <>
+          <ChevronDown className="h-4 w-4" />
+          {label}
+        </>
+      )}
+    </button>
   );
 }
 
@@ -404,10 +447,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
           .neq("seller_id", user.id)
-          .order("created_at", { ascending: false })
-          .range(0, HOME_ITEM_PAGE_SIZE - 1);
+          .order("created_at", { ascending: false });
 
-        const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery;
+        const initialVisiblePopularCount = getMobileLayoutPageSize(mobileLayout);
+        const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery.range(0, initialVisiblePopularCount - 1);
 
         if (!visiblePopularError && visiblePopular) {
           if (cancelled || requestId !== requestIdRef.current) return;
@@ -565,7 +608,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     favoriteSyncTimersRef.current.set(id, timer);
   }, [user, loginPrompt]);
 
-  const loadMoreRecommended = async () => {
+  const loadMoreRecommended = async (requestedCount = getMobileLayoutPageSize(mobileLayout)) => {
     if (loadingMoreRecommended || !hasMoreRecommended || !user) return;
 
     setLoadingMoreRecommended(true);
@@ -593,7 +636,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
         const { data, error } = await query
           .order("created_at", { ascending: false })
-          .range(currentLength, currentLength + HOME_ITEM_PAGE_SIZE - 1);
+          .range(currentLength, currentLength + requestedCount - 1);
 
         if (!error && data) {
           const newItems = (data as any[]).map(item => ({
@@ -601,7 +644,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0
           })) as Item[];
           setRecommendedItems(prev => [...prev, ...newItems]);
-          if (currentLength + newItems.length >= totalRecommendedCount) {
+          if (currentLength + newItems.length >= totalRecommendedCount || newItems.length < requestedCount) {
             setHasMoreRecommended(false);
           }
         }
@@ -613,7 +656,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     }
   };
 
-  const loadMorePopular = async () => {
+  const loadMorePopular = async (requestedCount = getMobileLayoutPageSize(mobileLayout)) => {
     if (loadingMore || !hasMore) return;
     
     setLoadingMore(true);
@@ -629,7 +672,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         query = query.neq("seller_id", user.id);
       }
 
-      const { data, error } = await query.range(currentLength, currentLength + HOME_ITEM_PAGE_SIZE - 1);
+      const { data, error } = await query.range(currentLength, currentLength + requestedCount - 1);
 
       if (!error && data) {
         const newItems = (data as any[]).map(item => ({
@@ -637,7 +680,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           favorite_count: item.favorites?.[0]?.count || 0
         })) as Item[];
         setPopularItems(prev => [...prev, ...newItems]);
-        if (currentLength + newItems.length >= totalVisiblePopularCount || newItems.length < HOME_ITEM_PAGE_SIZE) {
+        if (currentLength + newItems.length >= totalVisiblePopularCount || newItems.length < requestedCount) {
           setHasMore(false);
         }
       }
@@ -647,6 +690,36 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       setLoadingMore(false);
     }
   };
+
+  useEffect(() => {
+    const targetCount = getMobileLayoutPageSize(mobileLayout);
+
+    if (
+      user &&
+      !isAdminHomeView &&
+      recommendedItems.length > 0 &&
+      recommendedItems.length < targetCount &&
+      hasMoreRecommended &&
+      !loadingMoreRecommended
+    ) {
+      void loadMoreRecommended(targetCount - recommendedItems.length);
+    }
+
+    if (popularItems.length < targetCount && hasMore && !loadingMore) {
+      void loadMorePopular(targetCount - popularItems.length);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    mobileLayout,
+    user?.id,
+    isAdminHomeView,
+    recommendedItems.length,
+    popularItems.length,
+    hasMoreRecommended,
+    hasMore,
+    loadingMoreRecommended,
+    loadingMore,
+  ]);
 
   // Pull-to-Refresh handlers
   const handleTouchStart = useCallback((e: ReactTouchEvent) => {
@@ -684,7 +757,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           popularQuery = popularQuery.neq("seller_id", user.id);
         }
 
-        const { data: freshPopular, count: freshPopularCount } = await popularQuery.range(0, HOME_ITEM_PAGE_SIZE - 1);
+        const refreshCount = getMobileLayoutPageSize(mobileLayout);
+        const { data: freshPopular, count: freshPopularCount } = await popularQuery.range(0, refreshCount - 1);
 
         if (freshPopular) {
           const mapped = (freshPopular as any[]).map(item => ({
@@ -705,7 +779,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     } else {
       setPullDistance(0);
     }
-  }, [pullDistance, isRefreshing, user]);
+  }, [pullDistance, isRefreshing, user, mobileLayout]);
 
   return (
     <div
@@ -832,7 +906,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
-              <div className="h-[29rem] max-h-[70vh] overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain">
+              <div className={`${getBoardSizeClass(recommendedItems.length, getMobileLayoutPageSize(mobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
@@ -849,30 +923,23 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         mobileLayout={mobileLayout}
                       />
                       {showLoadMoreHere && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-1/2 items-end justify-center rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent p-3">
-                          <button
-                            type="button"
-                            onClick={loadMoreRecommended}
-                            disabled={loadingMoreRecommended}
-                            className="pointer-events-auto inline-flex h-10 w-32 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
-                          >
-                            {loadingMoreRecommended ? (
-                              <>
-                                <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
-                                {t('home.loading')}
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="h-4 w-4" />
-                                {t('home.load_more')}
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
                       )}
                     </div>
                   )})}
                 </div>
+                {hasMoreRecommended && (
+                  <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
+                    <div className="pointer-events-auto">
+                      <LoadMoreButton
+                        loading={loadingMoreRecommended}
+                        onClick={() => loadMoreRecommended()}
+                        label={t('home.load_more')}
+                        loadingLabel={t('home.loading')}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -890,7 +957,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           </div>
 
           <MobileLayoutSwitcher value={mobileLayout} onChange={setMobileLayout} />
-          <div className="h-[29rem] max-h-[70vh] overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain">
+          <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(mobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
             <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
               mobileLayout === "image" ? "grid-cols-3" : mobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
             }`}>
@@ -907,50 +974,31 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     mobileLayout={mobileLayout}
                   />
                   {showLoadMoreHere && (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex h-1/2 items-end justify-center rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent p-3">
-                      <button
-                        type="button"
-                        onClick={loadMorePopular}
-                        disabled={loadingMore}
-                        className="pointer-events-auto inline-flex h-10 w-32 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
-                      >
-                        {loadingMore ? (
-                          <>
-                            <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
-                            {t('home.loading')}
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-4 w-4" />
-                            {t('home.load_more')}
-                          </>
-                        )}
-                      </button>
-                    </div>
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
                   )}
                 </div>
               )})}
             </div>
+            {hasMore && displayedPopularItems.length > 0 && (
+              <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
+                <div className="pointer-events-auto">
+                  <LoadMoreButton
+                    loading={loadingMore}
+                    onClick={() => loadMorePopular()}
+                    label={t('home.load_more')}
+                    loadingLabel={t('home.loading')}
+                  />
+                </div>
+              </div>
+            )}
             {displayedPopularItems.length === 0 && hasMore && (
               <div className="flex h-full items-center justify-center">
-                <button
-                  type="button"
-                  onClick={loadMorePopular}
-                  disabled={loadingMore}
-                  className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-black text-gray-700 shadow-lg ring-1 ring-gray-200 transition hover:bg-gray-50 disabled:opacity-60"
-                >
-                  {loadingMore ? (
-                    <>
-                      <div className="h-4 w-4 rounded-full border-2 border-gray-300 border-t-primary animate-spin" />
-                      {t('home.loading')}
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="h-4 w-4" />
-                      {t('home.load_more')}
-                    </>
-                  )}
-                </button>
+                <LoadMoreButton
+                  loading={loadingMore}
+                  onClick={() => loadMorePopular()}
+                  label={t('home.load_more')}
+                  loadingLabel={t('home.loading')}
+                />
               </div>
             )}
           </div>
