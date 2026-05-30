@@ -338,6 +338,14 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (force) {
       userScrolledUpRef.current = false;
     }
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: isUserTyping() ? "auto" : "smooth",
+      });
+      return;
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: isUserTyping() ? "auto" : "smooth" });
   };
 
@@ -557,6 +565,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     };
 
     setMessages(prev => [...prev, tempMessage]);
+    requestAnimationFrame(() => scrollToBottom(true));
 
     try {
       const { error } = await (supabase.from("messages") as any).insert({
@@ -1125,10 +1134,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           !((user?.id === transaction.buyer_id && transaction.buyer_completed) || (user?.id === transaction.seller_id && transaction.seller_completed)) && (
             <button
               onClick={() => setIsCancellationModalOpen(true)}
-              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold py-2 rounded-xl transition-all border border-amber-300 text-[11px] whitespace-nowrap shadow-sm active:scale-[0.98]"
+              className="flex-1 min-w-0 flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold py-2 rounded-xl transition-all border border-amber-300 text-[10px] whitespace-nowrap shadow-sm active:scale-[0.98]"
             >
-              <RefreshCw className="w-4 h-4" />
-              相手を変える
+              {isSeller && <RefreshCw className="w-4 h-4" />}
+              {isSeller ? "相手を変える" : "購入リクエスト取り下げ"}
             </button>
           )}
         <button
@@ -1258,7 +1267,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Input Area */}
-        <div className="flex-shrink-0 bg-white px-4 py-2.5 border-t border-gray-200">
+        <div
+          className="flex-shrink-0 bg-white px-4 pt-2.5 border-t border-gray-200"
+          style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 10px))" }}
+        >
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -2018,11 +2030,11 @@ function CancellationConfirmationModal({
 
   const copy = isSeller
     ? {
-        title: "この相談を終了して再公開しますか？",
+        title: "この取引を終了して再公開しますか？",
         confirm: "理由を選択する",
         lines: [
-          "現在の購入希望者との相談を終了し、この商品を再び他の人も購入リクエストできる状態にします。",
-          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせできます。",
+          "現在の購入希望者との取引を終了し、この商品を再び他の人も購入リクエストできる状態にします。",
+          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせもできます。",
         ],
       }
     : {
@@ -2031,7 +2043,7 @@ function CancellationConfirmationModal({
         lines: [
           "この商品の購入リクエストを取り下げます。",
           "取り下げると、出品者との相談は終了し、この商品は再び他の人も購入リクエストできる状態になります。",
-          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせできます。",
+          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせもできます。",
         ],
       };
 
@@ -2151,7 +2163,7 @@ function CancellationReasonModal({
           </div>
 
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            理由を選択してください
+            {isSeller ? "取引を終了する理由" : "リクエスト取り下げの理由"}
           </h2>
           <p className="text-gray-500 text-sm text-center mb-6 font-medium">
             選択した理由は相手にも表示されます
@@ -2198,13 +2210,13 @@ function CancellationReasonModal({
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                isSeller ? "相談を終了して再公開する" : "リクエストを取り下げる"
+                isSeller ? "取引を終了して再公開する" : "リクエストを取り下げる"
               )}
             </button>
             <button
               onClick={onClose}
               disabled={isSubmitting}
-              className="w-full bg-gray-100 text-gray-400 py-4 rounded-2xl font-black hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="w-full bg-gray-200 text-gray-700 py-4 rounded-2xl font-black hover:bg-gray-300 transition-all active:scale-[0.98] disabled:opacity-50 disabled:text-gray-400"
             >
               戻る
             </button>
