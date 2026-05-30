@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, ShieldCheck, XCircle, BookOpen, Star } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, RefreshCw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, ShieldCheck, XCircle, BookOpen, Star } from "lucide-react";
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -111,7 +111,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [isCancellationModalOpen, setIsCancellationModalOpen] = useState(false);
   const [isCancellationReasonModalOpen, setIsCancellationReasonModalOpen] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [showCancellationSection, setShowCancellationSection] = useState(false);
   const [isScheduleCandidatesOpen, setIsScheduleCandidatesOpen] = useState(false);
   const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -1113,15 +1112,25 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       {/* Action Bar (Below Header) — hide when pending_approval or declined */}
       {canUseTradeActions && !isDeclined && !isCancelled && (
-      <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-4 py-2 z-40 flex gap-2 border-b border-gray-100">
+      <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 z-40 flex gap-1.5 border-b border-gray-100">
         <button
           onClick={() => setIsScheduleModalOpen(true)}
           disabled={transaction?.status === 'awaiting_rating' || transaction?.status === 'completed'}
-          className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2.5 rounded-xl transition-all border border-slate-600 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white font-bold py-2 rounded-xl transition-all border border-slate-600 text-[11px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Calendar className="w-4 h-4" />
           日程変更・登録
         </button>
+        {transaction && canCancelTransaction &&
+          !((user?.id === transaction.buyer_id && transaction.buyer_completed) || (user?.id === transaction.seller_id && transaction.seller_completed)) && (
+            <button
+              onClick={() => setIsCancellationModalOpen(true)}
+              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold py-2 rounded-xl transition-all border border-amber-300 text-[11px] whitespace-nowrap shadow-sm active:scale-[0.98]"
+            >
+              <RefreshCw className="w-4 h-4" />
+              相手を変える
+            </button>
+          )}
         <button
           onClick={() => setIsCompletionModalOpen(true)}
           disabled={
@@ -1129,7 +1138,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             (user?.id === transaction?.buyer_id && transaction?.buyer_completed) ||
             (user?.id === transaction?.seller_id && transaction?.seller_completed)
           }
-          className="flex-1 flex items-center justify-center gap-2 bg-primary/80 hover:bg-primary text-white font-bold py-2.5 rounded-xl transition-all shadow-lg shadow-black/5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1.5 bg-primary/80 hover:bg-primary text-white font-bold py-2 rounded-xl transition-all shadow-lg shadow-black/5 text-[11px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <CheckCircle2 className="w-4 h-4" />
           取引終了
@@ -1247,40 +1256,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             messagesEndRef={messagesEndRef}
           />
         </div>
-
-      {/* Cancellation Section */}
-      {transaction && canCancelTransaction &&
-        !((user?.id === transaction.buyer_id && transaction.buyer_completed) || (user?.id === transaction.seller_id && transaction.seller_completed)) && (
-          <div className="flex-shrink-0 bg-white border-t border-gray-100">
-            <div className="px-4 py-2">
-              <button
-                onClick={() => setShowCancellationSection(!showCancellationSection)}
-                className="w-full text-center py-2 text-gray-500 hover:text-gray-700 font-bold text-xs flex items-center justify-center gap-2 transition-colors"
-              >
-                <AlertCircle className="w-4 h-4" />
-                別の人を選ぶ場合
-                <ChevronRight className={`w-4 h-4 transition-transform duration-300 ${showCancellationSection ? "rotate-90" : "-rotate-90"}`} />
-              </button>
-
-              {showCancellationSection && (
-                <div className="mt-2 pb-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-4">
-                    <p className="text-xs text-gray-600 mb-3 leading-relaxed">
-                      相談を終了して商品を再公開します。理由は相手に伝わります。不当だと感じた場合はお問い合わせできます。
-                    </p>
-                    <button
-                      onClick={() => setIsCancellationModalOpen(true)}
-                      className="w-full bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                    >
-                      <XIcon className="w-4 h-4" />
-                      別の人を選ぶ
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Input Area */}
         <div className="flex-shrink-0 bg-white px-4 py-2.5 border-t border-gray-200">
@@ -1471,6 +1446,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           setIsCancellationModalOpen(false);
           setIsCancellationReasonModalOpen(true);
         }}
+        isSeller={isSeller}
       />
 
       {/* Cancellation Reason Input Modal */}
@@ -1479,6 +1455,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         onClose={() => setIsCancellationReasonModalOpen(false)}
         onConfirm={handleCancelTransaction}
         isSubmitting={isFinalizing}
+        isSeller={isSeller}
       />
 
       {/* Decline Reason Modal (for seller declining purchase request) */}
@@ -2029,13 +2006,34 @@ function CompletionConfirmationModal({
 function CancellationConfirmationModal({
   isOpen,
   onClose,
-  onConfirm
+  onConfirm,
+  isSeller,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  isSeller: boolean;
 }) {
   if (!isOpen) return null;
+
+  const copy = isSeller
+    ? {
+        title: "この相談を終了して再公開しますか？",
+        confirm: "理由を選択する",
+        lines: [
+          "現在の購入希望者との相談を終了し、この商品を再び他の人も購入リクエストできる状態にします。",
+          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせできます。",
+        ],
+      }
+    : {
+        title: "購入リクエストを取り下げますか？",
+        confirm: "理由を選択する",
+        lines: [
+          "この商品の購入リクエストを取り下げます。",
+          "取り下げると、出品者との相談は終了し、この商品は再び他の人も購入リクエストできる状態になります。",
+          "入力した理由は相手にも表示されます。相手が不当だと感じた場合は、運営へお問い合わせできます。",
+        ],
+      };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-in fade-in duration-300">
@@ -2050,37 +2048,31 @@ function CancellationConfirmationModal({
           </div>
 
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            別の人を選びますか?
+            {copy.title}
           </h2>
           <p className="text-gray-500 text-sm text-center mb-8 font-medium">
             以下の内容を確認してください
           </p>
 
           <div className="space-y-4 mb-8">
-            <div className="flex items-start gap-3 bg-red-50 p-4 rounded-2xl border border-red-100">
-              <div className="w-5 h-5 mt-0.5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                <XIcon className="w-3 h-3 text-white" strokeWidth={4} />
+            {copy.lines.map((line) => (
+              <div key={line} className="flex items-start gap-3 bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                <div className="w-5 h-5 mt-0.5 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-3 h-3 text-white" strokeWidth={4} />
+                </div>
+                <p className="text-sm font-bold leading-relaxed text-gray-700">
+                  {line}
+                </p>
               </div>
-              <p className="text-sm font-bold text-gray-700">
-                この相談は終了し、商品はほかの人にも見える状態へ戻ります。
-              </p>
-            </div>
-            <div className="flex items-start gap-3 bg-red-50 p-4 rounded-2xl border border-red-100">
-              <div className="w-5 h-5 mt-0.5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-                <XIcon className="w-3 h-3 text-white" strokeWidth={4} />
-              </div>
-              <p className="text-sm font-bold text-gray-700">
-                入力した理由は取引相手に伝わります。不当だと感じた場合はお問い合わせできます。
-              </p>
-            </div>
+            ))}
           </div>
 
           <div className="space-y-3">
             <button
               onClick={onConfirm}
-              className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98]"
+              className="w-full bg-amber-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all active:scale-[0.98]"
             >
-              理由を入力して終了する
+              {copy.confirm}
             </button>
             <button
               onClick={onClose}
@@ -2100,23 +2092,50 @@ function CancellationReasonModal({
   isOpen,
   onClose,
   onConfirm,
-  isSubmitting
+  isSubmitting,
+  isSeller,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (reason: string) => void;
   isSubmitting: boolean;
+  isSeller: boolean;
 }) {
-  const [reason, setReason] = useState("");
+  const sellerReasons = [
+    "受け渡し日時が合わなかった",
+    "受け渡し場所が合わなかった",
+    "相手からの返信がない",
+    "取引条件が合わなかった",
+    "その他",
+  ];
+  const buyerReasons = [
+    "受け渡し日時が合わなかった",
+    "受け渡し場所が合わなかった",
+    "購入の必要がなくなった",
+    "商品の状態や条件が合わなかった",
+    "相手からの返信がない",
+    "その他",
+  ];
+  const reasons = isSeller ? sellerReasons : buyerReasons;
+  const [selectedReason, setSelectedReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
 
   if (!isOpen) return null;
 
   const handleSubmit = () => {
-    if (!reason.trim()) {
-      alert("理由を入力してください");
+    if (!selectedReason) {
+      alert("理由を選択してください");
       return;
     }
-    onConfirm(reason.trim());
+    if (selectedReason === "その他" && otherReason.trim().length < 3) {
+      alert("その他の理由を入力してください");
+      return;
+    }
+
+    const reason = selectedReason === "その他"
+      ? `その他: ${otherReason.trim()}`
+      : selectedReason;
+    onConfirm(reason);
   };
 
   return (
@@ -2132,31 +2151,54 @@ function CancellationReasonModal({
           </div>
 
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            別の人を選ぶ理由
+            理由を選択してください
           </h2>
           <p className="text-gray-500 text-sm text-center mb-6 font-medium">
-            相談相手へ伝わる内容です。できるだけ具体的に記入してください
+            選択した理由は相手にも表示されます
           </p>
 
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="例: 日程が合わなかったため、別の方との相談に切り替えます"
-            disabled={isSubmitting}
-            className="w-full h-40 px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:outline-none focus:border-red-500 focus:bg-white transition-all resize-none text-gray-700 placeholder:text-gray-400 font-medium mb-6"
-            maxLength={500}
-          />
+          <div className="mb-6 space-y-2">
+            {reasons.map((reason) => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => setSelectedReason(reason)}
+                disabled={isSubmitting}
+                className={`flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left text-sm font-bold transition-all active:scale-[0.99] disabled:opacity-50 ${
+                  selectedReason === reason
+                    ? "border-amber-400 bg-amber-50 text-amber-950"
+                    : "border-gray-100 bg-gray-50 text-gray-600 hover:border-amber-200"
+                }`}
+              >
+                <span className={`h-4 w-4 rounded-full border-2 ${
+                  selectedReason === reason ? "border-amber-500 bg-amber-500" : "border-gray-300"
+                }`} />
+                {reason}
+              </button>
+            ))}
+
+            {selectedReason === "その他" && (
+              <textarea
+                value={otherReason}
+                onChange={(e) => setOtherReason(e.target.value)}
+                placeholder="理由を入力してください"
+                disabled={isSubmitting}
+                className="mt-3 h-28 w-full resize-none rounded-2xl border-2 border-gray-100 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700 transition-all placeholder:text-gray-400 focus:border-amber-400 focus:bg-white focus:outline-none"
+                maxLength={300}
+              />
+            )}
+          </div>
 
           <div className="space-y-3">
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !reason.trim()}
-              className="w-full bg-red-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={isSubmitting || !selectedReason || (selectedReason === "その他" && otherReason.trim().length < 3)}
+              className="w-full bg-amber-500 text-white py-4 rounded-2xl font-black shadow-lg shadow-amber-500/20 hover:bg-amber-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
-                "送信する"
+                isSeller ? "相談を終了して再公開する" : "リクエストを取り下げる"
               )}
             </button>
             <button
