@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse, type NextRequest } from "next/server";
 import { sendTransactionReminderEmail, sendTransactionProgressEmail } from "@/lib/email";
+import { sendWebPushToUser } from "@/lib/web-push";
 
 // Vercel Cronなどで呼び出す場合は、Authorizationヘッダーで保護する
 // Supabase pg_cronから呼び出す場合は、HTTPリクエストでシークレットを渡す
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest) {
                 const chatUrl = `${baseUrl}/chat/${tx.item_id}?tx=${tx.id}`;
 
                 // Buyerへ通知
+                await sendWebPushToUser(tx.buyer_id, {
+                    title: "明日の受け渡し予定",
+                    body: `「${itemTitle}」の受け渡し予定があります。時間と場所を確認してください。`,
+                    url: chatUrl,
+                });
                 if (tx.buyer?.email_notify_reminders) {
                     const { data: buyerEmail } = await supabase.rpc("admin_get_user_email", { target_user_id: tx.buyer_id, reason: "前日リマインド" });
                     if (buyerEmail) {
@@ -56,6 +62,11 @@ export async function POST(request: NextRequest) {
                 }
 
                 // Sellerへ通知
+                await sendWebPushToUser(tx.seller_id, {
+                    title: "明日の受け渡し予定",
+                    body: `「${itemTitle}」の受け渡し予定があります。時間と場所を確認してください。`,
+                    url: chatUrl,
+                });
                 if (tx.seller?.email_notify_reminders) {
                     const { data: sellerEmail } = await supabase.rpc("admin_get_user_email", { target_user_id: tx.seller_id, reason: "前日リマインド" });
                     if (sellerEmail) {
@@ -112,6 +123,12 @@ export async function POST(request: NextRequest) {
                     link_type: "chat",
                     link_id: `${tx.item_id}?tx=${tx.id}`,
                     is_read: false
+                });
+
+                await sendWebPushToUser(tx.buyer_id, {
+                    title: "購入リクエストが期限切れになりました",
+                    body: `「${tx.items?.title}」への購入リクエストは一定期間応答がなかったため期限切れになりました。`,
+                    url: `${baseUrl}/chat/${tx.item_id}?tx=${tx.id}`,
                 });
 
                 // 購入者へメール通知

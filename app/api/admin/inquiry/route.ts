@@ -3,6 +3,7 @@ import { adminLog } from "@/lib/admin-utils";
 import { isCurrentUserAdmin } from "@/lib/admin";
 import { createSupabaseServerClient } from "@/lib/supabase-server";
 import { sendInquiryReplyEmail } from "@/lib/email";
+import { sendWebPushToUser } from "@/lib/web-push";
 
 const allowedStatuses = new Set(["open", "checking", "replied", "completed", "no_action"]);
 
@@ -144,6 +145,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
     }
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://textnext.jp";
+    await sendWebPushToUser(inquiry.sender_user_id, {
+      title: "お問い合わせへの返信",
+      body: trimmedMessage.slice(0, 120),
+      url: `${baseUrl}/profile/inquiries/${inquiry.id}`,
+    });
 
     await (supabase as any)
       .from("inquiries")

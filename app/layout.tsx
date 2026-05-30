@@ -9,6 +9,7 @@ import SwipeTabNavigation from "@/components/swipe-tab-navigation";
 import NavigationLoadingOverlay from "@/components/navigation-loading-overlay";
 import MobileGestureGuard from "@/components/mobile-gesture-guard";
 import RouteScrollReset from "@/components/route-scroll-reset";
+import ServiceWorkerRegister from "@/components/service-worker-register";
 
 // BottomNavを遅延読み込み（初期表示を高速化）
 const BottomNav = dynamic(() => import("@/components/bottom-nav").then(mod => ({ default: mod.BottomNav })), {
@@ -74,6 +75,7 @@ export default function RootLayout({
             <NavigationLoadingOverlay />
             <MobileGestureGuard />
             <RouteScrollReset />
+            <ServiceWorkerRegister />
             <main className="min-h-screen pb-[calc(var(--bottom-nav-height)+var(--bottom-nav-safe-padding-min)+env(safe-area-inset-bottom))]">{children}</main>
             <BottomNav />
           </AuthProvider>

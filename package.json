@@ -13,6 +13,7 @@
     "@ericblade/quagga2": "^1.12.1",
     "@supabase/auth-helpers-nextjs": "^0.15.0",
     "@supabase/supabase-js": "^2.86.0",
+    "@types/web-push": "^3.6.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
@@ -21,7 +22,8 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "stripe": "^22.1.1",
-    "tailwind-merge": "^2.2.1"
+    "tailwind-merge": "^2.2.1",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/node": "^20",

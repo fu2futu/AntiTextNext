@@ -3,9 +3,35 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Save, MessageSquare } from "lucide-react";
+import { ArrowLeft, Loader2, Save, MessageSquare, Bell, BellOff } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { supabase } from "@/lib/supabase";
+
+const vapidPublicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY || "";
+
+const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; i += 1) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+
+    return outputArray;
+};
+
+const getPushSupport = () => {
+    if (typeof window === "undefined") return false;
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+};
+
+const getServiceWorkerRegistration = async () => {
+    const existing = await navigator.serviceWorker.getRegistration("/");
+    if (existing) return existing;
+    return navigator.serviceWorker.register("/sw.js");
+};
 
 export default function EmailNotificationsSettingsPage() {
     const router = useRouter();
@@ -15,6 +41,12 @@ export default function EmailNotificationsSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const [pushSupported, setPushSupported] = useState(false);
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushTestBusy, setPushTestBusy] = useState(false);
+    const [pushMessage, setPushMessage] = useState("");
+    const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("unsupported");
 
     // 通知設定のstate
     const [notifyWatch, setNotifyWatch] = useState(true);
@@ -54,6 +86,136 @@ export default function EmailNotificationsSettingsPage() {
             fetchPreferences();
         }
     }, [user]);
+
+    useEffect(() => {
+        const checkPushStatus = async () => {
+            const supported = getPushSupport();
+            setPushSupported(supported);
+
+            if (!supported) {
+                setPushPermission("unsupported");
+                return;
+            }
+
+            setPushPermission(Notification.permission);
+
+            try {
+                const registration = await getServiceWorkerRegistration();
+                const subscription = await registration.pushManager.getSubscription();
+                setPushSubscribed(Boolean(subscription));
+            } catch {
+                setPushSubscribed(false);
+            }
+        };
+
+        if (user) {
+            checkPushStatus();
+        }
+    }, [user]);
+
+    const handleEnablePush = async () => {
+        setPushBusy(true);
+        setPushMessage("");
+        setError("");
+
+        try {
+            if (!getPushSupport()) {
+                setPushMessage("このブラウザではホーム画面通知に対応していません。");
+                return;
+            }
+
+            if (!vapidPublicKey) {
+                setPushMessage("通知用の公開キーがまだ設定されていません。");
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            setPushPermission(permission);
+
+            if (permission !== "granted") {
+                setPushMessage("通知が許可されませんでした。ブラウザの設定から許可できます。");
+                return;
+            }
+
+            const registration = await getServiceWorkerRegistration();
+            let subscription = await registration.pushManager.getSubscription();
+
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+                });
+            }
+
+            const response = await fetch("/api/push/subscription", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(subscription.toJSON()),
+            });
+
+            if (!response.ok) {
+                const result = await response.json().catch(() => ({}));
+                throw new Error(result.error || "通知設定を保存できませんでした");
+            }
+
+            setPushSubscribed(true);
+            setPushMessage("ホーム画面通知を有効にしました。");
+        } catch (err: any) {
+            setPushMessage(err.message || "ホーム画面通知を有効にできませんでした。");
+        } finally {
+            setPushBusy(false);
+        }
+    };
+
+    const handleDisablePush = async () => {
+        setPushBusy(true);
+        setPushMessage("");
+        setError("");
+
+        try {
+            if (!getPushSupport()) return;
+
+            const registration = await getServiceWorkerRegistration();
+            const subscription = await registration.pushManager.getSubscription();
+
+            if (subscription) {
+                await fetch("/api/push/subscription", {
+                    method: "DELETE",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ endpoint: subscription.endpoint }),
+                });
+                await subscription.unsubscribe();
+            }
+
+            setPushSubscribed(false);
+            setPushMessage("ホーム画面通知を停止しました。");
+        } catch (err: any) {
+            setPushMessage(err.message || "ホーム画面通知を停止できませんでした。");
+        } finally {
+            setPushBusy(false);
+        }
+    };
+
+    const handleSendTestPush = async () => {
+        setPushTestBusy(true);
+        setPushMessage("");
+        setError("");
+
+        try {
+            const response = await fetch("/api/push/test", { method: "POST" });
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                throw new Error(result.message || result.error || "テスト通知を送信できませんでした。");
+            }
+
+            setPushMessage("テスト通知を送信しました。端末側の通知表示を確認してください。");
+        } catch (err: any) {
+            setPushMessage(err.message || "テスト通知を送信できませんでした。");
+        } finally {
+            setPushTestBusy(false);
+        }
+    };
 
     const handleSave = async () => {
         if (!user) return;
@@ -109,6 +271,71 @@ export default function EmailNotificationsSettingsPage() {
                         <p className="text-sm text-gray-600 mb-6 bg-blue-50 border border-blue-100 p-4 rounded-xl">
                             <span className="font-bold text-blue-800">重要:</span> 運営からのお知らせや、アカウントに関する重要なお知らせは、以下の設定にかかわらず必ず送信されます。
                         </p>
+
+                        <section className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-1 rounded-full bg-white p-2 text-primary shadow-sm">
+                                    <Bell className="h-5 w-5" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <h2 className="text-sm font-bold text-gray-900">ホーム画面通知</h2>
+                                    <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                                        ホーム画面に追加したTextNextで、お知らせやチャット通知を受け取るための準備です。通知の表示は端末・ブラウザの対応状況に左右されます。
+                                    </p>
+
+                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                        {pushSubscribed ? (
+                                            <button
+                                                type="button"
+                                                onClick={handleDisablePush}
+                                                disabled={pushBusy}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                                            >
+                                                {pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellOff className="h-4 w-4" />}
+                                                通知を停止
+                                            </button>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={handleEnablePush}
+                                                disabled={pushBusy || !pushSupported || pushPermission === "denied"}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90 disabled:bg-gray-300 disabled:text-gray-600"
+                                            >
+                                                {pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                                                通知を許可して有効化
+                                            </button>
+                                        )}
+                                        {pushSubscribed && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSendTestPush}
+                                                disabled={pushTestBusy}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary ring-1 ring-primary/30 transition-colors hover:bg-primary/5 disabled:opacity-50"
+                                            >
+                                                {pushTestBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                                                テスト通知を送る
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {!pushSupported && (
+                                        <p className="mt-3 text-xs font-bold text-gray-500">
+                                            このブラウザではホーム画面通知に対応していません。
+                                        </p>
+                                    )}
+                                    {pushPermission === "denied" && (
+                                        <p className="mt-3 text-xs font-bold text-amber-700">
+                                            通知がブロックされています。ブラウザまたは端末設定からTextNextの通知を許可してください。
+                                        </p>
+                                    )}
+                                    {pushMessage && (
+                                        <p className="mt-3 text-xs font-bold text-gray-700">
+                                            {pushMessage}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
 
                         <div className="space-y-6">
                             {/* 探している教科書 */}

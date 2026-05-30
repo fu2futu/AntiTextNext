@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { sendTransactionProgressEmail } from "@/lib/email";
+import { sendWebPushToUser } from "@/lib/web-push";
 
 export async function POST(request: NextRequest) {
     try {
@@ -12,12 +13,6 @@ export async function POST(request: NextRequest) {
         // action: 'request', 'approve', 'decline', 'message'
         if (!action || !itemId || !receiverId) {
             return NextResponse.json({ error: "パラメータ不足" }, { status: 400 });
-        }
-
-        // 通常チャット1通ごとのメール通知は送らない。
-        // アプリ内通知・未読表示を優先し、メールは取引進行上重要なイベントに限定する。
-        if (action === "message") {
-            return NextResponse.json({ success: true, skipped: true, reason: "message_email_disabled" });
         }
 
         const cookieStore = cookies();
@@ -51,9 +46,8 @@ export async function POST(request: NextRequest) {
 
         // 設定の確認
         const isTransactionAction = ["request", "approve", "decline", "rating_remind"].includes(action);
-        if (isTransactionAction && !profile.email_notify_transaction_progress) {
-            return NextResponse.json({ success: true, skipped: true });
-        }
+        const emailEnabled = !isTransactionAction || Boolean(profile.email_notify_transaction_progress);
+        const locale = profile.locale || "ja";
 
         // 商品情報の取得
         const { data: item } = await supabase
@@ -67,6 +61,63 @@ export async function POST(request: NextRequest) {
         const actionUrl = extraData?.transactionId
             ? `${baseUrl}/chat/${itemId}?tx=${extraData.transactionId}`
             : `${baseUrl}/chat/${itemId}`;
+
+        if (action === "message") {
+            await sendWebPushToUser(receiverId, {
+                title: "新しいチャットメッセージ",
+                body: extraData?.preview ? String(extraData.preview).slice(0, 80) : `「${itemTitle}」に新しいメッセージがあります。`,
+                url: actionUrl,
+            });
+            return NextResponse.json({ success: true, skippedEmail: true });
+        }
+
+        const pushPayloadByAction = (() => {
+            if (action === "request") {
+                return {
+                    title: locale === "en" ? "Purchase Request Received" : "購入相談が届きました",
+                    body: locale === "en"
+                        ? `You have received a purchase request for "${itemTitle}".`
+                        : `「${itemTitle}」に購入リクエストが届きました。チャットで確認してください。`,
+                    url: actionUrl,
+                };
+            }
+            if (action === "approve") {
+                return {
+                    title: locale === "en" ? "Purchase Request Approved" : "購入リクエストが承認されました",
+                    body: locale === "en"
+                        ? `Your purchase request for "${itemTitle}" has been approved.`
+                        : `「${itemTitle}」の購入リクエストが承認されました。`,
+                    url: actionUrl,
+                };
+            }
+            if (action === "decline") {
+                return {
+                    title: locale === "en" ? "Purchase Request Declined" : "購入リクエストが見送られました",
+                    body: locale === "en"
+                        ? `Your purchase request for "${itemTitle}" was declined.`
+                        : `「${itemTitle}」の購入リクエストは見送られました。`,
+                    url: actionUrl,
+                };
+            }
+            if (action === "rating_remind") {
+                return {
+                    title: locale === "en" ? "Please Rate Your Transaction" : "取引相手からの評価が完了しました",
+                    body: locale === "en"
+                        ? `Please submit your rating for "${itemTitle}".`
+                        : `「${itemTitle}」の評価を完了してください。`,
+                    url: `${baseUrl}/rating/${extraData?.transactionId}`,
+                };
+            }
+            return null;
+        })();
+
+        if (pushPayloadByAction) {
+            await sendWebPushToUser(receiverId, pushPayloadByAction);
+        }
+
+        if (!emailEnabled) {
+            return NextResponse.json({ success: true, skippedEmail: true });
+        }
 
         // ===== メールアドレス取得 =====
         // Service Role キーを使ってサーバーサイドでメールアドレスを安全に取得
@@ -89,7 +140,6 @@ export async function POST(request: NextRequest) {
         }
 
         const email = targetUser.email;
-        const locale = profile.locale || "ja";
 
         if (action === "request") {
             const title = locale === "en" ? "Purchase Request Received" : "購入リクエストを受信しました";

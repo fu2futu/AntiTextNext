@@ -14,7 +14,8 @@ export function BottomNav() {
   const { user } = useAuth();
   const { t } = useI18n();
   const [unreadCount, setUnreadCount] = useState(0);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const hasUnreadMessages = unreadMessageCount > 0;
 
   // 未読通知数の取得
   const fetchUnreadCount = useCallback(async () => {
@@ -40,7 +41,7 @@ export function BottomNav() {
   // 未読チャット有無の取得
   const fetchUnreadMessages = useCallback(async () => {
     if (!user) {
-      setHasUnreadMessages(false);
+      setUnreadMessageCount(0);
       return;
     }
     try {
@@ -65,11 +66,10 @@ export function BottomNav() {
             return `${tx.item_id}:${counterpartId}`;
           })
         );
-        setHasUnreadMessages(
-          ((unreadMessages || []) as any[]).some((message) =>
-            activeMessageKeys.has(`${message.item_id}:${message.sender_id}`)
-          )
+        const activeUnreadMessages = ((unreadMessages || []) as any[]).filter((message) =>
+          activeMessageKeys.has(`${message.item_id}:${message.sender_id}`)
         );
+        setUnreadMessageCount(activeUnreadMessages.length);
       }
     } catch {
       // エラー時は無視
@@ -144,6 +144,30 @@ export function BottomNav() {
       return () => clearTimeout(timer);
     }
   }, [pathname, fetchUnreadMessages]);
+
+  useEffect(() => {
+    const badgeTotal = user ? unreadCount + unreadMessageCount : 0;
+    const badgeApi = navigator as Navigator & {
+      setAppBadge?: (contents?: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+
+    if (!badgeApi.setAppBadge || !badgeApi.clearAppBadge) return;
+
+    const updateAppBadge = async () => {
+      try {
+        if (badgeTotal > 0) {
+          await badgeApi.setAppBadge(badgeTotal);
+        } else {
+          await badgeApi.clearAppBadge();
+        }
+      } catch {
+        // バッジ表示は端末・ブラウザ・通知許可に依存するため、失敗しても通常利用は継続する。
+      }
+    };
+
+    updateAppBadge();
+  }, [user, unreadCount, unreadMessageCount]);
 
   // チャットページでは非表示
   if (pathname?.startsWith("/chat/")) {

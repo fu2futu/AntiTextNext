@@ -548,6 +548,20 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       if (error) throw error;
 
+      fetch("/api/notify/transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "message",
+          itemId: item.id,
+          receiverId: otherUserId,
+          extraData: {
+            transactionId: transaction?.id,
+            preview: imageUrlOverride ? "画像が送信されました" : messageText,
+          },
+        }),
+      }).catch(e => console.error(e));
+
       // 送信成功後、すぐにメッセージを再取得
       setTimeout(() => fetchMessages(), 300);
     } catch (err: any) {

@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse, type NextRequest } from 'next/server';
 import { sendWatchKeywordEmail } from '@/lib/email';
+import { sendWebPushToUser } from '@/lib/web-push';
 
 // POST: 新しい出品に対してウォッチキーワードをチェックし、マッチしたユーザーに通知
 export async function POST(request: NextRequest) {
@@ -66,6 +67,12 @@ export async function POST(request: NextRequest) {
                         const itemUrl = `${baseUrl}/product/${itemId}`;
 
                         for (const notif of notifications) {
+                            await sendWebPushToUser(notif.user_id, {
+                                title: "探している教科書が出品されました",
+                                body: notif.message || `「${item.title}」が出品されました。`,
+                                url: itemUrl,
+                            });
+
                             // 設定とメールアドレスを取得
                             const { data: userProfile } = await supabase
                                 .from("profiles")
