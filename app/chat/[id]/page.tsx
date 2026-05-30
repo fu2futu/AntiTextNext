@@ -941,7 +941,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         label: "text-red-600",
         title: "text-red-950",
         hover: "hover:bg-red-100/70 active:bg-red-100",
-        text: "候補日時を確認し、回答してください",
+        text: "候補日時を確認し回答してください",
       }
     : {
         border: "border-amber-200",
@@ -1137,7 +1137,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               className="flex-1 min-w-0 flex items-center justify-center gap-1 bg-amber-400 hover:bg-amber-500 text-amber-950 font-bold py-2 rounded-xl transition-all border border-amber-300 text-[10px] whitespace-nowrap shadow-sm active:scale-[0.98]"
             >
               {isSeller && <RefreshCw className="w-4 h-4" />}
-              {isSeller ? "相手を変える" : "購入リクエスト取り下げ"}
+              {isSeller ? "取引相手を変える" : "購入リクエスト取り下げ"}
             </button>
           )}
         <button

@@ -10,7 +10,7 @@ export default function TrialNoticeBanner() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [ready, setReady] = useState(false);
-  const [bannerHeight, setBannerHeight] = useState(0);
+  const [bannerHeight, setBannerHeight] = useState(64);
   const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

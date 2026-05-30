@@ -573,7 +573,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   return (
     <div
-      className="min-h-screen bg-white pb-24 font-gentle"
+      className="min-h-screen bg-white pb-4 font-gentle"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}

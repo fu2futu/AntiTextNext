@@ -352,7 +352,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
       
       {/* Modal Content - Bottom Sheet */}
       <div 
-        className={`absolute inset-x-0 bottom-24 top-14 bg-white rounded-t-3xl shadow-2xl overflow-hidden transition-transform duration-300 ease-out md:left-1/2 md:right-auto md:top-8 md:bottom-8 md:w-[min(1120px,calc(100vw-4rem))] md:-translate-x-1/2 md:rounded-3xl ${
+        className={`absolute inset-x-0 bottom-0 top-14 bg-white rounded-t-3xl shadow-2xl overflow-hidden transition-transform duration-300 ease-out md:left-1/2 md:right-auto md:top-8 md:bottom-8 md:w-[min(1120px,calc(100vw-4rem))] md:-translate-x-1/2 md:rounded-3xl ${
           isVisible && !isClosing ? 'translate-y-0' : 'translate-y-full md:translate-y-8'
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -635,7 +635,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
         </div>
 
         {/* Action Buttons - Fixed at bottom of modal */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white border-t px-5 py-3 z-[80] md:px-6 md:py-4">
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t px-5 pt-3 z-[80] md:px-6 md:py-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="max-w-4xl mx-auto flex gap-3">
             {isOwnItem ? (
               <div className="flex gap-2 flex-1">
