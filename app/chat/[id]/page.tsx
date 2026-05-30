@@ -118,7 +118,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const scheduleCandidatesRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const loadedRef = useRef<string | null>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const userScrolledUpRef = useRef(false);
@@ -130,6 +130,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   const isUserTyping = useCallback(() => {
     return inputFocusedRef.current || composingRef.current || Date.now() - lastInputAtRef.current < 1200;
+  }, []);
+
+  const resizeMessageInput = useCallback(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 112)}px`;
   }, []);
 
   useEffect(() => {
@@ -527,7 +534,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
 
     if (!textOverride) {
-      if (inputRef.current) inputRef.current.value = "";
+      if (inputRef.current) {
+        inputRef.current.value = "";
+        resizeMessageInput();
+      }
       setHasDraftMessage(false);
     }
     setSending(true);
@@ -579,14 +589,19 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     } catch (err: any) {
       setMessages(prev => prev.filter(m => m.id !== tempMessage.id));
       if (!textOverride) {
-        if (inputRef.current) inputRef.current.value = messageText;
+        if (inputRef.current) {
+          inputRef.current.value = messageText;
+          resizeMessageInput();
+        }
         setHasDraftMessage(messageText.trim().length > 0);
       }
       alert("メッセージの送信に失敗しました: " + err.message);
     } finally {
       setSending(false);
-      // 入力欄にフォーカスを戻す
-      if (!imageUrlOverride) inputRef.current?.focus();
+      // iOS/Chromeでは送信直後の強制focusが日本語IMEの初動を重くすることがある。
+      if (!imageUrlOverride && document.activeElement !== inputRef.current) {
+        inputRef.current?.focus({ preventScroll: true });
+      }
     }
   };
 
@@ -1348,9 +1363,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             )}
           </label>
 
-          <input
+          <textarea
             ref={inputRef}
-            type="text"
             onFocus={() => {
               inputFocusedRef.current = true;
             }}
@@ -1366,6 +1380,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             }}
             onChange={(e) => {
               lastInputAtRef.current = Date.now();
+              resizeMessageInput();
               const hasText = e.target.value.trim().length > 0;
               setHasDraftMessage((current) => current === hasText ? current : hasText);
             }}
@@ -1377,7 +1392,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             }}
             maxLength={INPUT_LIMITS.chatMessageMax}
             placeholder={isClosedTransaction ? "この取引は終了しています" : "メッセージを入力..."}
-            className="flex-1 px-4 py-3 bg-gray-100 rounded-full text-[15px] focus:outline-none focus:ring-2 focus:ring-primary/50 border border-gray-200"
+            rows={1}
+            className="max-h-28 min-h-12 flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-gray-100 px-4 py-3 text-[15px] leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={sending || isClosedTransaction}
             autoComplete="off"
           />
