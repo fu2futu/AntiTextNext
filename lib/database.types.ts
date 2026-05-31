@@ -173,6 +173,8 @@ export interface Database {
                     schedule_change_requested_by: string | null
                     previous_final_meetup_time: string | null
                     previous_final_meetup_location: string | null
+                    handover_token: string | null
+                    handover_token_expires_at: string | null
                 }
                 Insert: {
                     id?: string
@@ -192,6 +194,8 @@ export interface Database {
                     schedule_change_requested_by?: string | null
                     previous_final_meetup_time?: string | null
                     previous_final_meetup_location?: string | null
+                    handover_token?: string | null
+                    handover_token_expires_at?: string | null
                 }
                 Update: {
                     id?: string
@@ -211,6 +215,8 @@ export interface Database {
                     schedule_change_requested_by?: string | null
                     previous_final_meetup_time?: string | null
                     previous_final_meetup_location?: string | null
+                    handover_token?: string | null
+                    handover_token_expires_at?: string | null
                 }
             }
             watch_keywords: {

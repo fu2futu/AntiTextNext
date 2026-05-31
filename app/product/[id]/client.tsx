@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, ShoppingCart, X, Search, User, Star, GraduationCap, Heart, Pencil, Pause, Play, Trash2, Loader2, AlertTriangle, Check } from "lucide-react";
+import { ArrowLeft, ShoppingCart, X, Search, User, Star, GraduationCap, Heart, Pencil, Pause, Play, Trash2, Loader2, AlertTriangle, Check, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
@@ -66,6 +66,11 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isManaging, setIsManaging] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(item.status);
+
+  // 相談中の商品で、現在のユーザーが取引の当事者（出品者 or 相談中の購入者）かどうか。
+  // 当事者ならチャットへ遷移できるようにし、それ以外の人は「相談中」表示のまま。
+  const [isChatParticipant, setIsChatParticipant] = useState(false);
+  const [chatTransactionId, setChatTransactionId] = useState<string | null>(null);
 
   // お気に入り状態を取得
   useEffect(() => {
@@ -300,6 +305,45 @@ export default function ProductDetailClient({ item }: { item: Item }) {
 
   // 購入手続き中の一時ロックだけはブロックする。相談中の商品は詳細閲覧のみ許可する。
   const isReservedByOther = isReserved && !isOwnItem;
+
+  // 相談中のとき、現在のユーザーがこの商品の取引当事者（出品者 or 相談中の購入者）か確認する。
+  useEffect(() => {
+    if (!user || !isPending) {
+      setIsChatParticipant(false);
+      setChatTransactionId(null);
+      return;
+    }
+
+    let cancelled = false;
+    const checkParticipation = async () => {
+      const { data, error } = await (supabase as any)
+        .from("transactions")
+        .select("id, status, created_at")
+        .eq("item_id", item.id)
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      // 終了済み以外の取引があれば、その商品のチャットに参加できる当事者とみなす。
+      const TERMINAL_STATUSES = ["cancelled", "declined", "completed"];
+      const activeTx = !error && Array.isArray(data)
+        ? (data as any[]).find((tx) => !TERMINAL_STATUSES.includes(tx.status))
+        : null;
+
+      setIsChatParticipant(!!activeTx);
+      setChatTransactionId(activeTx?.id ?? null);
+    };
+
+    checkParticipation();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, item.id, isPending]);
+
+  const chatHref = chatTransactionId
+    ? `/chat/${item.id}?tx=${chatTransactionId}`
+    : `/chat/${item.id}`;
 
   const scrollToImage = (index: number) => {
     const carousel = carouselRef.current;
@@ -637,7 +681,15 @@ export default function ProductDetailClient({ item }: { item: Item }) {
         {/* Action Buttons - Fixed at bottom of modal */}
         <div className="absolute bottom-0 left-0 right-0 bg-white border-t px-5 pt-3 z-[80] md:px-6 md:py-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="max-w-4xl mx-auto flex gap-3">
-            {isOwnItem ? (
+            {isPending && isChatParticipant ? (
+              <Link
+                href={chatHref}
+                className="flex-1 py-3 md:py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5" />
+                チャットへ
+              </Link>
+            ) : isOwnItem ? (
               <div className="flex gap-2 flex-1">
                 <button
                   onClick={() => setIsEditModalOpen(true)}

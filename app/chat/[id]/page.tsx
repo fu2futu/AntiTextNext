@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, RefreshCw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, XCircle, BookOpen, Star } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Check, CheckCheck, Calendar, MapPin, Clock, RotateCcw, RefreshCw, ImageIcon, Plus, X as XIcon, ChevronRight, CheckCircle2, AlertCircle, Package, XCircle, BookOpen, Star, QrCode, Camera, ScanLine } from "lucide-react";
 import { memo, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
+import QrScanner from "@/components/QrScanner";
 import { useAuth } from "@/components/auth-provider";
 import { ALLOWED_IMAGE_ACCEPT, assertAllowedImageFile, uploadChatImage } from "@/lib/image-storage";
 import { INPUT_LIMITS } from "@/lib/input-limits";
@@ -48,6 +50,8 @@ type Transaction = {
   schedule_change_requested_by: string | null;
   previous_final_meetup_time: string | null;
   previous_final_meetup_location: string | null;
+  handover_token?: string | null;
+  handover_token_expires_at?: string | null;
 };
 
 type UserProfile = {
@@ -108,6 +112,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  // 出品者がQRを表示している間だけ true。相手のスキャンで status が awaiting_rating になったら自動で評価へ遷移する。
+  const [isHandoverActive, setIsHandoverActive] = useState(false);
   const [isCancellationModalOpen, setIsCancellationModalOpen] = useState(false);
   const [isCancellationReasonModalOpen, setIsCancellationReasonModalOpen] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -788,6 +794,16 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // 受け渡し(QR)フローが進行中に取引が評価待ちへ変わったら、その場で評価画面へ遷移する。
+  // 出品者(QR表示側)はリアルタイム購読での status 更新を、購入者(スキャン側)は完了RPC後の更新を拾う。
+  // handover が非アクティブ（モーダルを閉じてチャットを見ているだけ）の参加者は強制遷移しない。
+  useEffect(() => {
+    if (!isHandoverActive || !transaction) return;
+    if (transaction.status === "awaiting_rating") {
+      router.push(`/rating/${transaction.id}`);
+    }
+  }, [isHandoverActive, transaction?.status, transaction?.id, router]);
+
   const handleCancelTransaction = async (reason: string) => {
     if (isFinalizing || !item || !transaction || !user) return;
     if (user.id !== transaction.buyer_id && user.id !== transaction.seller_id) return;
@@ -1090,7 +1106,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         )}
 
         {transaction && hasScheduleCandidates && (
-          <div className="relative z-30 flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
+          <div className="relative z-30 flex-shrink-0 bg-white px-4 pb-3 pt-2">
             <div className={`relative rounded-2xl border ${scheduleCandidateTone.border} ${scheduleCandidateTone.panel} shadow-sm`}>
               <button
                 type="button"
@@ -1109,7 +1125,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
               </button>
 
-              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-white/70 bg-white/95 shadow-xl shadow-black/10 backdrop-blur-md transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[440px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
+              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/10 transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[440px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
                 <div className="px-4 pb-4 pt-3">
                   <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
                     日程が決まり、こちらに記録していただくと予定管理に反映されます。
@@ -1359,9 +1375,17 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       {/* Transaction Completion Modal */}
       <CompletionConfirmationModal
         isOpen={isCompletionModalOpen}
-        onClose={() => setIsCompletionModalOpen(false)}
+        onClose={() => {
+          setIsHandoverActive(false);
+          setIsCompletionModalOpen(false);
+        }}
         onConfirm={handleCompleteTransaction}
         isSeller={isSeller}
+        transaction={transaction}
+        onCompleted={() => {
+          if (transaction) router.push(`/rating/${transaction.id}`);
+        }}
+        onHandoverActiveChange={setIsHandoverActive}
       />
 
       {/* Transaction Cancellation Confirmation Modal */}
@@ -1818,25 +1842,140 @@ function ScheduleAdjustmentModal({
 }
 
 // --- Transaction Completion Modal ---
+// フロー: 確認チェック（ゲート） → QR表示(出品者) / QRスキャン(購入者) → 完了 → 評価へ
+// QRが使えない場合は手動完了(onConfirm)へフォールバックできる。
 function CompletionConfirmationModal({
   isOpen,
   onClose,
   onConfirm,
-  isSeller
+  isSeller,
+  transaction,
+  onCompleted,
+  onHandoverActiveChange,
 }: {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isSeller: boolean;
+  transaction: Transaction | null;
+  onCompleted: () => void;
+  onHandoverActiveChange: (active: boolean) => void;
 }) {
+  const [step, setStep] = useState<"confirm" | "handover">("confirm");
   const [confirmed, setConfirmed] = useState(false);
 
-  // Reset on open
+  // 出品者: QRトークン
+  const [token, setToken] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [now, setNow] = useState<number>(() => Date.now());
+
+  // 購入者: スキャン
+  const [scanKey, setScanKey] = useState(0);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+
+  // 開閉のたびに状態をリセット
   useEffect(() => {
-    if (isOpen) setConfirmed(false);
+    if (isOpen) {
+      setStep("confirm");
+      setConfirmed(false);
+      setToken(null);
+      setGenerating(false);
+      setTokenError(null);
+      setExpiresAt(null);
+      setScanKey(0);
+      setScanError(null);
+      setCameraError(null);
+      setCompleting(false);
+    }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // 出品者のQR表示中だけ、親の自動遷移を armed にする
+  useEffect(() => {
+    onHandoverActiveChange(step === "handover");
+    return () => onHandoverActiveChange(false);
+  }, [step, onHandoverActiveChange]);
+
+  // カウントダウン用のタイマー（QR表示中のみ）
+  useEffect(() => {
+    if (step !== "handover" || !isSeller || !expiresAt) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [step, isSeller, expiresAt]);
+
+  const generateToken = useCallback(async () => {
+    if (!transaction) return;
+    setGenerating(true);
+    setTokenError(null);
+    try {
+      const { data, error } = await (supabase as any).rpc("generate_handover_token", {
+        target_transaction_id: transaction.id,
+      });
+      if (error) throw error;
+      setToken(data as string);
+      setExpiresAt(Date.now() + 4 * 60 * 1000);
+      setNow(Date.now());
+    } catch (err: any) {
+      setTokenError("QRコードの発行に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setGenerating(false);
+    }
+  }, [transaction]);
+
+  const handleProceed = () => {
+    setStep("handover");
+    if (isSeller) {
+      void generateToken();
+    }
+  };
+
+  const handleDecode = async (text: string) => {
+    if (!transaction) return;
+    let payload: any;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      setScanError("QRコードを認識できませんでした。もう一度読み取ってください。");
+      return;
+    }
+    if (!payload || payload.t !== transaction.id || !payload.k) {
+      setScanError("この取引のQRコードではありません。出品者の画面を読み取ってください。");
+      return;
+    }
+    setCompleting(true);
+    try {
+      const { error } = await (supabase as any).rpc("complete_handover_by_scan", {
+        target_transaction_id: transaction.id,
+        token: payload.k,
+      });
+      if (error) throw error;
+      onCompleted();
+    } catch (err: any) {
+      const msg = String(err?.message || "");
+      setScanError(
+        msg.includes("expired")
+          ? "QRコードの有効期限が切れています。出品者に再表示してもらってください。"
+          : "取引の完了に失敗しました。もう一度お試しください。"
+      );
+      setCompleting(false);
+    }
+  };
+
+  const retryScan = () => {
+    setScanError(null);
+    setCameraError(null);
+    setScanKey((k) => k + 1);
+  };
+
+  if (!isOpen || !transaction) return null;
+
+  const secondsLeft = expiresAt ? Math.max(0, Math.ceil((expiresAt - now) / 1000)) : 0;
+  const expired = expiresAt !== null && secondsLeft === 0;
+  const mm = String(Math.floor(secondsLeft / 60)).padStart(1, "0");
+  const ss = String(secondsLeft % 60).padStart(2, "0");
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-in fade-in duration-300">
@@ -1847,81 +1986,218 @@ function CompletionConfirmationModal({
       <div className="relative bg-white w-full max-w-sm rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-5 duration-300">
         <div className="p-8">
           <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-            <BookOpen className="w-8 h-8 text-primary" />
+            {step === "confirm" ? (
+              <BookOpen className="w-8 h-8 text-primary" />
+            ) : isSeller ? (
+              <QrCode className="w-8 h-8 text-primary" />
+            ) : (
+              <ScanLine className="w-8 h-8 text-primary" />
+            )}
           </div>
 
-          <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-            受け渡し確認
-          </h2>
-          <p className="text-gray-500 text-sm text-center mb-6 font-medium">
-            商品の受け渡しは完了しましたか？
-          </p>
-
-          <div className="space-y-3 mb-6">
-            <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-              <div className="w-5 h-5 mt-0.5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                <Check className="w-3 h-3 text-white" strokeWidth={4} />
-              </div>
-              <p className="text-sm font-bold text-gray-700">
-                {isSeller ? "代金を受け取りましたか？" : "商品を受け取りましたか？"}
+          {step === "confirm" ? (
+            <>
+              <h2 className="text-xl font-black text-gray-900 text-center mb-2">
+                受け渡し確認
+              </h2>
+              <p className="text-gray-500 text-sm text-center mb-6 font-medium">
+                商品の受け渡しは完了しましたか？
               </p>
-            </div>
-            <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-              <div className="w-5 h-5 mt-0.5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
-                <Check className="w-3 h-3 text-white" strokeWidth={4} />
+
+              <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="w-5 h-5 mt-0.5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+                  </div>
+                  <p className="text-sm font-bold text-gray-700">
+                    {isSeller ? "代金を受け取りましたか？" : "商品を受け取りましたか？"}
+                  </p>
+                </div>
+                <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="w-5 h-5 mt-0.5 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+                  </div>
+                  <p className="text-sm font-bold text-gray-700">
+                    {isSeller ? "商品を渡しましたか？" : "代金を支払いましたか？"}
+                  </p>
+                </div>
               </div>
-              <p className="text-sm font-bold text-gray-700">
-                {isSeller ? "商品を渡しましたか？" : "代金を支払いましたか？"}
+
+              {/* 警告 */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 mb-6">
+                <p className="text-xs font-bold text-yellow-700 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  この操作は取り消せません。受け渡しが完了してから進んでください。
+                </p>
+              </div>
+
+              {/* 確認チェックボックス（ゲート） */}
+              <button
+                onClick={() => setConfirmed(!confirmed)}
+                className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all mb-6 ${
+                  confirmed
+                    ? "border-primary bg-primary/5"
+                    : "border-gray-200 bg-white"
+                }`}
+              >
+                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
+                  confirmed ? "bg-primary border-primary" : "bg-white border-gray-300"
+                }`}>
+                  {confirmed && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
+                </div>
+                <span className={`text-sm font-bold ${confirmed ? "text-primary" : "text-gray-500"}`}>
+                  受け渡しが完了したことを確認しました
+                </span>
+              </button>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleProceed}
+                  disabled={!confirmed}
+                  className={`w-full py-4 rounded-2xl font-black shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${
+                    confirmed
+                      ? "bg-primary text-white shadow-primary/20 hover:bg-primary/90"
+                      : "bg-gray-100 text-gray-400 shadow-none cursor-not-allowed"
+                  }`}
+                >
+                  {isSeller ? (
+                    <><QrCode className="w-5 h-5" />QRコードを表示する</>
+                  ) : (
+                    <><Camera className="w-5 h-5" />カメラを起動して読み取る</>
+                  )}
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full bg-gray-200 text-gray-700 py-4 rounded-2xl font-black hover:bg-gray-300 transition-all active:scale-[0.98]"
+                >
+                  チャットに戻る
+                </button>
+              </div>
+            </>
+          ) : isSeller ? (
+            /* === 出品者: QR表示 === */
+            <>
+              <h2 className="text-xl font-black text-gray-900 text-center mb-2">
+                受け渡し用QRコード
+              </h2>
+              <p className="text-gray-500 text-sm text-center mb-6 font-medium">
+                購入者にこのQRコードを読み取ってもらってください。
               </p>
-            </div>
-          </div>
 
-          {/* 警告 */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-3 mb-6">
-            <p className="text-xs font-bold text-yellow-700 flex items-center gap-1.5">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              この操作は取り消せません。受け渡しが完了してから押してください。
-            </p>
-          </div>
+              <div className="flex flex-col items-center mb-6">
+                {generating ? (
+                  <div className="flex h-[200px] w-[200px] items-center justify-center rounded-2xl bg-gray-50">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  </div>
+                ) : tokenError ? (
+                  <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 rounded-2xl bg-red-50 px-4 text-center">
+                    <AlertCircle className="w-7 h-7 text-red-500" />
+                    <p className="text-xs font-bold text-red-600">{tokenError}</p>
+                  </div>
+                ) : token && !expired ? (
+                  <div className="rounded-2xl border-4 border-white bg-white p-3 shadow-md ring-1 ring-gray-100">
+                    <QRCodeSVG value={JSON.stringify({ t: transaction.id, k: token })} size={200} level="M" />
+                  </div>
+                ) : (
+                  <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 rounded-2xl bg-gray-50 px-4 text-center">
+                    <Clock className="w-7 h-7 text-gray-400" />
+                    <p className="text-xs font-bold text-gray-500">
+                      QRコードの有効期限が切れました。再生成してください。
+                    </p>
+                  </div>
+                )}
 
-          {/* 確認チェックボックス */}
-          <button
-            onClick={() => setConfirmed(!confirmed)}
-            className={`w-full flex items-center gap-3 p-4 rounded-2xl border-2 transition-all mb-6 ${
-              confirmed
-                ? "border-primary bg-primary/5"
-                : "border-gray-200 bg-white"
-            }`}
-          >
-            <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${
-              confirmed ? "bg-primary border-primary" : "bg-white border-gray-300"
-            }`}>
-              {confirmed && <Check className="w-4 h-4 text-white" strokeWidth={3} />}
-            </div>
-            <span className={`text-sm font-bold ${confirmed ? "text-primary" : "text-gray-500"}`}>
-              受け渡しが完了したことを確認しました
-            </span>
-          </button>
+                {token && !tokenError && !expired && (
+                  <p className="mt-3 text-xs font-bold text-gray-400">
+                    有効期限: あと {mm}:{ss}
+                  </p>
+                )}
+              </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={onConfirm}
-              disabled={!confirmed}
-              className={`w-full py-4 rounded-2xl font-black shadow-lg transition-all active:scale-[0.98] ${
-                confirmed
-                  ? "bg-primary text-white shadow-primary/20 hover:bg-primary/90"
-                  : "bg-gray-100 text-gray-400 shadow-none cursor-not-allowed"
-              }`}
-            >
-              取引終了して評価へ
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full bg-gray-200 text-gray-700 py-4 rounded-2xl font-black hover:bg-gray-300 transition-all active:scale-[0.98]"
-            >
-              チャットに戻る
-            </button>
-          </div>
+              <div className="mb-4 flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-3 py-2.5">
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                <p className="text-xs font-bold text-primary">購入者の読み取りを待っています…</p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={generateToken}
+                  disabled={generating}
+                  className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <RefreshCw className="w-4 h-4" />QRコードを再生成
+                </button>
+                <button
+                  onClick={onClose}
+                  className="w-full py-3 rounded-2xl font-black text-gray-500 hover:bg-gray-100 transition-all"
+                >
+                  チャットに戻る
+                </button>
+                <button
+                  onClick={onConfirm}
+                  className="w-full text-xs font-bold text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+                >
+                  QRが使えない場合は手動で完了する
+                </button>
+              </div>
+            </>
+          ) : (
+            /* === 購入者: QRスキャン === */
+            <>
+              <h2 className="text-xl font-black text-gray-900 text-center mb-2">
+                QRコードを読み取る
+              </h2>
+              <p className="text-gray-500 text-sm text-center mb-6 font-medium">
+                出品者の画面に表示されたQRコードを読み取ってください。
+              </p>
+
+              <div className="mb-6">
+                {completing ? (
+                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-2xl bg-gray-50">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p className="text-sm font-bold text-gray-500">取引を完了しています…</p>
+                  </div>
+                ) : cameraError ? (
+                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-2xl bg-red-50 px-6 text-center">
+                    <Camera className="w-8 h-8 text-red-400" />
+                    <p className="text-xs font-bold text-red-600">{cameraError}</p>
+                  </div>
+                ) : scanError ? (
+                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-3 rounded-2xl bg-amber-50 px-6 text-center">
+                    <AlertCircle className="w-8 h-8 text-amber-500" />
+                    <p className="text-xs font-bold text-amber-700">{scanError}</p>
+                    <button
+                      onClick={retryScan}
+                      className="mt-1 rounded-xl bg-primary px-4 py-2 text-xs font-black text-white hover:bg-primary/90 transition-all"
+                    >
+                      もう一度読み取る
+                    </button>
+                  </div>
+                ) : (
+                  <QrScanner
+                    key={scanKey}
+                    onDecode={handleDecode}
+                    onError={(m) => setCameraError(m)}
+                  />
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => setStep("confirm")}
+                  className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98]"
+                >
+                  戻る
+                </button>
+                <button
+                  onClick={onConfirm}
+                  className="w-full text-xs font-bold text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
+                >
+                  QRが使えない場合は手動で完了する
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
