@@ -867,10 +867,18 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           animation: slideInUp 0.4s ease-out forwards;
           opacity: 0;
         }
+        /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
+           styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
+           固定の試験運用バナー分は scroll-padding-top で吸収する。 */
+        html {
+          scroll-snap-type: y mandatory;
+          scroll-padding-top: var(--app-top-offset);
+          scroll-behavior: smooth;
+        }
       `}</style>
 
       {/* Header */}
-      <header className="bg-white px-6 pt-8 pb-6 border-b">
+      <header className="bg-white px-6 pt-8 pb-6 border-b snap-start">
         <div className="flex items-end justify-between mb-6">
           <div className="flex flex-col">
             <h1 className="text-3xl font-bold gradient-text-blue leading-none tracking-tight">
@@ -924,7 +932,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       {/* おすすめの教材 */}
       {user && !isAdminHomeView && (
-        <div className="px-6 py-8">
+        <div className="px-6 py-8 snap-start">
           <div className="flex items-center gap-2 mb-6">
             <TrendingUp className="w-6 h-6 text-primary" />
             <h2 className="text-xl font-bold text-gray-900">
@@ -950,14 +958,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
+              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {visibleRecommendedItems.map((item, index) => {
                     const showLoadMoreHere = hasMoreRecommended && index === visibleRecommendedItems.length - 1;
                     return (
-                    <div key={item.id} className="relative min-w-0">
+                    <div key={item.id} className="relative min-w-0 snap-start">
                       <ItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
@@ -1002,7 +1010,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       {/* みんなの出品 */}
       {(displayedPopularItems.length > 0 || hasMore) && (
-        <div className="px-6 py-8 bg-gray-50">
+        <div className="px-6 py-8 bg-gray-50 snap-start">
           <div className="flex items-center gap-2 mb-6">
             <Users className="w-6 h-6 text-primary" />
             <h2 className="text-xl font-bold text-gray-900">
@@ -1018,14 +1026,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
-              <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
+              <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {
                     const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
                     return (
-                    <div key={`popular-${item.id}`} className="relative min-w-0">
+                    <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
                       <ItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
