@@ -804,6 +804,32 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
   }, [isHandoverActive, transaction?.status, transaction?.id, router]);
 
+  // フォールバック: transactions のリアルタイム配信が無効な環境でも出品者を遷移させるため、
+  // QR表示中だけDBの取引状態をポーリングし、評価待ちになったら遷移する。
+  useEffect(() => {
+    if (!isHandoverActive || !transaction) return;
+    if (transaction.status === "awaiting_rating") return;
+    const txId = transaction.id;
+    let stopped = false;
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("transactions")
+        .select("status, buyer_completed, seller_completed")
+        .eq("id", txId)
+        .maybeSingle();
+      if (stopped || !data) return;
+      const d = data as { status: string; buyer_completed: boolean; seller_completed: boolean };
+      if (d.status === "awaiting_rating" || (d.buyer_completed && d.seller_completed)) {
+        clearInterval(interval);
+        router.push(`/rating/${txId}`);
+      }
+    }, 2500);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [isHandoverActive, transaction?.id, transaction?.status, router]);
+
   const handleCancelTransaction = async (reason: string) => {
     if (isFinalizing || !item || !transaction || !user) return;
     if (user.id !== transaction.buyer_id && user.id !== transaction.seller_id) return;
