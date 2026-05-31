@@ -111,7 +111,7 @@ export default function ProfileRewardsTutorial({ onClose }: ProfileRewardsTutori
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
       <div className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-sm flex-col overflow-hidden rounded-3xl bg-white shadow-2xl animate-scale-in">
         <button
           onClick={onClose}

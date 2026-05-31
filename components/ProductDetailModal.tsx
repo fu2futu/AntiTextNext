@@ -47,7 +47,7 @@ export default function ProductDetailModal({ children, onClose }: ProductDetailM
 
   return (
     <div 
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-[100]"
       onClick={handleBackdropClick}
     >
       {/* Backdrop */}

@@ -605,6 +605,13 @@
   100% { background-position: 0% 50%; }
 }
 
+/* PCでは出品フォーム全体を縮小して1画面に収めやすくする（zoomはレイアウトごと縮小される） */
+@media (min-width: 1024px) {
+  .listing-form-compact {
+    zoom: 0.72;
+  }
+}
+
 .reward-avatar-frame {
   --reward-avatar-frame-color: #3b82f6;
   --reward-avatar-frame-soft: #dbeafe;

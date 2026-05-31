@@ -571,14 +571,26 @@ export default function ListingPage() {
 
   return (
     <div className="min-h-screen bg-white font-gentle">
+      <style jsx global>{`
+        html {
+          scroll-snap-type: y mandatory;
+          scroll-padding-top: var(--app-top-offset);
+          scroll-behavior: smooth;
+        }
+        @media (min-width: 1024px) {
+          html {
+            scroll-padding-top: calc(var(--app-top-offset) + 5rem);
+          }
+        }
+      `}</style>
       {/* Listing Tutorial for first-time visitors */}
       {showTutorial && (
         <ListingTutorial onClose={handleCloseTutorial} />
       )}
 
-      <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
+      <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:pt-6 lg:pb-5 lg:rounded-b-[28px] snap-start">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+          <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-3xl">
             教科書の出品
           </h1>
           <button
@@ -592,11 +604,11 @@ export default function ListingPage() {
         </div>
       </header>
 
-      <div className="px-6 py-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="px-6 py-8 lg:py-5 listing-form-compact snap-start">
+        <div className="max-w-2xl lg:max-w-4xl mx-auto">
           <div className="bg-white rounded-2xl border shadow-lg p-5 sm:p-8">
-            <div className="space-y-6">
-              <div className="animate-slide-in-bottom">
+            <div className="lg:columns-2 lg:gap-10">
+              <div className="animate-slide-in-bottom mb-6 break-inside-avoid">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   バーコード (ISBN) <span className="text-gray-400 text-xs ml-1">※任意</span>
                 </label>
@@ -637,7 +649,7 @@ export default function ListingPage() {
                 </p>
               </div>
 
-              <div className="animate-slide-in-bottom">
+              <div className="animate-slide-in-bottom mb-6 break-inside-avoid">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   教科書名 <span className="text-red-500">*</span>
                 </label>
@@ -653,7 +665,7 @@ export default function ListingPage() {
                 />
               </div>
 
-              <div className="animate-slide-in-bottom">
+              <div className="animate-slide-in-bottom mb-6 break-inside-avoid">
                 <label className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm font-bold text-gray-700">
                   <input
                     type="checkbox"
@@ -685,11 +697,11 @@ export default function ListingPage() {
                 )}
               </div>
 
-              <div className="animate-slide-in-bottom" style={{ animationDelay: '200ms' }}>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
+              <div className="animate-slide-in-bottom mb-6 break-inside-avoid" style={{ animationDelay: '200ms' }}>
+                <label className="block text-sm font-medium text-gray-700 mb-3 lg:mb-2">
                   写真 <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 lg:max-w-md">
                   <div>
                     <label className="block w-full aspect-[3/4] bg-gray-100 rounded-xl transition-colors border-2 border-dashed border-gray-300 overflow-hidden cursor-pointer hover:bg-gray-200 active:scale-[0.99]">
                       <input
@@ -768,7 +780,7 @@ export default function ListingPage() {
                 </div>
               </div>
 
-              <div className="animate-slide-in-bottom" style={{ animationDelay: '300ms' }}>
+              <div className="animate-slide-in-bottom mb-6 break-inside-avoid" style={{ animationDelay: '300ms' }}>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   定価（税抜き） <span className="text-red-500">*</span>
                 </label>
@@ -786,7 +798,7 @@ export default function ListingPage() {
                 </p>
               </div>
 
-              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 animate-slide-in-bottom" style={{ animationDelay: '400ms' }}>
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 animate-slide-in-bottom mb-6 break-inside-avoid" style={{ animationDelay: '400ms' }}>
                 <div className="flex items-center justify-between">
                   <span className="text-gray-700 font-medium">出品価格</span>
                   <span className="text-2xl font-bold text-primary">
@@ -798,7 +810,7 @@ export default function ListingPage() {
                 </p>
               </div>
 
-              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4 animate-slide-in-bottom" style={{ animationDelay: '450ms' }}>
+              <div className="rounded-xl border-2 border-red-200 bg-red-50 p-4 animate-slide-in-bottom mb-6 break-inside-avoid" style={{ animationDelay: '450ms' }}>
                 <div className="flex items-center gap-2 mb-3">
                   <AlertCircle className="w-5 h-5 text-red-600" />
                   <h2 className="font-bold text-red-700">出品前の確認事項</h2>
@@ -829,7 +841,7 @@ export default function ListingPage() {
             <button
               onClick={handleSubmit}
               disabled={!canSubmit}
-              className={`w-full mt-8 py-4 rounded-xl font-semibold text-lg transition-all shadow-md animate-slide-in-bottom ${
+              className={`w-full mt-8 py-4 rounded-xl font-semibold text-lg transition-all shadow-md animate-slide-in-bottom lg:mt-5 lg:py-3 ${
                 canSubmit
                   ? "bg-primary text-white hover:bg-primary/90 hover:shadow-lg"
                   : "bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"

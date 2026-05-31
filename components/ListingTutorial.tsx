@@ -614,7 +614,7 @@ export default function ListingTutorial({ onClose }: ListingTutorialProps) {
     const CurrentAnimation = steps[currentStep].Component;
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-scale-in">
                 {/* Close Button */}
                 <button

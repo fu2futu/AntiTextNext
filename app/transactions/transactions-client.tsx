@@ -446,9 +446,33 @@ export default function TransactionsClient({
         </div>
     );
 
+    const profileCard = profile ? (
+        <Link href="/profile" className="mt-6 block group lg:mt-0">
+            <div className="flex items-center gap-4 bg-gray-50 rounded-[28px] p-4 transition-all hover:bg-gray-100 hover:scale-[1.02] active:scale-[0.98] lg:bg-white lg:shadow-sm lg:border lg:border-gray-100">
+                <RewardAvatar
+                    src={avatarUrl}
+                    alt="プロフィール"
+                    size={56}
+                    listingCount={profileAvatar.listingCount}
+                    earlyRegistration={profileAvatar.earlyRegistration}
+                    adminFrame={user?.email?.toLowerCase() === "textnextbbs@gmail.com"}
+                    className="shadow-md"
+                />
+                <div className="flex-1">
+                    <p className="font-black text-gray-900 text-lg">{profile.nickname}</p>
+                    <div className="flex items-center gap-1.5 text-gray-500">
+                        <GraduationCap className="w-4 h-4 text-primary/40" />
+                        <span className="text-xs font-bold uppercase tracking-wider">{profile.department}</span>
+                    </div>
+                </div>
+            </div>
+        </Link>
+    ) : null;
+
     return (
-        <div className="min-h-screen bg-gray-50 pb-24 font-gentle">
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
+        <div className="min-h-screen bg-gray-50 pb-24 font-gentle lg:pb-12">
+            <div className="lg:mx-auto lg:max-w-5xl lg:px-6">
+            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[40px]">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <h1 className="text-4xl font-black text-gray-900 tracking-tight">{t('transactions.title')}</h1>
@@ -468,31 +492,11 @@ export default function TransactionsClient({
                     </button>
                 </div>
 
-                {profile && (
-                    <Link href="/profile" className="mt-6 block group">
-                        <div className="flex items-center gap-4 bg-gray-50 rounded-[28px] p-4 transition-all hover:bg-gray-100 hover:scale-[1.02] active:scale-[0.98]">
-                            <RewardAvatar
-                                src={avatarUrl}
-                                alt="プロフィール"
-                                size={56}
-                                listingCount={profileAvatar.listingCount}
-                                earlyRegistration={profileAvatar.earlyRegistration}
-                                adminFrame={user?.email?.toLowerCase() === "textnextbbs@gmail.com"}
-                                className="shadow-md"
-                            />
-                            <div className="flex-1">
-                                <p className="font-black text-gray-900 text-lg">{profile.nickname}</p>
-                                <div className="flex items-center gap-1.5 text-gray-500">
-                                    <GraduationCap className="w-4 h-4 text-primary/40" />
-                                    <span className="text-xs font-bold uppercase tracking-wider">{profile.department}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </Link>
-                )}
+                {/* プロフィール（モバイルはヘッダー内、PCはサイドバーに表示） */}
+                <div className="lg:hidden">{profileCard}</div>
             </header>
 
-            <div className="px-6 -mt-6">
+            <div className="px-6 -mt-6 lg:hidden">
                 <div className="bg-white/80 backdrop-blur-md rounded-[32px] p-1.5 flex shadow-xl border border-white/50">
                     <button
                         onClick={() => setActiveTab("upcoming")}
@@ -515,7 +519,27 @@ export default function TransactionsClient({
                 </div>
             </div>
 
-            <div className="px-6 py-8">
+            <div className="lg:mt-6 lg:flex lg:items-start lg:gap-6">
+            {/* サイドバー（PCのみ：プロフィール＋縦タブ） */}
+            <aside className="hidden lg:block lg:w-72 lg:flex-shrink-0 lg:space-y-4">
+                {profileCard}
+                <div className="bg-white/80 backdrop-blur-md rounded-[32px] p-1.5 flex flex-col gap-1.5 shadow-xl border border-white/50">
+                    <button
+                        onClick={() => setActiveTab("upcoming")}
+                        className={`w-full py-4 text-sm font-black transition-all rounded-[24px] ${activeTab === "upcoming" ? "gradient-btn-tab" : "text-gray-400 hover:text-gray-600"}`}
+                    >
+                        {t('transactions.upcoming')} ({confirmedItems.length})
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("adjusting")}
+                        className={`w-full py-4 text-sm font-black transition-all rounded-[24px] ${activeTab === "adjusting" ? "gradient-btn-tab" : "text-gray-400 hover:text-gray-600"}`}
+                    >
+                        日程調整中 ({adjustingItems.length})
+                    </button>
+                </div>
+            </aside>
+
+            <div className="px-6 py-8 lg:flex-1 lg:px-0 lg:py-0 lg:min-w-0">
                 {activeTab === "upcoming" ? (
                     sortedDates.length === 0 ? (
                         <div className="text-center py-20 bg-white rounded-[40px] shadow-sm border border-gray-100">
@@ -558,6 +582,8 @@ export default function TransactionsClient({
                         )}
                     </div>
                 ) : null}
+            </div>
+            </div>
             </div>
             {showFlowHelp && <TransactionFlowHelp onClose={() => setShowFlowHelp(false)} />}
         </div>

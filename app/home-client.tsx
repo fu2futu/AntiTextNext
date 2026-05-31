@@ -875,10 +875,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           scroll-padding-top: var(--app-top-offset);
           scroll-behavior: smooth;
         }
+        /* PC(lg以上)は固定の共通ヘッダー分(h-20=5rem)も吸着位置に加算し、
+           セクション見出しがヘッダー裏に隠れないようにする。 */
+        @media (min-width: 1024px) {
+          html {
+            scroll-padding-top: calc(var(--app-top-offset) + 5rem);
+          }
+        }
       `}</style>
 
-      {/* Header */}
-      <header className="bg-white px-6 pt-8 pb-6 border-b snap-start">
+      {/* Header（PCでは共通のDesktopHeaderに集約するため非表示） */}
+      <header className="lg:hidden bg-white px-6 pt-8 pb-6 border-b snap-start">
         <div className="flex items-end justify-between mb-6">
           <div className="flex flex-col">
             <h1 className="text-3xl font-bold gradient-text-blue leading-none tracking-tight">
