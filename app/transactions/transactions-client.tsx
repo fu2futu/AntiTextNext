@@ -472,10 +472,10 @@ export default function TransactionsClient({
     return (
         <div className="min-h-screen bg-gray-50 pb-24 font-gentle lg:pb-12">
             <div className="lg:mx-auto lg:max-w-5xl lg:px-6">
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[40px]">
+            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[40px] lg:pt-6 lg:pb-5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">{t('transactions.title')}</h1>
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">{t('transactions.title')}</h1>
                         {totalUnreadCount > 0 && (
                             <span className="bg-red-500 text-white text-xs font-black px-2.5 py-1 rounded-full shadow-lg shadow-red-500/20">
                                 {totalUnreadCount}

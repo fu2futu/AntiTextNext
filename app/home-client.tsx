@@ -28,6 +28,7 @@ type Item = {
 };
 
 const HOME_ITEM_PAGE_SIZE = 7;
+const PC_ITEM_PAGE_SIZE = 9;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
   "accepted",
@@ -41,11 +42,6 @@ const ACTIVE_TRANSACTION_STATUSES = [
 type MobileHomeLayout = "list" | "square" | "image";
 
 const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
-const getMobileLayoutPageSize = (layout: MobileHomeLayout) => {
-  if (layout === "image") return 18;
-  if (layout === "square") return 10;
-  return HOME_ITEM_PAGE_SIZE;
-};
 
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
@@ -304,6 +300,21 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [loadingPopular, setLoadingPopular] = useState(false);
   const requestIdRef = useRef(0);
 
+  // PC(lg以上)判定。リスト表示の件数を PC=9 / モバイル=7 に出し分けるために使う。
+  const [isPc, setIsPc] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsPc(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  const pageSizeFor = (layout: MobileHomeLayout) => {
+    if (layout === "image") return 18;
+    if (layout === "square") return 10;
+    return isPc ? PC_ITEM_PAGE_SIZE : HOME_ITEM_PAGE_SIZE;
+  };
+
   // Pull-to-Refresh
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -488,7 +499,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .neq("seller_id", user.id)
           .order("created_at", { ascending: false });
 
-        const initialVisiblePopularCount = getMobileLayoutPageSize(popularMobileLayout);
+        const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
         const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery.range(0, initialVisiblePopularCount - 1);
 
         if (!visiblePopularError && visiblePopular) {
@@ -648,7 +659,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     favoriteSyncTimersRef.current.set(id, timer);
   }, [user, loginPrompt]);
 
-  const loadMoreRecommended = async (requestedCount = getMobileLayoutPageSize(recommendedMobileLayout)) => {
+  const loadMoreRecommended = async (requestedCount = pageSizeFor(recommendedMobileLayout)) => {
     if (loadingMoreRecommended || !hasMoreRecommended || !user) return;
 
     setLoadingMoreRecommended(true);
@@ -696,7 +707,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     }
   };
 
-  const loadMorePopular = async (requestedCount = getMobileLayoutPageSize(popularMobileLayout)) => {
+  const loadMorePopular = async (requestedCount = pageSizeFor(popularMobileLayout)) => {
     if (loadingMore || !hasMore) return;
     
     setLoadingMore(true);
@@ -732,8 +743,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   };
 
   useEffect(() => {
-    const recommendedTargetCount = getMobileLayoutPageSize(recommendedMobileLayout);
-    const popularTargetCount = getMobileLayoutPageSize(popularMobileLayout);
+    const recommendedTargetCount = pageSizeFor(recommendedMobileLayout);
+    const popularTargetCount = pageSizeFor(popularMobileLayout);
 
     if (
       user &&
@@ -763,6 +774,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     hasMore,
     loadingMoreRecommended,
     loadingMore,
+    isPc,
   ]);
 
   // Pull-to-Refresh handlers
@@ -801,7 +813,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           popularQuery = popularQuery.neq("seller_id", user.id);
         }
 
-        const refreshCount = getMobileLayoutPageSize(popularMobileLayout);
+        const refreshCount = pageSizeFor(popularMobileLayout);
         const { data: freshPopular, count: freshPopularCount } = await popularQuery.range(0, refreshCount - 1);
 
         if (freshPopular) {
@@ -965,7 +977,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
@@ -982,13 +994,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         mobileLayout={recommendedMobileLayout}
                       />
                       {showLoadMoreHere && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent lg:hidden" />
                       )}
                     </div>
                   )})}
                 </div>
                 {hasMoreRecommended && visibleRecommendedItems.length > 0 && (
-                  <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
+                  <div className="relative z-30 -mt-12 lg:mt-6 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
                         loading={loadingMoreRecommended}
@@ -1033,7 +1045,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
-              <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
@@ -1050,13 +1062,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         mobileLayout={popularMobileLayout}
                       />
                       {showLoadMoreHere && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent lg:hidden" />
                       )}
                     </div>
                   )})}
                 </div>
                 {hasMore && displayedPopularItems.length > 0 && (
-                  <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
+                  <div className="relative z-30 -mt-12 lg:mt-6 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
                         loading={loadingMore}

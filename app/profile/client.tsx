@@ -74,6 +74,7 @@ export default function MypageClient({
     const { user, loading: authLoading } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<"past" | "listing" | null>(null);
+    const [detailView, setDetailView] = useState<"favorites" | "listing" | "past">("favorites");
     const [favoriteItems, setFavoriteItems] = useState<Item[]>(initialFavoriteItems);
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
@@ -157,16 +158,73 @@ export default function MypageClient({
 
     const ratingStars = Math.round(averageRating);
 
+    const renderHistoryRow = (item: Item) => (
+        <div
+            key={item.id}
+            onClick={() => router.push(`/product/${item.id}`)}
+            className="bg-white p-3 rounded-xl border border-gray-100 flex items-center gap-3 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+        >
+            <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0">
+                {getItemImageUrl(item, "front", "thumbnail") && (
+                    <Image src={getItemImageUrl(item, "front", "thumbnail")!} alt={item.title} width={48} height={48} className="w-full h-full object-cover" quality={55} />
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate group-hover:text-primary transition-colors">{item.title}</p>
+                <p className="text-xs font-bold gradient-text-price">¥{item.selling_price.toLocaleString()}</p>
+            </div>
+            <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+        </div>
+    );
+
+    const renderFavoriteCard = (item: Item) => (
+        <div
+            key={item.id}
+            onClick={() => router.push(`/product/${item.id}`)}
+            className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer group"
+        >
+            <div className={`aspect-square relative flex items-center justify-center bg-gray-50 overflow-hidden ${item.status !== "available" ? "opacity-70" : ""}`}>
+                {getItemImageUrl(item, "front", "thumbnail") ? (
+                    <Image
+                        src={getItemImageUrl(item, "front", "thumbnail")!}
+                        alt={item.title}
+                        fill
+                        className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        sizes="50vw"
+                        quality={55}
+                    />
+                ) : (
+                    <BookOpen className="w-8 h-8 text-gray-200" />
+                )}
+                {(item.status === "trading" || item.status === "transaction_pending") && (
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                        <span className="bg-gray-700 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg tracking-wider">
+                            取引中
+                        </span>
+                    </div>
+                )}
+                <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
+                    <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+                </div>
+            </div>
+            <div className="p-3 space-y-1">
+                <h4 className={`text-sm font-bold truncate group-hover:text-primary transition-colors ${item.status !== "available" ? "text-gray-400" : "text-gray-900"}`}>{item.title}</h4>
+                <p className={`text-sm font-extrabold ${item.status !== "available" ? "text-gray-400 line-through" : "gradient-text-price"}`}>¥{item.selling_price.toLocaleString()}</p>
+            </div>
+        </div>
+    );
+
     return (
-        <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 pb-32 font-gentle">
+        <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 pb-32 font-gentle lg:pb-12">
             {showRewardsTutorial && (
                 <ProfileRewardsTutorial onClose={handleCloseRewardsTutorial} />
             )}
 
+            <div className="lg:max-w-5xl lg:mx-auto lg:px-6">
             {/* Header */}
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
+            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
                 <div className="flex items-start justify-between gap-4">
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+                    <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
                         {t('profile.mypage')}
                     </h1>
                     <button
@@ -180,9 +238,11 @@ export default function MypageClient({
                 </div>
             </header>
 
-            <div className="px-6 pt-8 space-y-8">
+            <div className="px-6 pt-8 space-y-8 lg:px-0 lg:pt-6 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
+            {/* 左カラム: プロフィール＋各種ボタン＋規約 */}
+            <div className="space-y-8 lg:space-y-6 lg:w-80 lg:flex-shrink-0">
                 {/* Profile Section */}
-                <Link 
+                <Link
                     href={`/seller/${user.id}`}
                     className="group relative bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-md border border-white/50 flex items-center gap-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 cursor-pointer"
                 >
@@ -241,10 +301,33 @@ export default function MypageClient({
                     </div>
                 </Link>
 
+                {/* PC専用: 右パネル切替メニュー */}
+                <nav className="hidden lg:flex lg:flex-col gap-2">
+                    {([
+                        { key: "favorites", label: "お気に入り", icon: Heart, count: favoriteItems.length },
+                        { key: "listing", label: t('profile.listing_items'), icon: BookOpen, count: initialListingItems.length },
+                        { key: "past", label: t('profile.past_transactions'), icon: History, count: initialPastItems.length },
+                    ] as const).map((m) => {
+                        const Icon = m.icon;
+                        const active = detailView === m.key;
+                        return (
+                            <button
+                                key={m.key}
+                                onClick={() => setDetailView(m.key)}
+                                className={`flex items-center gap-3 w-full rounded-2xl p-4 border-2 transition-all ${active ? "bg-primary text-white border-primary shadow-lg shadow-primary/20" : "bg-white text-gray-700 border-gray-100 shadow-sm hover:border-primary/30"}`}
+                            >
+                                <Icon className={`w-5 h-5 ${active ? "text-white" : "text-primary"}`} />
+                                <span className="flex-1 text-left font-bold">{m.label}</span>
+                                <span className={`text-sm font-black ${active ? "text-white/90" : "text-gray-400"}`}>{m.count}</span>
+                            </button>
+                        );
+                    })}
+                </nav>
+
                 {/* Profile Edit Button */}
                 <button
                     onClick={() => router.push("/profile/edit?from=mypage")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-primary/30"
+                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center transition-colors group-hover:bg-primary/10">
@@ -252,12 +335,12 @@ export default function MypageClient({
                         </div>
                         <span className="font-bold text-gray-700">{t('profile.edit_profile')}</span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                 </button>
 
                 <button
                     onClick={() => router.push("/profile/inquiries")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-primary/30"
+                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-100">
@@ -265,13 +348,13 @@ export default function MypageClient({
                         </div>
                         <span className="font-bold text-gray-700">お問い合わせ履歴</span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                 </button>
 
                 {/* その他設定ボタン */}
                 <button
                     onClick={() => router.push("/settings")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between group active:scale-[0.98] transition-all hover:border-primary/30"
+                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center transition-colors group-hover:bg-gray-200">
@@ -279,7 +362,7 @@ export default function MypageClient({
                         </div>
                         <span className="font-bold text-gray-700">{t('profile.settings')}</span>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                 </button>
 
                 <section className="space-y-3">
@@ -287,6 +370,48 @@ export default function MypageClient({
                     <LegalLinksPanel />
                 </section>
 
+            </div>
+
+            {/* 右カラム(PC): サイドバーで選択した一覧を表示 */}
+            <div className="hidden lg:block lg:flex-1 lg:min-w-0">
+                {detailView === "favorites" ? (
+                    <section className="space-y-4">
+                        <div className="flex items-center justify-between px-1">
+                            <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
+                                <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                                お気に入り一覧
+                            </h3>
+                            <span className="text-sm font-bold text-red-500">{favoriteItems.length}件</span>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                            {favoriteItems.map(renderFavoriteCard)}
+                            {favoriteItems.length === 0 && (
+                                <div className="col-span-2 lg:col-span-3 py-12 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+                                    <Heart className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-400">お気に入りのアイテムはありません</p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                ) : (
+                    <section className="space-y-4">
+                        <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2 px-1">
+                            {detailView === "past" ? <History className="w-5 h-5 text-primary" /> : <BookOpen className="w-5 h-5 text-red-500" />}
+                            {detailView === "past" ? t('profile.past_transactions') : t('profile.listing_items')}
+                            <span className="ml-1 text-sm font-bold text-gray-400">{(detailView === "past" ? initialPastItems : initialListingItems).length}件</span>
+                        </h3>
+                        <div className="space-y-3">
+                            {(detailView === "past" ? initialPastItems : initialListingItems).map(renderHistoryRow)}
+                            {(detailView === "past" ? initialPastItems : initialListingItems).length === 0 && (
+                                <p className="text-center py-12 text-sm text-gray-400">アイテムがありません</p>
+                            )}
+                        </div>
+                    </section>
+                )}
+            </div>
+
+            {/* モバイル: 履歴＋お気に入り（従来通り） */}
+            <div className="lg:hidden space-y-8">
                 {/* History Section */}
                 <section className="space-y-4">
                     <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2 px-1">
@@ -330,24 +455,7 @@ export default function MypageClient({
                                 </span>
                             </div>
                             <div className="space-y-3">
-                                {(activeTab === "past" ? initialPastItems : initialListingItems).map((item) => (
-                                    <div
-                                        key={item.id}
-                                        onClick={() => router.push(`/product/${item.id}`)}
-                                        className="bg-white p-3 rounded-xl border border-gray-100 flex items-center gap-3 shadow-sm hover:shadow-md transition-all cursor-pointer group"
-                                    >
-                                        <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0">
-                                            {getItemImageUrl(item, "front", "thumbnail") && (
-                                                <Image src={getItemImageUrl(item, "front", "thumbnail")!} alt={item.title} width={48} height={48} className="w-full h-full object-cover" quality={55} />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-bold text-gray-900 truncate group-hover:text-primary transition-colors">{item.title}</p>
-                                            <p className="text-xs font-bold gradient-text-price">¥{item.selling_price.toLocaleString()}</p>
-                                        </div>
-                                        <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                                    </div>
-                                ))}
+                                {(activeTab === "past" ? initialPastItems : initialListingItems).map(renderHistoryRow)}
                                 {(activeTab === "past" ? initialPastItems : initialListingItems).length === 0 && (
                                     <p className="text-center py-8 text-sm text-gray-400">アイテムがありません</p>
                                 )}
@@ -366,42 +474,7 @@ export default function MypageClient({
                         <span className="text-sm font-bold text-red-500">{favoriteItems.length}件</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        {favoriteItems.map((item) => (
-                            <div
-                                key={item.id}
-                                onClick={() => router.push(`/product/${item.id}`)}
-                                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer group"
-                            >
-                                <div className={`aspect-square relative flex items-center justify-center bg-gray-50 overflow-hidden ${item.status !== "available" ? "opacity-70" : ""}`}>
-                                    {getItemImageUrl(item, "front", "thumbnail") ? (
-                                        <Image
-                                            src={getItemImageUrl(item, "front", "thumbnail")!}
-                                            alt={item.title}
-                                            fill
-                                            className="object-cover group-hover:scale-110 transition-transform duration-500"
-                                            sizes="50vw"
-                                            quality={55}
-                                        />
-                                    ) : (
-                                        <BookOpen className="w-8 h-8 text-gray-200" />
-                                    )}
-                                    {(item.status === "trading" || item.status === "transaction_pending") && (
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                            <span className="bg-gray-700 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg tracking-wider">
-                                                取引中
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
-                                        <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-                                    </div>
-                                </div>
-                                <div className="p-3 space-y-1">
-                                    <h4 className={`text-sm font-bold truncate group-hover:text-primary transition-colors ${item.status !== "available" ? "text-gray-400" : "text-gray-900"}`}>{item.title}</h4>
-                                    <p className={`text-sm font-extrabold ${item.status !== "available" ? "text-gray-400 line-through" : "gradient-text-price"}`}>¥{item.selling_price.toLocaleString()}</p>
-                                </div>
-                            </div>
-                        ))}
+                        {favoriteItems.map(renderFavoriteCard)}
                         {favoriteItems.length === 0 && (
                             <div className="col-span-2 py-12 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
                                 <Heart className="w-10 h-10 text-gray-200 mx-auto mb-2" />
@@ -410,6 +483,8 @@ export default function MypageClient({
                         )}
                     </div>
                 </section>
+            </div>
+            </div>
             </div>
         </div>
     );
