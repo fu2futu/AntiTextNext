@@ -288,6 +288,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(initialPopularItems.length < totalPopularCount);
+  // ログインユーザー向けのクライアント側再取得中フラグ。
+  // サーバー描画 → クライアント再取得への差し替えで「取引中/相談中」などがちらつくのを防ぐ。
+  const [loadingPopular, setLoadingPopular] = useState(false);
   const requestIdRef = useRef(0);
 
   // Pull-to-Refresh
@@ -356,6 +359,12 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     let cancelled = false;
 
     const fetchData = async () => {
+      // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
+      // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
+      if (user) {
+        setLoadingPopular(true);
+      }
+
       if (!user) {
         setFavorites([]);
         setRecommendedItems([]);
@@ -365,6 +374,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setTotalVisiblePopularCount(totalPopularCount);
         setHasMore(initialPopularItems.length < totalPopularCount);
         setLoadingRecommended(false);
+        setLoadingPopular(false);
       }
 
       // 1. お気に入り状態のロード & 最新カウントの取得
@@ -506,6 +516,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       if (user) {
         setLoadingRecommended(false);
+        setLoadingPopular(false);
       }
     };
 
@@ -959,52 +970,61 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </h2>
           </div>
 
-          <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
-          <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
-            <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
-              popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
-            }`}>
-              {displayedPopularItems.map((item, index) => {
-                const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
-                return (
-                <div key={`popular-${item.id}`} className="relative min-w-0">
-                  <ItemCard
-                    item={item}
-                    isFavorite={favoriteSet.has(item.id)}
-                    onToggleFavorite={toggleFavorite}
-                    showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
-                    index={index}
-                    mobileLayout={popularMobileLayout}
-                  />
-                  {showLoadMoreHere && (
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
-                  )}
-                </div>
-              )})}
+          {(loading || loadingPopular) ? (
+            <div className="text-center py-12">
+              <div className="w-6 h-6 border-2 border-gray-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-gray-500">出品を読み込み中...</p>
             </div>
-            {hasMore && displayedPopularItems.length > 0 && (
-              <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
-                <div className="pointer-events-auto">
-                  <LoadMoreButton
-                    loading={loadingMore}
-                    onClick={() => loadMorePopular()}
-                    label={t('home.load_more')}
-                    loadingLabel={t('home.loading')}
-                  />
+          ) : (
+            <>
+              <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
+              <div className={`${getBoardSizeClass(displayedPopularItems.length, getMobileLayoutPageSize(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain`}>
+                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
+                  popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+                }`}>
+                  {displayedPopularItems.map((item, index) => {
+                    const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
+                    return (
+                    <div key={`popular-${item.id}`} className="relative min-w-0">
+                      <ItemCard
+                        item={item}
+                        isFavorite={favoriteSet.has(item.id)}
+                        onToggleFavorite={toggleFavorite}
+                        showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
+                        index={index}
+                        mobileLayout={popularMobileLayout}
+                      />
+                      {showLoadMoreHere && (
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent" />
+                      )}
+                    </div>
+                  )})}
                 </div>
+                {hasMore && displayedPopularItems.length > 0 && (
+                  <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
+                    <div className="pointer-events-auto">
+                      <LoadMoreButton
+                        loading={loadingMore}
+                        onClick={() => loadMorePopular()}
+                        label={t('home.load_more')}
+                        loadingLabel={t('home.loading')}
+                      />
+                    </div>
+                  </div>
+                )}
+                {displayedPopularItems.length === 0 && hasMore && (
+                  <div className="flex h-full items-center justify-center">
+                    <LoadMoreButton
+                      loading={loadingMore}
+                      onClick={() => loadMorePopular()}
+                      label={t('home.load_more')}
+                      loadingLabel={t('home.loading')}
+                    />
+                  </div>
+                )}
               </div>
-            )}
-            {displayedPopularItems.length === 0 && hasMore && (
-              <div className="flex h-full items-center justify-center">
-                <LoadMoreButton
-                  loading={loadingMore}
-                  onClick={() => loadMorePopular()}
-                  label={t('home.load_more')}
-                  loadingLabel={t('home.loading')}
-                />
-              </div>
-            )}
-          </div>
+            </>
+          )}
 
           {/* もっと見る / 出品物は以上です */}
           <div className="mt-8 text-center">
