@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Inbox, MessageCircle, Star, XCircle, CheckCircle2, Loader2, ShoppingBag, CheckCheck } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Bell, Inbox, MessageCircle, Star, XCircle, CheckCircle2, Loader2, ShoppingBag, CheckCheck, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -24,6 +24,13 @@ export default function NotificationsPage() {
     const { t } = useI18n();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+
+    // Pull-to-Refresh
+    const [pullDistance, setPullDistance] = useState(0);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const touchStartY = useRef(0);
+    const isPulling = useRef(false);
+    const PULL_THRESHOLD = 80;
 
     useEffect(() => {
         if (!user) {
@@ -72,6 +79,40 @@ export default function NotificationsPage() {
             console.error("Error loading notifications:", err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Pull-to-Refresh handlers（ホームと同じ挙動）
+    const handleTouchStart = (e: ReactTouchEvent) => {
+        if (window.scrollY === 0 && !isRefreshing) {
+            touchStartY.current = e.touches[0].clientY;
+            isPulling.current = true;
+        }
+    };
+
+    const handleTouchMove = (e: ReactTouchEvent) => {
+        if (!isPulling.current || isRefreshing) return;
+        const diff = e.touches[0].clientY - touchStartY.current;
+        if (diff > 0 && window.scrollY === 0) {
+            setPullDistance(Math.min(diff * 0.5, 120));
+        }
+    };
+
+    const handleTouchEnd = async () => {
+        if (!isPulling.current) return;
+        isPulling.current = false;
+
+        if (pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+            setIsRefreshing(true);
+            setPullDistance(PULL_THRESHOLD);
+            try {
+                await loadNotifications();
+            } finally {
+                setIsRefreshing(false);
+                setPullDistance(0);
+            }
+        } else {
+            setPullDistance(0);
         }
     };
 
@@ -169,7 +210,31 @@ export default function NotificationsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-white pb-24">
+        <div
+            className="min-h-screen bg-white pb-24"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+        >
+            {/* Pull-to-Refresh Indicator */}
+            <div
+                className="flex items-center justify-center overflow-hidden transition-all duration-200"
+                style={{
+                    height: pullDistance > 0 ? `${pullDistance}px` : '0px',
+                    opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
+                }}
+            >
+                <RefreshCw
+                    className={`w-6 h-6 text-primary transition-transform duration-200 ${isRefreshing ? 'animate-spin' : ''}`}
+                    style={{
+                        transform: isRefreshing ? undefined : `rotate(${pullDistance * 3}deg)`,
+                    }}
+                />
+                <span className="ml-2 text-sm text-gray-500 font-medium">
+                    {isRefreshing ? t('home.refreshing') : t('home.pull_to_refresh')}
+                </span>
+            </div>
+
             {/* Header */}
             <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
                 <div className="flex items-center justify-between">
