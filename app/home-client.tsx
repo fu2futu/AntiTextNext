@@ -28,6 +28,16 @@ type Item = {
 };
 
 const HOME_ITEM_PAGE_SIZE = 7;
+const ACTIVE_TRANSACTION_STATUSES = [
+  "requested",
+  "accepted",
+  "scheduling",
+  "scheduled",
+  "awaiting_rating",
+  "pending_approval",
+  "pending",
+  "confirmed",
+];
 type MobileHomeLayout = "list" | "square" | "image";
 
 const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
@@ -273,6 +283,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [recommendedItems, setRecommendedItems] = useState<Item[]>(initialRecommendedItems);
   const [popularItems, setPopularItems] = useState<Item[]>(initialPopularItems);
   const [totalVisiblePopularCount, setTotalVisiblePopularCount] = useState(totalPopularCount);
+  const [hiddenTransactionItemIds, setHiddenTransactionItemIds] = useState<Set<string>>(new Set());
   
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [loadingMoreRecommended, setLoadingMoreRecommended] = useState(false);
@@ -302,9 +313,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // お気に入りセットをメモ化
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+  const visibleRecommendedItems = useMemo(
+    () => recommendedItems.filter((item) => !hiddenTransactionItemIds.has(item.id)),
+    [recommendedItems, hiddenTransactionItemIds]
+  );
   const displayedPopularItems = useMemo(
-    () => popularItems,
-    [popularItems]
+    () => popularItems.filter((item) => !hiddenTransactionItemIds.has(item.id)),
+    [popularItems, hiddenTransactionItemIds]
   );
 
   useEffect(() => {
@@ -373,6 +388,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setPopularItems(initialPopularItems);
         setTotalVisiblePopularCount(totalPopularCount);
         setHasMore(initialPopularItems.length < totalPopularCount);
+        setHiddenTransactionItemIds(new Set());
         setLoadingRecommended(false);
         setLoadingPopular(false);
       }
@@ -453,6 +469,18 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       }
 
       if (user) {
+        const { data: activeTransactions, error: activeTransactionsError } = await (supabase
+          .from("transactions") as any)
+          .select("item_id")
+          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+          .in("status", ACTIVE_TRANSACTION_STATUSES);
+
+        if (!cancelled && requestId === requestIdRef.current && !activeTransactionsError) {
+          setHiddenTransactionItemIds(
+            new Set((activeTransactions ?? []).map((tx: any) => tx.item_id).filter(Boolean))
+          );
+        }
+
         let popularQuery = supabase
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
@@ -711,15 +739,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       user &&
       !isAdminHomeView &&
       recommendedItems.length > 0 &&
-      recommendedItems.length < recommendedTargetCount &&
+      visibleRecommendedItems.length < recommendedTargetCount &&
       hasMoreRecommended &&
       !loadingMoreRecommended
     ) {
-      void loadMoreRecommended(recommendedTargetCount - recommendedItems.length);
+      void loadMoreRecommended(recommendedTargetCount - visibleRecommendedItems.length);
     }
 
-    if (popularItems.length < popularTargetCount && hasMore && !loadingMore) {
-      void loadMorePopular(popularTargetCount - popularItems.length);
+    if (displayedPopularItems.length < popularTargetCount && hasMore && !loadingMore) {
+      void loadMorePopular(popularTargetCount - displayedPopularItems.length);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -729,6 +757,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     isAdminHomeView,
     recommendedItems.length,
     popularItems.length,
+    visibleRecommendedItems.length,
+    displayedPopularItems.length,
     hasMoreRecommended,
     hasMore,
     loadingMoreRecommended,
@@ -907,7 +937,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               <div className="w-6 h-6 border-2 border-gray-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />
               <p className="text-gray-500">おすすめを読み込み中...</p>
             </div>
-          ) : recommendedItems.length === 0 ? (
+          ) : visibleRecommendedItems.length === 0 && !hasMoreRecommended ? (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">同じ所属の出品はまだありません</p>
               <Link
@@ -920,12 +950,12 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div className={`${getBoardSizeClass(recommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
+              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, getMobileLayoutPageSize(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
-                  {recommendedItems.map((item, index) => {
-                    const showLoadMoreHere = hasMoreRecommended && index === recommendedItems.length - 1;
+                  {visibleRecommendedItems.map((item, index) => {
+                    const showLoadMoreHere = hasMoreRecommended && index === visibleRecommendedItems.length - 1;
                     return (
                     <div key={item.id} className="relative min-w-0">
                       <ItemCard
@@ -942,7 +972,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   )})}
                 </div>
-                {hasMoreRecommended && (
+                {hasMoreRecommended && visibleRecommendedItems.length > 0 && (
                   <div className="relative z-30 -mt-12 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
@@ -952,6 +982,16 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         loadingLabel={t('home.loading')}
                       />
                     </div>
+                  </div>
+                )}
+                {visibleRecommendedItems.length === 0 && hasMoreRecommended && (
+                  <div className="flex h-full items-center justify-center">
+                    <LoadMoreButton
+                      loading={loadingMoreRecommended}
+                      onClick={() => loadMoreRecommended()}
+                      label={t('home.load_more')}
+                      loadingLabel={t('home.loading')}
+                    />
                   </div>
                 )}
               </div>
