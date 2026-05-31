@@ -30,7 +30,7 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
   let recommendedQuery = (supabase as any)
     .from("items")
     .select(itemSelect, { count: "exact" })
-    .eq("status", "available")
+    .in("status", ["available", "trading"])
     .eq("profiles.department", department);
 
   if (major) recommendedQuery = recommendedQuery.eq("profiles.major", major);
@@ -39,7 +39,7 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
   let popularQuery = (supabase as any)
     .from("items")
     .select(itemSelect, { count: "exact" })
-    .eq("status", "available");
+    .in("status", ["available", "trading"]);
 
   if (excludedSellerId) popularQuery = popularQuery.neq("seller_id", excludedSellerId);
 
@@ -97,7 +97,7 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
         <section className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold leading-relaxed text-blue-800">
           <p>現在の条件: {department}{major ? ` / ${major}` : " / 系指定なし"} / 出品者除外: {excludedSellerId || "なし"}</p>
           <p className="mt-1 text-xs text-blue-700">
-            一般ホームと同じく `status = available` のみ表示します。おすすめは同じ学院、系指定ありなら同じ系、みんなの出品はおすすめ重複を除外して表示します。
+            一般ホームと同じく `available / trading` を表示します。仮想ユーザーは取引当事者ではない前提のため、取引中の商品も「取引中」として確認できます。
           </p>
         </section>
 
@@ -116,7 +116,7 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
 
         <PreviewSection
           title="みんなの出品"
-          meta={`${popularItems.length}件表示 / available ${popularCount ?? 0}件`}
+          meta={`${popularItems.length}件表示 / 該当 ${popularCount ?? 0}件`}
           emptyText="みんなの出品に表示される出品はありません。"
           items={popularItems}
         />
@@ -162,20 +162,26 @@ function PreviewSection({ title, meta, emptyText, items }: { title: string; meta
 function HomePreviewCard({ item, index }: { item: any; index: number }) {
   const imageUrl = getItemImageUrl(item, "front", "thumbnail");
   const profile = item.seller_profile;
+  const isTrading = item.status === "trading" || item.status === "transaction_pending";
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className={`rounded-2xl border p-4 shadow-sm ${isTrading ? "border-slate-300 bg-slate-100" : "border-slate-200 bg-white"}`}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-500">#{index}</span>
         <Link href={`/admin/items/${item.id}`} className="text-xs font-black text-primary hover:underline">出品詳細</Link>
       </div>
       <div className="flex gap-4">
         <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl bg-slate-100">
-          {imageUrl ? <Image src={imageUrl} alt="" width={80} height={80} className="h-full w-full object-cover" /> : null}
+          {imageUrl ? <Image src={imageUrl} alt="" width={80} height={80} className={`h-full w-full object-cover ${isTrading ? "grayscale" : ""}`} /> : null}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="line-clamp-2 text-sm font-black text-slate-900">{item.title}</p>
-          <p className="mt-1 text-lg font-black text-primary">¥{Number(item.selling_price ?? 0).toLocaleString()}</p>
+          <div className="flex items-start gap-2">
+            <p className={`line-clamp-2 text-sm font-black ${isTrading ? "text-slate-600" : "text-slate-900"}`}>{item.title}</p>
+            {isTrading && (
+              <span className="shrink-0 rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-black text-white">取引中</span>
+            )}
+          </div>
+          <p className={`mt-1 text-lg font-black ${isTrading ? "text-slate-500" : "text-primary"}`}>¥{Number(item.selling_price ?? 0).toLocaleString()}</p>
           <p className="mt-1 text-xs font-bold text-slate-500">お気に入り {item.favorite_count ?? 0}</p>
         </div>
       </div>
