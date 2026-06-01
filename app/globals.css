@@ -52,6 +52,7 @@
     background: hsl(var(--background));
     overscroll-behavior: none;
     touch-action: manipulation;
+    -webkit-touch-callout: none;
   }
 
   body {
@@ -61,6 +62,30 @@
     overscroll-behavior: none;
     touch-action: manipulation;
     -webkit-text-size-adjust: 100%;
+    -webkit-touch-callout: none;
+  }
+
+  button,
+  a,
+  img,
+  [role="button"] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  img,
+  a {
+    -webkit-user-drag: none;
+  }
+
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
   }
 }
 
