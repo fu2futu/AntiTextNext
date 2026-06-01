@@ -9,7 +9,9 @@
     "lint": "next lint",
     "cap:sync": "cap sync",
     "cap:ios": "cap open ios",
-    "cap:android": "cap open android"
+    "cap:android": "cap open android",
+    "cap:ios:dev": "CAPACITOR_SERVER_URL=http://127.0.0.1:3000 cap sync ios && cap open ios",
+    "cap:ios:prod": "CAPACITOR_SERVER_URL=https://textnext.jp cap sync ios && cap open ios"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1046.0",

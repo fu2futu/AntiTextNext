@@ -10,6 +10,7 @@ import NavigationLoadingOverlay from "@/components/navigation-loading-overlay";
 import MobileGestureGuard from "@/components/mobile-gesture-guard";
 import RouteScrollReset from "@/components/route-scroll-reset";
 import ServiceWorkerRegister from "@/components/service-worker-register";
+import CapacitorEnvironment from "@/components/capacitor-environment";
 
 // グローバルナビ（モバイル=ボトムバー / PC=上部ヘッダー）を遅延読み込み（初期表示を高速化）
 const AppNav = dynamic(() => import("@/components/app-nav").then(mod => ({ default: mod.AppNav })), {
@@ -76,6 +77,7 @@ export default function RootLayout({
             <MobileGestureGuard />
             <RouteScrollReset />
             <ServiceWorkerRegister />
+            <CapacitorEnvironment />
             <main className="min-h-screen pt-[var(--app-top-offset)] pb-[calc(var(--bottom-nav-height)+var(--bottom-nav-safe-padding-min)+env(safe-area-inset-bottom))] lg:pt-[calc(var(--app-top-offset)+5rem)] lg:pb-0">{children}</main>
             <AppNav />
           </AuthProvider>

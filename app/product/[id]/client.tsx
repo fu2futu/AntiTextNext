@@ -396,7 +396,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
       
       {/* Modal Content - Bottom Sheet */}
       <div 
-        className={`absolute inset-x-0 bottom-0 top-14 bg-white rounded-t-3xl shadow-2xl overflow-hidden transition-transform duration-300 ease-out md:left-1/2 md:right-auto md:top-8 md:bottom-8 md:w-[min(1120px,calc(100vw-4rem))] md:-translate-x-1/2 md:rounded-3xl ${
+        className={`absolute inset-x-0 bottom-0 top-[calc(var(--app-top-offset)+var(--product-detail-top-gap))] bg-white rounded-t-3xl shadow-2xl overflow-hidden transition-transform duration-300 ease-out md:left-1/2 md:right-auto md:top-[calc(var(--app-top-offset)+var(--product-detail-desktop-top-gap))] md:bottom-8 md:w-[min(1120px,calc(100vw-4rem))] md:-translate-x-1/2 md:rounded-3xl ${
           isVisible && !isClosing ? 'translate-y-0' : 'translate-y-full md:translate-y-8'
         }`}
         onClick={(e) => e.stopPropagation()}

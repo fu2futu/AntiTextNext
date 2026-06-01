@@ -573,7 +573,6 @@ export default function ListingPage() {
     <div className="min-h-screen bg-white font-gentle">
       <style jsx global>{`
         html {
-          scroll-snap-type: y mandatory;
           scroll-padding-top: var(--app-top-offset);
           scroll-behavior: smooth;
         }

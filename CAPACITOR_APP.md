@@ -31,6 +31,8 @@ App Store / Google Play に提出する前に、この Bundle ID / Application I
 npm run cap:sync
 npm run cap:ios
 npm run cap:android
+npm run cap:ios:dev
+npm run cap:ios:prod
 ```
 
 `cap:sync` は `capacitor.config.ts` の内容や Web アセットを iOS / Android 側へ同期します。
@@ -43,6 +45,21 @@ npm run cap:android
 
 ```bash
 CAPACITOR_SERVER_URL=https://preview.example.com npm run cap:sync
+```
+
+ローカルのNext開発サーバーをiOSシミュレーターで読む場合:
+
+```bash
+npm run dev -- -H 127.0.0.1
+npm run cap:ios:dev
+```
+
+この状態では、開発サーバーが止まるとアプリ側でCSS/JSが読めず、古いWebページのように崩れて見えることがあります。
+
+本番URLへ戻す場合:
+
+```bash
+npm run cap:ios:prod
 ```
 
 ## まず確認すること
