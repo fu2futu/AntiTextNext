@@ -36,6 +36,34 @@ const isValidEan13 = (code: string) => {
   return checkDigit === digits[12];
 };
 
+const getOriginalPriceValidationMessage = (value: string) => {
+  const trimmed = value.trim();
+  const numericValue = Number(trimmed);
+
+  if (!trimmed || !Number.isFinite(numericValue)) {
+    return "それ日本円じゃ扱えないです...";
+  }
+
+  if (numericValue > 50000) {
+    return "5万円以内の商品に限ります";
+  }
+
+  if (numericValue < 0) {
+    return "ボランティア精神は嬉しいんですが、、ややこしくなるので自然数でお願いします";
+  }
+
+  if (!Number.isInteger(numericValue) || trimmed.includes(".")) {
+    const yearsSinceSmallCurrencyDispositionAct = new Date().getFullYear() - 1953;
+    return `少額通貨整理法施行から今年で${yearsSinceSmallCurrencyDispositionAct}年、、自然数でお願いします`;
+  }
+
+  if (!/^\d+$/.test(trimmed)) {
+    return "それ日本円じゃ扱えないです...";
+  }
+
+  return null;
+};
+
 export default function ListingPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -329,6 +357,11 @@ export default function ListingPage() {
       }
       if (formData.hasDescription && formData.description.trim().length > INPUT_LIMITS.listingDescriptionMax) {
         alert(`商品説明は${INPUT_LIMITS.listingDescriptionMax}文字以内で入力してください`);
+        return;
+      }
+      const priceValidationMessage = getOriginalPriceValidationMessage(formData.originalPrice);
+      if (priceValidationMessage) {
+        alert(priceValidationMessage);
         return;
       }
       setStep("confirm");
@@ -785,6 +818,10 @@ export default function ListingPage() {
                 </label>
                 <input
                   type="number"
+                  min="0"
+                  max="50000"
+                  step="1"
+                  inputMode="numeric"
                   placeholder="例: 3000"
                   value={formData.originalPrice}
                   onChange={(e) =>

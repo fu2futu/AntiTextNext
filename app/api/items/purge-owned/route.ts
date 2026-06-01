@@ -1,0 +1,132 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
+import { deleteR2Object } from "@/lib/r2-server";
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const safeR2Paths = (itemId: string, item: Record<string, unknown>) => [
+  item.front_image_storage_path,
+  item.back_image_storage_path,
+  item.front_thumbnail_storage_path,
+  item.back_thumbnail_storage_path,
+]
+  .map((path) => String(path || "").trim())
+  .filter((path) => path.startsWith(`items/${itemId}/`) && !path.includes(".."));
+
+const parseSupabasePublicPath = (value?: string | null) => {
+  if (!value) return null;
+  if (!/^https?:\/\//.test(value)) return value.replace(/^\/+/, "");
+
+  try {
+    const url = new URL(value);
+    const marker = "/storage/v1/object/public/item-images/";
+    const index = url.pathname.indexOf(marker);
+    if (index === -1) return null;
+    return decodeURIComponent(url.pathname.slice(index + marker.length));
+  } catch {
+    return null;
+  }
+};
+
+const safeSupabasePaths = (item: Record<string, unknown>) => Array.from(new Set([
+  item.front_image_storage_path,
+  item.back_image_storage_path,
+  item.front_thumbnail_storage_path,
+  item.back_thumbnail_storage_path,
+  parseSupabasePublicPath(item.front_image_url as string | null),
+  parseSupabasePublicPath(item.back_image_url as string | null),
+  parseSupabasePublicPath(item.front_thumbnail_url as string | null),
+  parseSupabasePublicPath(item.back_thumbnail_url as string | null),
+]
+  .map((path) => String(path || "").trim())
+  .filter((path) => path && !path.includes("..") && !path.startsWith("http"))));
+
+const createServiceClient = () => {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey);
+};
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = createSupabaseServerClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "ログインが必要です" }, { status: 401 });
+    }
+
+    const { itemId } = await request.json();
+    if (!uuidPattern.test(String(itemId))) {
+      return NextResponse.json({ error: "削除対象が不正です" }, { status: 400 });
+    }
+
+    const { data: item, error: itemError } = await (supabase as any)
+      .from("items")
+      .select("id,title,status,seller_id,image_storage_provider,front_image_url,back_image_url,front_thumbnail_url,back_thumbnail_url,front_image_storage_path,back_image_storage_path,front_thumbnail_storage_path,back_thumbnail_storage_path")
+      .eq("id", itemId)
+      .maybeSingle();
+
+    if (itemError) throw itemError;
+    if (!item) {
+      return NextResponse.json({ error: "出品が見つかりません" }, { status: 404 });
+    }
+    if (item.seller_id !== session.user.id) {
+      return NextResponse.json({ error: "削除権限がありません" }, { status: 403 });
+    }
+
+    const { count: transactionCount, error: transactionCountError } = await (supabase as any)
+      .from("transactions")
+      .select("id", { count: "exact", head: true })
+      .eq("item_id", itemId);
+
+    if (transactionCountError) throw transactionCountError;
+    if ((transactionCount ?? 0) > 0) {
+      return NextResponse.json({ error: "取引がある出品は削除できません" }, { status: 400 });
+    }
+
+    let storageDeleteTargets: string[] = [];
+    let storageDeleteFailed = 0;
+
+    if (item.image_storage_provider === "r2") {
+      storageDeleteTargets = safeR2Paths(itemId, item);
+      const results = await Promise.allSettled(storageDeleteTargets.map((path) => deleteR2Object(path)));
+      storageDeleteFailed = results.filter((result) => result.status === "rejected").length;
+    } else {
+      storageDeleteTargets = safeSupabasePaths(item);
+      if (storageDeleteTargets.length > 0) {
+        const storageClient = createServiceClient() ?? supabase;
+        const { error } = await storageClient.storage.from("item-images").remove(storageDeleteTargets);
+        if (error) {
+          storageDeleteFailed = storageDeleteTargets.length;
+        }
+      }
+    }
+
+    if (storageDeleteFailed > 0) {
+      return NextResponse.json({ error: "画像削除に失敗したため、出品削除を中止しました" }, { status: 500 });
+    }
+
+    const { data: purgeResult, error: purgeError } = await (supabase as any).rpc("user_purge_own_untransacted_item", {
+      target_item_id: itemId,
+    });
+
+    if (purgeError) {
+      const message = purgeError.message === "cannot purge item with transactions"
+        ? "取引がある出品は削除できません"
+        : purgeError.message;
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      storageDeleted: storageDeleteTargets.length,
+      purgeResult,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "出品の削除に失敗しました" }, { status: 500 });
+  }
+}

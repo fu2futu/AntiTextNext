@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ShoppingCart, X, Search, User, Star, GraduationCap, Heart, Pencil, Pause, Play, Trash2, Loader2, AlertTriangle, Check, MessageCircle } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -40,6 +40,8 @@ export type Item = {
 
 export default function ProductDetailClient({ item }: { item: Item }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetTransactionId = searchParams.get("tx");
   const { user } = useAuth();
   const { t } = useI18n();
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
@@ -308,7 +310,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
 
   // 相談中のとき、現在のユーザーがこの商品の取引当事者（出品者 or 相談中の購入者）か確認する。
   useEffect(() => {
-    if (!user || !isPending) {
+    if (!user) {
       setIsChatParticipant(false);
       setChatTransactionId(null);
       return;
@@ -316,19 +318,27 @@ export default function ProductDetailClient({ item }: { item: Item }) {
 
     let cancelled = false;
     const checkParticipation = async () => {
-      const { data, error } = await (supabase as any)
+      let query = (supabase as any)
         .from("transactions")
         .select("id, status, created_at")
         .eq("item_id", item.id)
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order("created_at", { ascending: false });
 
+      if (targetTransactionId) {
+        query = query.eq("id", targetTransactionId);
+      }
+
+      const { data, error } = await query;
+
       if (cancelled) return;
 
-      // 終了済み以外の取引があれば、その商品のチャットに参加できる当事者とみなす。
-      const TERMINAL_STATUSES = ["cancelled", "declined", "completed"];
+      // 相談中は未終了取引を優先。過去取引から開いた場合は tx 指定の終了済み取引も許可する。
+      const TERMINAL_STATUSES = ["cancelled", "rejected", "declined", "expired", "auto_closed", "completed"];
       const activeTx = !error && Array.isArray(data)
-        ? (data as any[]).find((tx) => !TERMINAL_STATUSES.includes(tx.status))
+        ? (targetTransactionId
+          ? (data as any[])[0]
+          : (data as any[]).find((tx) => !TERMINAL_STATUSES.includes(tx.status)) || (isSold ? (data as any[])[0] : null))
         : null;
 
       setIsChatParticipant(!!activeTx);
@@ -339,11 +349,12 @@ export default function ProductDetailClient({ item }: { item: Item }) {
     return () => {
       cancelled = true;
     };
-  }, [user, item.id, isPending]);
+  }, [user, item.id, isSold, targetTransactionId]);
 
   const chatHref = chatTransactionId
     ? `/chat/${item.id}?tx=${chatTransactionId}`
     : `/chat/${item.id}`;
+  const shouldShowChatButton = isChatParticipant && (isPending || isSold || !!targetTransactionId);
 
   const scrollToImage = (index: number) => {
     const carousel = carouselRef.current;
@@ -681,13 +692,13 @@ export default function ProductDetailClient({ item }: { item: Item }) {
         {/* Action Buttons - Fixed at bottom of modal */}
         <div className="absolute bottom-0 left-0 right-0 bg-white border-t px-5 pt-3 z-[80] md:px-6 md:py-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="max-w-4xl mx-auto flex gap-3">
-            {isPending && isChatParticipant ? (
+            {shouldShowChatButton ? (
               <Link
                 href={chatHref}
                 className="flex-1 py-3 md:py-4 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-all shadow-md flex items-center justify-center gap-2"
               >
                 <MessageCircle className="w-5 h-5" />
-                チャットへ
+                チャットを見る
               </Link>
             ) : isOwnItem ? (
               <div className="flex gap-2 flex-1">
@@ -850,29 +861,16 @@ export default function ProductDetailClient({ item }: { item: Item }) {
           onConfirm={async () => {
             setIsManaging(true);
             try {
-              const { error } = await (supabase.from('items') as any)
-                .update({ status: 'deleted' })
-                .eq('id', item.id)
-                .eq('seller_id', user?.id);
-              if (error) throw error;
-              if (item.image_storage_provider === "r2") {
-                fetch("/api/item-images/delete", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    itemId: item.id,
-                    paths: [
-                      item.front_image_storage_path,
-                      item.back_image_storage_path,
-                      item.front_thumbnail_storage_path,
-                      item.back_thumbnail_storage_path,
-                    ].filter(Boolean),
-                  }),
-                }).catch((deleteError) => {
-                  console.error("R2画像の削除に失敗しました", deleteError);
-                });
+              const response = await fetch("/api/items/purge-owned", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ itemId: item.id }),
+              });
+              const result = await response.json().catch(() => ({}));
+              if (!response.ok) {
+                throw new Error(result.error || "削除に失敗しました");
               }
-              router.push('/');
+              router.push('/profile');
             } catch (err: any) {
               alert('削除に失敗しました: ' + err.message);
             } finally {
@@ -986,7 +984,7 @@ function DeleteConfirmModal({
           </div>
           <h2 className="text-xl font-black text-gray-900 text-center mb-2">出品を削除しますか？</h2>
           <p className="text-gray-500 text-sm text-center mb-6 font-medium">
-            この操作は取り消せません。商品は検索結果やホームから非表示になります。
+            この操作は取り消せません。取引がない出品のみ、画像やお気に入り情報を含めて完全に削除されます。
           </p>
 
           <button

@@ -146,8 +146,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const from = new URLSearchParams(window.location.search).get("from");
+    const closedStatuses = new Set(["completed", "cancelled", "rejected", "declined", "expired", "auto_closed"]);
+
+    if (transaction?.status && closedStatuses.has(transaction.status)) {
+      const profileParams = new URLSearchParams({
+        view: "past",
+        item: params.id,
+      });
+      if (transaction.id) {
+        profileParams.set("tx", transaction.id);
+      }
+      setBackHref(`/profile?${profileParams.toString()}`);
+      return;
+    }
+
     setBackHref(from === "notifications" ? "/notifications" : "/transactions");
-  }, []);
+  }, [params.id, transaction?.id, transaction?.status]);
 
   // 未読メッセージを既読にする
   const markMessagesAsRead = useCallback(async () => {
@@ -962,6 +976,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const canUseTradeActions = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canAdjustSchedule = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canCancelTransaction = canUseTradeActions && !isDeclined && transaction?.status !== 'completed' && transaction?.status !== 'cancelled';
+  const showClosedNotice = isCancelled || isDeclined;
+  const showRatingBanner = isAwaitingRating && !!transaction;
+  const showActionBar = canUseTradeActions && !isDeclined && !isCancelled;
+  const needsTopNoticeSpace = showClosedNotice || showRatingBanner || showActionBar;
 
   const isSeller = user?.id === item.seller_id;
   const isScheduleChangeRequester = !!transaction?.schedule_change_requested_by && transaction.schedule_change_requested_by === user?.id;
@@ -1059,7 +1077,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Rating Banner */}
-      {isAwaitingRating && transaction && (
+      {showRatingBanner && (
         <div className="fixed top-16 left-0 right-0 bg-purple-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-purple-200">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-purple-500 text-white shadow-sm">
@@ -1080,7 +1098,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Action Bar (Below Header) */}
-      {canUseTradeActions && !isDeclined && !isCancelled && (
+      {showActionBar && (
       <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 z-40 flex gap-1.5 border-b border-gray-100">
         <button
           onClick={() => setIsScheduleModalOpen(true)}
@@ -1115,8 +1133,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       </div>
       )}
 
-      <div className="flex-1 overflow-hidden pt-[116px] flex flex-col">
-        {transaction?.final_meetup_time && (
+      <div className={`flex-1 overflow-hidden ${needsTopNoticeSpace ? "pt-[116px]" : "pt-[72px]"} flex flex-col`}>
+        {!isClosedTransaction && transaction?.final_meetup_time && (
           <div className="flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
             <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/20">
@@ -1131,7 +1149,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {transaction && hasScheduleCandidates && (
+        {!isClosedTransaction && transaction && hasScheduleCandidates && (
           <div className="relative z-30 flex-shrink-0 bg-white px-4 pb-3 pt-2">
             <div className={`relative rounded-2xl border ${scheduleCandidateTone.border} ${scheduleCandidateTone.panel} shadow-sm`}>
               <button
@@ -1225,84 +1243,85 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Input Area */}
-        <div
-          className="flex-shrink-0 bg-white px-4 pt-2.5 border-t border-gray-200"
-          style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 10px))" }}
-        >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (isClosedTransaction) return;
-            handleSend();
-          }}
-          className="flex items-center gap-3"
-        >
-          {/* Image Picker */}
-          <label className={`p-2 rounded-full transition-colors relative ${isClosedTransaction ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-gray-100"}`}>
-            <input
-              type="file"
-              accept={ALLOWED_IMAGE_ACCEPT}
-              className="hidden"
-              onChange={handleImageUpload}
-              disabled={isUploadingImage || isClosedTransaction}
-            />
-            {isUploadingImage ? (
-              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-            ) : (
-              <ImageIcon className="w-6 h-6 text-gray-500" />
-            )}
-          </label>
-
-          <textarea
-            ref={inputRef}
-            onFocus={() => {
-              inputFocusedRef.current = true;
-            }}
-            onBlur={() => {
-              inputFocusedRef.current = false;
-            }}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={() => {
-              composingRef.current = false;
-              lastInputAtRef.current = Date.now();
-            }}
-            onChange={(e) => {
-              lastInputAtRef.current = Date.now();
-              resizeMessageInput();
-              const hasText = e.target.value.trim().length > 0;
-              setHasDraftMessage((current) => current === hasText ? current : hasText);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            maxLength={INPUT_LIMITS.chatMessageMax}
-            placeholder={isClosedTransaction ? "この取引は終了しています" : "メッセージを入力..."}
-            rows={1}
-            className="max-h-28 min-h-12 flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-gray-100 px-4 py-3 text-[15px] leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            disabled={sending || isClosedTransaction}
-            autoComplete="off"
-          />
-          <button
-            type="submit"
-            disabled={isClosedTransaction || (!hasDraftMessage && !isUploadingImage) || sending}
-            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(hasDraftMessage || isUploadingImage) && !sending
-              ? "bg-primary text-white shadow-md active:scale-95"
-              : "bg-gray-200 text-gray-400"
-              }`}
+        {!isClosedTransaction && (
+          <div
+            className="flex-shrink-0 bg-white px-4 pt-2.5 border-t border-gray-200"
+            style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 10px))" }}
           >
-            {sending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </button>
-        </form>
-        </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend();
+            }}
+            className="flex items-center gap-3"
+          >
+            {/* Image Picker */}
+            <label className="p-2 rounded-full transition-colors relative cursor-pointer hover:bg-gray-100">
+              <input
+                type="file"
+                accept={ALLOWED_IMAGE_ACCEPT}
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={isUploadingImage}
+              />
+              {isUploadingImage ? (
+                <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+              ) : (
+                <ImageIcon className="w-6 h-6 text-gray-500" />
+              )}
+            </label>
+
+            <textarea
+              ref={inputRef}
+              onFocus={() => {
+                inputFocusedRef.current = true;
+              }}
+              onBlur={() => {
+                inputFocusedRef.current = false;
+              }}
+              onCompositionStart={() => {
+                composingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                composingRef.current = false;
+                lastInputAtRef.current = Date.now();
+              }}
+              onChange={(e) => {
+                lastInputAtRef.current = Date.now();
+                resizeMessageInput();
+                const hasText = e.target.value.trim().length > 0;
+                setHasDraftMessage((current) => current === hasText ? current : hasText);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              maxLength={INPUT_LIMITS.chatMessageMax}
+              placeholder="メッセージを入力..."
+              rows={1}
+              className="max-h-28 min-h-12 flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-gray-100 px-4 py-3 text-[15px] leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              disabled={sending}
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              disabled={(!hasDraftMessage && !isUploadingImage) || sending}
+              className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(hasDraftMessage || isUploadingImage) && !sending
+                ? "bg-primary text-white shadow-md active:scale-95"
+                : "bg-gray-200 text-gray-400"
+                }`}
+            >
+              {sending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </form>
+          </div>
+        )}
       </div>
 
       {/* Schedule Adjustment Modal */}

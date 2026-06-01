@@ -145,11 +145,26 @@ export default function NotificationsPage() {
                 .eq("id", notification.id);
         }
 
+        const parseChatLink = (linkId: string) => {
+            const [itemId, queryString] = linkId.split("?");
+            const tx = queryString ? new URLSearchParams(queryString).get("tx") : null;
+            return { itemId, tx };
+        };
+        const shouldOpenPastTransaction =
+            notification.link_type === "chat" &&
+            notification.link_id &&
+            ["transaction_completed", "transaction_cancelled"].includes(notification.type);
+
         // Navigate based on link_type
         if (notification.type === "admin_inquiry_reply" && notification.link_id) {
             router.push(`/profile/inquiries/${notification.link_id}`);
         } else if (notification.type === "admin_inquiry_reply" || notification.type === "admin_restriction_notice") {
             router.push(`/notifications/${notification.id}`);
+        } else if (shouldOpenPastTransaction && notification.link_id) {
+            const { itemId, tx } = parseChatLink(notification.link_id);
+            const params = new URLSearchParams({ view: "past", item: itemId });
+            if (tx) params.set("tx", tx);
+            router.push(`/profile?${params.toString()}`);
         } else if (notification.link_type === "chat" && notification.link_id) {
             const separator = notification.link_id.includes("?") ? "&" : "?";
             router.push(`/chat/${notification.link_id}${separator}from=notifications`);
