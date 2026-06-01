@@ -211,7 +211,7 @@ export default function NotificationsPage() {
 
     return (
         <div
-            className="min-h-screen bg-white pb-24"
+            className="min-h-screen bg-white pb-24 lg:pb-12"
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
@@ -235,11 +235,12 @@ export default function NotificationsPage() {
                 </span>
             </div>
 
+            <div className="lg:max-w-3xl lg:mx-auto lg:px-6">
             {/* Header */}
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
+            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+                        <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
                             {t("notifications.title")}
                         </h1>
                     </div>
@@ -301,6 +302,7 @@ export default function NotificationsPage() {
                     ))}
                 </div>
             )}
+            </div>
         </div>
     );
 }

@@ -509,7 +509,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
                               alt={`${item.title} ${img.label}`}
                               fill
                               sizes="(max-width: 768px) 90vw, 600px"
-                              className="object-cover transition-transform duration-500 group-hover:scale-105"
+                              className="object-contain transition-transform duration-500 group-hover:scale-105"
                               loading={idx === 0 ? "eager" : "lazy"}
                               quality={70}
                             />
