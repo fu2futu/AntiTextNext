@@ -9,7 +9,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/lib/supabase";
 import QrScanner from "@/components/QrScanner";
 import { useAuth } from "@/components/auth-provider";
-import { ALLOWED_IMAGE_ACCEPT, assertAllowedImageFile, uploadChatImage } from "@/lib/image-storage";
+import { ALLOWED_IMAGE_ACCEPT, assertAllowedImageFile, getItemImageUrl, uploadChatImage } from "@/lib/image-storage";
 import { INPUT_LIMITS } from "@/lib/input-limits";
 import { RewardAvatar } from "@/components/reward-avatar";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting } from "@/lib/rewards";
@@ -29,6 +29,15 @@ type ItemWithTransaction = {
   title: string;
   seller_id: string;
   status: string;
+  front_image_url?: string | null;
+  back_image_url?: string | null;
+  front_thumbnail_url?: string | null;
+  back_thumbnail_url?: string | null;
+  front_image_storage_path?: string | null;
+  back_image_storage_path?: string | null;
+  front_thumbnail_storage_path?: string | null;
+  back_thumbnail_storage_path?: string | null;
+  image_storage_provider?: string | null;
 };
 
 type Transaction = {
@@ -146,8 +155,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const from = new URLSearchParams(window.location.search).get("from");
+    const closedStatuses = new Set(["completed", "cancelled", "rejected", "declined", "expired", "auto_closed"]);
+
+    if (transaction?.status && closedStatuses.has(transaction.status)) {
+      const profileParams = new URLSearchParams({
+        view: "past",
+        item: params.id,
+      });
+      if (transaction.id) {
+        profileParams.set("tx", transaction.id);
+      }
+      setBackHref(`/profile?${profileParams.toString()}`);
+      return;
+    }
+
     setBackHref(from === "notifications" ? "/notifications" : "/transactions");
-  }, []);
+  }, [params.id, transaction?.id, transaction?.status]);
 
   // 未読メッセージを既読にする
   const markMessagesAsRead = useCallback(async () => {
@@ -372,7 +395,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     try {
       const itemPromise = supabase
         .from("items")
-        .select("id, title, seller_id, status")
+        .select("id, title, seller_id, status, front_image_url, back_image_url, front_thumbnail_url, back_thumbnail_url, front_image_storage_path, back_image_storage_path, front_thumbnail_storage_path, back_thumbnail_storage_path, image_storage_provider")
         .eq("id", params.id)
         .single();
 
@@ -435,6 +458,15 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           title: itemData.title,
           seller_id: itemData.seller_id,
           status: itemData.status,
+          front_image_url: itemData.front_image_url,
+          back_image_url: itemData.back_image_url,
+          front_thumbnail_url: itemData.front_thumbnail_url,
+          back_thumbnail_url: itemData.back_thumbnail_url,
+          front_image_storage_path: itemData.front_image_storage_path,
+          back_image_storage_path: itemData.back_image_storage_path,
+          front_thumbnail_storage_path: itemData.front_thumbnail_storage_path,
+          back_thumbnail_storage_path: itemData.back_thumbnail_storage_path,
+          image_storage_provider: itemData.image_storage_provider,
         });
 
         if (transactionResult.data) {
@@ -962,6 +994,13 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const canUseTradeActions = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canAdjustSchedule = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canCancelTransaction = canUseTradeActions && !isDeclined && transaction?.status !== 'completed' && transaction?.status !== 'cancelled';
+  const showClosedNotice = isCancelled || isDeclined;
+  const showRatingBanner = isAwaitingRating && !!transaction;
+  const showActionBar = canUseTradeActions && !isDeclined && !isCancelled;
+  const needsTopNoticeSpace = showClosedNotice || showRatingBanner || showActionBar;
+  const itemThumbnailUrl = item
+    ? getItemImageUrl(item, "front", "thumbnail") || getItemImageUrl(item, "back", "thumbnail")
+    : null;
 
   const isSeller = user?.id === item.seller_id;
   const isScheduleChangeRequester = !!transaction?.schedule_change_requested_by && transaction.schedule_change_requested_by === user?.id;
@@ -1022,6 +1061,22 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         <Link href={backHref} className="p-1">
           <ArrowLeft className="w-6 h-6 text-black" />
         </Link>
+        <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+          {itemThumbnailUrl ? (
+            <Image
+              src={itemThumbnailUrl}
+              alt={item.title}
+              width={40}
+              height={40}
+              className="h-full w-full object-cover"
+              quality={45}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <BookOpen className="h-5 w-5 text-gray-300" />
+            </div>
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-black font-bold truncate">
             {item.title}
@@ -1059,7 +1114,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Rating Banner */}
-      {isAwaitingRating && transaction && (
+      {showRatingBanner && (
         <div className="fixed top-16 left-0 right-0 bg-purple-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-purple-200">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-purple-500 text-white shadow-sm">
@@ -1080,7 +1135,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       )}
 
       {/* Action Bar (Below Header) */}
-      {canUseTradeActions && !isDeclined && !isCancelled && (
+      {showActionBar && (
       <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 z-40 flex gap-1.5 border-b border-gray-100">
         <button
           onClick={() => setIsScheduleModalOpen(true)}
@@ -1115,8 +1170,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       </div>
       )}
 
-      <div className="flex-1 overflow-hidden pt-[116px] flex flex-col">
-        {transaction?.final_meetup_time && (
+      <div className={`flex-1 overflow-hidden ${needsTopNoticeSpace ? "pt-[116px]" : "pt-[72px]"} flex flex-col`}>
+        {!isClosedTransaction && transaction?.final_meetup_time && (
           <div className="flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
             <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500 text-white shadow-lg shadow-green-500/20">
@@ -1131,7 +1186,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {transaction && hasScheduleCandidates && (
+        {!isClosedTransaction && transaction && hasScheduleCandidates && (
           <div className="relative z-30 flex-shrink-0 bg-white px-4 pb-3 pt-2">
             <div className={`relative rounded-2xl border ${scheduleCandidateTone.border} ${scheduleCandidateTone.panel} shadow-sm`}>
               <button
@@ -1225,84 +1280,85 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Input Area */}
-        <div
-          className="flex-shrink-0 bg-white px-4 pt-2.5 border-t border-gray-200"
-          style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 10px))" }}
-        >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (isClosedTransaction) return;
-            handleSend();
-          }}
-          className="flex items-center gap-3"
-        >
-          {/* Image Picker */}
-          <label className={`p-2 rounded-full transition-colors relative ${isClosedTransaction ? "cursor-not-allowed opacity-40" : "cursor-pointer hover:bg-gray-100"}`}>
-            <input
-              type="file"
-              accept={ALLOWED_IMAGE_ACCEPT}
-              className="hidden"
-              onChange={handleImageUpload}
-              disabled={isUploadingImage || isClosedTransaction}
-            />
-            {isUploadingImage ? (
-              <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
-            ) : (
-              <ImageIcon className="w-6 h-6 text-gray-500" />
-            )}
-          </label>
-
-          <textarea
-            ref={inputRef}
-            onFocus={() => {
-              inputFocusedRef.current = true;
-            }}
-            onBlur={() => {
-              inputFocusedRef.current = false;
-            }}
-            onCompositionStart={() => {
-              composingRef.current = true;
-            }}
-            onCompositionEnd={() => {
-              composingRef.current = false;
-              lastInputAtRef.current = Date.now();
-            }}
-            onChange={(e) => {
-              lastInputAtRef.current = Date.now();
-              resizeMessageInput();
-              const hasText = e.target.value.trim().length > 0;
-              setHasDraftMessage((current) => current === hasText ? current : hasText);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            maxLength={INPUT_LIMITS.chatMessageMax}
-            placeholder={isClosedTransaction ? "この取引は終了しています" : "メッセージを入力..."}
-            rows={1}
-            className="max-h-28 min-h-12 flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-gray-100 px-4 py-3 text-[15px] leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            disabled={sending || isClosedTransaction}
-            autoComplete="off"
-          />
-          <button
-            type="submit"
-            disabled={isClosedTransaction || (!hasDraftMessage && !isUploadingImage) || sending}
-            className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(hasDraftMessage || isUploadingImage) && !sending
-              ? "bg-primary text-white shadow-md active:scale-95"
-              : "bg-gray-200 text-gray-400"
-              }`}
+        {!isClosedTransaction && (
+          <div
+            className="flex-shrink-0 bg-white px-4 pt-2.5 border-t border-gray-200"
+            style={{ paddingBottom: "max(14px, calc(env(safe-area-inset-bottom) + 10px))" }}
           >
-            {sending ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <Send className="w-5 h-5" />
-            )}
-          </button>
-        </form>
-        </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend();
+            }}
+            className="flex items-center gap-3"
+          >
+            {/* Image Picker */}
+            <label className="p-2 rounded-full transition-colors relative cursor-pointer hover:bg-gray-100">
+              <input
+                type="file"
+                accept={ALLOWED_IMAGE_ACCEPT}
+                className="hidden"
+                onChange={handleImageUpload}
+                disabled={isUploadingImage}
+              />
+              {isUploadingImage ? (
+                <Loader2 className="w-6 h-6 text-gray-400 animate-spin" />
+              ) : (
+                <ImageIcon className="w-6 h-6 text-gray-500" />
+              )}
+            </label>
+
+            <textarea
+              ref={inputRef}
+              onFocus={() => {
+                inputFocusedRef.current = true;
+              }}
+              onBlur={() => {
+                inputFocusedRef.current = false;
+              }}
+              onCompositionStart={() => {
+                composingRef.current = true;
+              }}
+              onCompositionEnd={() => {
+                composingRef.current = false;
+                lastInputAtRef.current = Date.now();
+              }}
+              onChange={(e) => {
+                lastInputAtRef.current = Date.now();
+                resizeMessageInput();
+                const hasText = e.target.value.trim().length > 0;
+                setHasDraftMessage((current) => current === hasText ? current : hasText);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              maxLength={INPUT_LIMITS.chatMessageMax}
+              placeholder="メッセージを入力..."
+              rows={1}
+              className="max-h-28 min-h-12 flex-1 resize-none overflow-y-auto rounded-3xl border border-gray-200 bg-gray-100 px-4 py-3 text-[15px] leading-6 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              disabled={sending}
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              disabled={(!hasDraftMessage && !isUploadingImage) || sending}
+              className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${(hasDraftMessage || isUploadingImage) && !sending
+                ? "bg-primary text-white shadow-md active:scale-95"
+                : "bg-gray-200 text-gray-400"
+                }`}
+            >
+              {sending ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </form>
+          </div>
+        )}
       </div>
 
       {/* Schedule Adjustment Modal */}
@@ -1541,6 +1597,209 @@ const MessageList = memo(function MessageList({
   );
 });
 
+type AutoMessageTone = "request" | "cancel" | "schedule" | "rating";
+
+type AutoMessageSection = {
+  title: string;
+  lines: string[];
+  chips: string[];
+};
+
+type AutoMessageData = {
+  title: string;
+  label: string;
+  tone: AutoMessageTone;
+  sections: AutoMessageSection[];
+  nextAction: string;
+};
+
+const AUTO_MESSAGE_TONES: Record<AutoMessageTone, {
+  card: string;
+  border: string;
+  label: string;
+  chip: string;
+  next: string;
+}> = {
+  request: {
+    card: "bg-emerald-50/90 border-emerald-200",
+    border: "border-l-emerald-500",
+    label: "bg-emerald-100 text-emerald-700",
+    chip: "bg-white text-emerald-700 border-emerald-200",
+    next: "bg-emerald-100/70 text-emerald-800",
+  },
+  cancel: {
+    card: "bg-rose-50/90 border-rose-200",
+    border: "border-l-rose-500",
+    label: "bg-rose-100 text-rose-700",
+    chip: "bg-white text-rose-700 border-rose-200",
+    next: "bg-rose-100/70 text-rose-800",
+  },
+  schedule: {
+    card: "bg-pink-50/90 border-pink-200",
+    border: "border-l-pink-500",
+    label: "bg-pink-100 text-pink-700",
+    chip: "bg-white text-pink-700 border-pink-200",
+    next: "bg-pink-100/70 text-pink-800",
+  },
+  rating: {
+    card: "bg-yellow-50/90 border-yellow-200",
+    border: "border-l-yellow-500",
+    label: "bg-yellow-100 text-yellow-800",
+    chip: "bg-white text-yellow-800 border-yellow-200",
+    next: "bg-yellow-100/70 text-yellow-900",
+  },
+};
+
+const normalizeAutoSectionTitle = (title: string) => {
+  const normalized = title.replace(/^■\s*/, "").replace(/^▼\s*/, "").replace(/[:：]$/, "").trim();
+  if (normalized.includes("支払い")) return "支払い方法";
+  if (normalized.includes("日時") || normalized.includes("日程") || normalized.includes("候補日時")) return "受け渡し希望日時";
+  if (normalized.includes("場所") || normalized.includes("候補場所")) return "受け渡し希望場所";
+  if (normalized.includes("理由")) return "理由";
+  if (normalized.includes("変更前")) return "変更前";
+  if (normalized.includes("変更後")) return "変更後の候補";
+  return normalized || "内容";
+};
+
+const classifyAutoMessageTone = (title: string, body: string): AutoMessageTone => {
+  const text = `${title}\n${body}`;
+  if (text.includes("評価")) return "rating";
+  if (text.includes("取り下げ") || text.includes("相談が終了") || text.includes("リクエスト終了") || text.includes("再公開") || text.includes("辞退") || text.includes("期限切れ")) return "cancel";
+  if (text.includes("予定") || text.includes("日程") || text.includes("日時") || text.includes("受け渡し完了")) return "schedule";
+  return "request";
+};
+
+const getAutoMessageNextAction = (tone: AutoMessageTone, title: string, body: string, isOwnMessage: boolean) => {
+  const text = `${title}\n${body}`;
+  if (tone === "request") {
+    return isOwnMessage
+      ? "相手の返信をお待ちください。"
+      : "出品者様は、都合のよい条件を選んで返信してください。";
+  }
+  if (tone === "cancel") {
+    return isOwnMessage
+      ? "キャンセルが完了しました。もし問題があれば運営までお問い合わせください。"
+      : "相手がキャンセルしました。不服などあればお問い合わせからご連絡ください。";
+  }
+  if (tone === "rating") {
+    return isOwnMessage
+      ? "評価の送信が完了しました！終了です。"
+      : "評価が完了していなければ評価を完了してください。";
+  }
+  if (text.includes("変更提案")) {
+    return isOwnMessage
+      ? "相手の返信をお待ちください。"
+      : "提案された日程から受け渡し可能な日時を選択してください。";
+  }
+  if (text.includes("受け渡し完了")) {
+    return isOwnMessage
+      ? "評価の送信が完了しました！終了です。"
+      : "評価が完了していなければ評価を完了してください。";
+  }
+  return "日時、場所を確認しそこで受け渡しを行ってください。日程場所は変更し、再登録も可能です。";
+};
+
+const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageData | null => {
+  const trimmed = message.trim();
+  const titleMatch = trimmed.match(/^【([^】]+)】/);
+  if (!titleMatch) return null;
+
+  const title = titleMatch[1].trim();
+  const body = trimmed.slice(titleMatch[0].length).trim();
+  const tone = classifyAutoMessageTone(title, body);
+  const sections: AutoMessageSection[] = [];
+  let current: AutoMessageSection = { title: "内容", lines: [], chips: [] };
+
+  const flush = () => {
+    if (current.lines.length > 0 || current.chips.length > 0) {
+      sections.push(current);
+    }
+  };
+
+  body.split(/\r?\n/).forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) return;
+
+    if (/^(■|▼)?\s*[^:：]+[:：]$/.test(line) || /^(候補日時|候補場所|変更前|変更後の候補)[:：]?$/.test(line)) {
+      flush();
+      current = { title: normalizeAutoSectionTitle(line), lines: [], chips: [] };
+      return;
+    }
+
+    if (line.startsWith("・")) {
+      current.chips.push(line.replace(/^・\s*/, ""));
+      return;
+    }
+
+    const keyValueMatch = line.match(/^([^:：]+)[:：]\s*(.+)$/);
+    if (keyValueMatch) {
+      const [, key, value] = keyValueMatch;
+      flush();
+      current = {
+        title: normalizeAutoSectionTitle(key),
+        lines: [],
+        chips: [value.trim()],
+      };
+      return;
+    }
+
+    current.lines.push(line);
+  });
+  flush();
+
+  return {
+    title,
+    label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : "評価",
+    tone,
+    sections: sections.length > 0 ? sections : [{ title: "内容", lines: [body], chips: [] }],
+    nextAction: getAutoMessageNextAction(tone, title, body, isOwnMessage),
+  };
+};
+
+const AutoMessageCard = memo(function AutoMessageCard({ data }: { data: AutoMessageData }) {
+  const tone = AUTO_MESSAGE_TONES[data.tone];
+  return (
+    <div className={`w-full max-w-[88%] rounded-2xl border border-l-4 p-4 shadow-sm ${tone.card} ${tone.border}`}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <h3 className="min-w-0 flex-1 text-sm font-black leading-5 text-gray-900">{data.title}</h3>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${tone.label}`}>
+          {data.label}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {data.sections.map((section, index) => (
+          <div key={`${section.title}-${index}`} className="space-y-2">
+            <p className="text-[11px] font-black tracking-wide text-gray-500">{section.title}</p>
+            {section.lines.length > 0 && (
+              <div className="space-y-1">
+                {section.lines.map((line, lineIndex) => (
+                  <p key={lineIndex} className="whitespace-pre-wrap break-words text-sm font-medium leading-6 text-gray-800">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            )}
+            {section.chips.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {section.chips.map((chip, chipIndex) => (
+                  <span key={`${chip}-${chipIndex}`} className={`rounded-full border px-2.5 py-1 text-xs font-bold ${tone.chip}`}>
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className={`mt-4 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${tone.next}`}>
+        次にすること: {data.nextAction}
+      </div>
+    </div>
+  );
+});
+
 const MessageRow = memo(function MessageRow({
   message,
   isOwnMessage,
@@ -1552,6 +1811,16 @@ const MessageRow = memo(function MessageRow({
   showAvatar: boolean;
   avatar: React.ReactNode;
 }) {
+  const autoMessage = !message.image_url ? parseAutoMessage(message.message, isOwnMessage) : null;
+
+  if (autoMessage) {
+    return (
+      <div className="flex justify-center">
+        <AutoMessageCard data={autoMessage} />
+      </div>
+    );
+  }
+
   return (
     <div className={`flex items-end gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
       <div className="flex-shrink-0" style={{ width: 40 }}>

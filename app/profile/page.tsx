@@ -56,10 +56,10 @@ export default async function Mypage() {
         supabase.from("ratings").select("score").eq("rated_id", userId),
         supabase.from("favorites").select("item_id, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", userId),
         supabase.from("items").select("id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId),
-        supabase.from("transactions").select("item_id, status").eq("seller_id", userId),
+        supabase.from("transactions").select("id, item_id, status").eq("seller_id", userId),
         supabase
             .from("transactions")
-            .select("item_id, status, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)")
+            .select("id, item_id, status, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)")
             .eq("buyer_id", userId),
         (supabase as any).from("reward_settings").select("*").eq("id", "early_registration").single(),
         (supabase as any).from("user_badges").select("id,badge_type,badge_color,label,note").eq("user_id", userId).is("revoked_at", null).order("created_at", { ascending: false }),
@@ -76,15 +76,22 @@ export default async function Mypage() {
     const cumulativeListingCount = (sellerItems || []).filter(item => item.status !== 'deleted').length;
     const listingItems = (sellerItems || []).filter(item => item.status === 'available' && !txItemIds.has(item.id));
 
-    // Filter past items: sold status OR completed transaction
-    const completedTxItemIds = new Set((sellerTransactions || []).filter(tx => tx.status === 'completed').map(tx => tx.item_id));
-    const sellerPastItems = (sellerItems || []).filter(item => item.status === 'sold' || completedTxItemIds.has(item.id));
+    // Filter past items: terminal transaction history. Keep transaction_id so the detail page can open the archived chat.
+    const terminalStatuses = new Set(['completed', 'cancelled', 'rejected', 'declined', 'expired', 'auto_closed']);
+    const sellerTerminalTransactions = (sellerTransactions || []).filter(tx => terminalStatuses.has(tx.status));
+    const sellerTerminalTxByItemId = new Map(sellerTerminalTransactions.map(tx => [tx.item_id, tx]));
+    const sellerPastItems = (sellerItems || [])
+        .filter(item => item.status === 'sold' || sellerTerminalTxByItemId.has(item.id))
+        .map((item: any) => {
+            const tx = sellerTerminalTxByItemId.get(item.id);
+            return tx ? { ...item, transaction_id: tx.id, transaction_status: tx.status } : item;
+        });
     const buyerPastItems = ((buyerTransactions || []) as any[])
-        .filter(tx => tx.status === 'completed' || tx.items?.status === 'sold')
-        .map(tx => tx.items)
+        .filter(tx => terminalStatuses.has(tx.status) || tx.items?.status === 'sold')
+        .map(tx => tx.items ? { ...tx.items, transaction_id: tx.id, transaction_status: tx.status } : null)
         .filter(Boolean);
     const pastItems = Array.from(
-        new Map([...sellerPastItems, ...buyerPastItems].map((item: any) => [item.id, item])).values()
+        new Map([...sellerPastItems, ...buyerPastItems].map((item: any) => [item.transaction_id || item.id, item])).values()
     );
 
     // Extract favorite items

@@ -65,7 +65,7 @@ export default function PurchaseModal({
     itemTitle,
     lockedUntil,
 }: PurchaseModalProps) {
-    const [paymentMethod, setPaymentMethod] = useState<"cash" | "other">("cash");
+    const [paymentMethod, setPaymentMethod] = useState<"cash" | "other">("other");
     const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
     const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
     const [expandedDays, setExpandedDays] = useState<string[]>([]);
@@ -374,7 +374,7 @@ export default function PurchaseModal({
                         <div className="flex items-center gap-4">
                              <div className="flex flex-col">
                                 <span className={`text-xs font-black uppercase tracking-widest ${distinctDaysCount >= 2 ? "text-green-500" : "text-gray-400"}`}>
-                                    Dates: {distinctDaysCount}/2
+                                    必要日数 {distinctDaysCount}/2
                                 </span>
                                 <div className="w-16 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
                                     <div 
@@ -385,7 +385,7 @@ export default function PurchaseModal({
                              </div>
                              <div className="flex flex-col border-l border-gray-100 pl-4">
                                 <span className={`text-xs font-black uppercase tracking-widest ${selectedLocations.length > 0 ? "text-green-500" : "text-gray-400"}`}>
-                                    Location: {selectedLocations.length > 0 ? "OK" : "None"}
+                                    場所選択 {selectedLocations.length > 0 ? "OK" : "未選択"}
                                 </span>
                                 <div className="w-16 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
                                      <div 
@@ -396,7 +396,7 @@ export default function PurchaseModal({
                              </div>
                              <div className="flex flex-col border-l border-gray-100 pl-4">
                                 <span className={`text-xs font-black uppercase tracking-widest ${purchaseNoticeConfirmed ? "text-green-500" : "text-gray-400"}`}>
-                                    Notice: {purchaseNoticeConfirmed ? "OK" : "Required"}
+                                    注意事項 {purchaseNoticeConfirmed ? "OK" : "未確認"}
                                 </span>
                                 <div className="w-16 h-1.5 bg-gray-100 rounded-full mt-1 overflow-hidden">
                                      <div
@@ -405,10 +405,6 @@ export default function PurchaseModal({
                                     />
                                 </div>
                              </div>
-                        </div>
-                        <div className="text-right">
-                            <span className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Slots</span>
-                            <span className="text-xl font-black text-gray-900 leading-none">{selectedTimeSlots.length}</span>
                         </div>
                     </div>
 

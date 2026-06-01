@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -43,6 +43,8 @@ type Item = {
     front_thumbnail_storage_path?: string | null;
     image_storage_provider?: string | null;
     status: string;
+    transaction_id?: string | null;
+    transaction_status?: string | null;
 };
 
 type MypageClientProps = {
@@ -71,14 +73,20 @@ export default function MypageClient({
     isAdmin
 }: MypageClientProps) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const { t } = useI18n();
     const [activeTab, setActiveTab] = useState<"past" | "listing" | null>(null);
     const [detailView, setDetailView] = useState<"favorites" | "listing" | "past">("favorites");
+    const [pastFilter, setPastFilter] = useState<"completed" | "cancelled">("completed");
     const [favoriteItems, setFavoriteItems] = useState<Item[]>(initialFavoriteItems);
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
+
+    const isCancelledPastStatus = useCallback((status?: string | null) => {
+        return ["cancelled", "rejected", "declined", "expired", "auto_closed"].includes(status || "");
+    }, []);
 
     useEffect(() => {
         setFavoriteItems(initialFavoriteItems);
@@ -129,6 +137,41 @@ export default function MypageClient({
     }, [authLoading, user, router]);
 
     useEffect(() => {
+        const view = searchParams.get("view");
+        const targetItemId = searchParams.get("item");
+        const targetTxId = searchParams.get("tx");
+
+        if (view !== "past") return;
+
+        setActiveTab("past");
+        setDetailView("past");
+
+        const targetPastItem = targetTxId
+            ? initialPastItems.find((item) => item.transaction_id === targetTxId)
+            : initialPastItems.find((item) => targetItemId && item.id === targetItemId);
+        if (targetPastItem) {
+            setPastFilter(isCancelledPastStatus(targetPastItem.transaction_status) ? "cancelled" : "completed");
+        }
+
+        if (!targetItemId && !targetTxId) return;
+
+        const timeoutId = window.setTimeout(() => {
+            const selector = targetTxId
+                ? `[data-past-tx-id="${CSS.escape(targetTxId)}"]`
+                : targetItemId
+                    ? `[data-past-item-id="${CSS.escape(targetItemId)}"]`
+                    : "";
+            if (!selector) return;
+
+            const candidates = Array.from(document.querySelectorAll<HTMLElement>(selector));
+            const target = candidates.find((element) => element.offsetParent !== null) ?? candidates[0];
+            target?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 180);
+
+        return () => window.clearTimeout(timeoutId);
+    }, [initialPastItems, isCancelledPastStatus, searchParams]);
+
+    useEffect(() => {
         if (!user) return;
 
         const refreshWhenVisible = () => {
@@ -158,10 +201,49 @@ export default function MypageClient({
 
     const ratingStars = Math.round(averageRating);
 
-    const renderHistoryRow = (item: Item) => (
+    const completedPastItems = initialPastItems.filter((item) => {
+        if (isCancelledPastStatus(item.transaction_status)) return false;
+        return item.transaction_status === "completed" || item.status === "sold" || !item.transaction_status;
+    });
+    const cancelledPastItems = initialPastItems.filter((item) => isCancelledPastStatus(item.transaction_status));
+    const visiblePastItems = pastFilter === "completed" ? completedPastItems : cancelledPastItems;
+    const currentHistoryItems = detailView === "past" ? visiblePastItems : initialListingItems;
+
+    const PastFilterSwitcher = () => (
+        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-gray-200 bg-gray-50 p-1">
+            {([
+                { key: "completed", label: "取引終了", count: completedPastItems.length },
+                { key: "cancelled", label: "キャンセル", count: cancelledPastItems.length },
+            ] as const).map((filter) => {
+                const active = pastFilter === filter.key;
+                return (
+                    <button
+                        key={filter.key}
+                        type="button"
+                        onClick={() => setPastFilter(filter.key)}
+                        className={`rounded-xl px-3 py-2 text-sm font-black transition-all ${active
+                            ? "bg-white text-primary shadow-sm"
+                            : "text-gray-500 hover:bg-white/70"
+                            }`}
+                    >
+                        {filter.label}
+                        <span className={`ml-1 text-xs ${active ? "text-primary/70" : "text-gray-400"}`}>
+                            {filter.count}
+                        </span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+
+    const renderHistoryRow = (item: Item) => {
+        const isCancelledHistory = isCancelledPastStatus(item.transaction_status);
+        return (
         <div
-            key={item.id}
-            onClick={() => router.push(`/product/${item.id}`)}
+            key={item.transaction_id || item.id}
+            data-past-item-id={item.id}
+            data-past-tx-id={item.transaction_id || undefined}
+            onClick={() => router.push(`/product/${item.id}${item.transaction_id ? `?tx=${item.transaction_id}` : ""}`)}
             className="bg-white p-3 rounded-xl border border-gray-100 flex items-center gap-3 shadow-sm hover:shadow-md transition-all cursor-pointer group"
         >
             <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0">
@@ -171,11 +253,22 @@ export default function MypageClient({
             </div>
             <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-gray-900 truncate group-hover:text-primary transition-colors">{item.title}</p>
-                <p className="text-xs font-bold gradient-text-price">¥{item.selling_price.toLocaleString()}</p>
+                <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xs font-bold gradient-text-price">¥{item.selling_price.toLocaleString()}</p>
+                    {item.transaction_status && (
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${isCancelledHistory
+                            ? "bg-rose-50 text-rose-500"
+                            : "bg-primary/10 text-primary"
+                            }`}>
+                            {isCancelledHistory ? "キャンセル" : "取引終了"}
+                        </span>
+                    )}
+                </div>
             </div>
             <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
         </div>
-    );
+        );
+    };
 
     const renderFavoriteCard = (item: Item) => (
         <div
@@ -398,11 +491,12 @@ export default function MypageClient({
                         <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2 px-1">
                             {detailView === "past" ? <History className="w-5 h-5 text-primary" /> : <BookOpen className="w-5 h-5 text-red-500" />}
                             {detailView === "past" ? t('profile.past_transactions') : t('profile.listing_items')}
-                            <span className="ml-1 text-sm font-bold text-gray-400">{(detailView === "past" ? initialPastItems : initialListingItems).length}件</span>
+                            <span className="ml-1 text-sm font-bold text-gray-400">{currentHistoryItems.length}件</span>
                         </h3>
+                        {detailView === "past" && <PastFilterSwitcher />}
                         <div className="space-y-3">
-                            {(detailView === "past" ? initialPastItems : initialListingItems).map(renderHistoryRow)}
-                            {(detailView === "past" ? initialPastItems : initialListingItems).length === 0 && (
+                            {currentHistoryItems.map(renderHistoryRow)}
+                            {currentHistoryItems.length === 0 && (
                                 <p className="text-center py-12 text-sm text-gray-400">アイテムがありません</p>
                             )}
                         </div>
@@ -451,12 +545,17 @@ export default function MypageClient({
                                     {activeTab === "past" ? "過去の取引一覧" : "出品中のアイテム（未取引）"}
                                 </span>
                                 <span className="text-sm font-bold text-primary">
-                                    {(activeTab === "past" ? initialPastItems : initialListingItems).length}件
+                                    {(activeTab === "past" ? visiblePastItems : initialListingItems).length}件
                                 </span>
                             </div>
+                            {activeTab === "past" && (
+                                <div className="mb-4">
+                                    <PastFilterSwitcher />
+                                </div>
+                            )}
                             <div className="space-y-3">
-                                {(activeTab === "past" ? initialPastItems : initialListingItems).map(renderHistoryRow)}
-                                {(activeTab === "past" ? initialPastItems : initialListingItems).length === 0 && (
+                                {(activeTab === "past" ? visiblePastItems : initialListingItems).map(renderHistoryRow)}
+                                {(activeTab === "past" ? visiblePastItems : initialListingItems).length === 0 && (
                                     <p className="text-center py-8 text-sm text-gray-400">アイテムがありません</p>
                                 )}
                             </div>
