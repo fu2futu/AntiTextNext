@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
             const title = locale === "en" ? "Please Rate Your Transaction" : "取引相手からの評価が完了しました";
             const content = locale === "en"
                 ? `The other party has submitted their rating for "${itemTitle}". Please submit your rating to complete the transaction.`
-                : `取引相手が商品「${itemTitle}」の評価を完了しました。あなたも評価を完了させて、取引を終了させてください。`;
+                : `取引相手が商品「${itemTitle}」の評価を完了しました。評価が完了していなければ評価をお願いします。評価が完了し次第取引は終了となります。`;
             const ratingUrl = `${baseUrl}/rating/${extraData?.transactionId}`;
             await sendTransactionProgressEmail(email, title, content, ratingUrl, locale);
         }

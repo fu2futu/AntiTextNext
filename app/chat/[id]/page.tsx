@@ -1669,19 +1669,37 @@ const classifyAutoMessageTone = (title: string, body: string): AutoMessageTone =
   return "request";
 };
 
-const getAutoMessageNextAction = (tone: AutoMessageTone, title: string, body: string) => {
+const getAutoMessageNextAction = (tone: AutoMessageTone, title: string, body: string, isOwnMessage: boolean) => {
   const text = `${title}\n${body}`;
-  if (tone === "request") return "出品者様は、都合のよい条件を選んで返信してください。";
-  if (tone === "cancel") return "不当だと感じた場合は、マイページのお問い合わせから運営へ連絡できます。";
-  if (tone === "rating") return text.includes("双方")
-    ? "取引は完了しました。必要に応じて過去の取引から内容を確認できます。"
-    : "取引完了ボタンから評価を行ってください。";
-  if (text.includes("受け渡し完了")) return "お互いの評価をお願いします。";
-  if (text.includes("変更提案")) return "候補を確認し、行けそうな日時を選んでください。";
-  return "受け渡しが完了したら、「取引終了」ボタンを押してください。";
+  if (tone === "request") {
+    return isOwnMessage
+      ? "相手の返信をお待ちください。"
+      : "出品者様は、都合のよい条件を選んで返信してください。";
+  }
+  if (tone === "cancel") {
+    return isOwnMessage
+      ? "キャンセルが完了しました。もし問題があれば運営までお問い合わせください。"
+      : "相手がキャンセルしました。不服などあればお問い合わせからご連絡ください。";
+  }
+  if (tone === "rating") {
+    return isOwnMessage
+      ? "評価の送信が完了しました！終了です。"
+      : "評価が完了していなければ評価を完了してください。";
+  }
+  if (text.includes("変更提案")) {
+    return isOwnMessage
+      ? "相手の返信をお待ちください。"
+      : "提案された日程から受け渡し可能な日時を選択してください。";
+  }
+  if (text.includes("受け渡し完了")) {
+    return isOwnMessage
+      ? "評価の送信が完了しました！終了です。"
+      : "評価が完了していなければ評価を完了してください。";
+  }
+  return "日時、場所を確認しそこで受け渡しを行ってください。日程場所は変更し、再登録も可能です。";
 };
 
-const parseAutoMessage = (message: string): AutoMessageData | null => {
+const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageData | null => {
   const trimmed = message.trim();
   const titleMatch = trimmed.match(/^【([^】]+)】/);
   if (!titleMatch) return null;
@@ -1734,7 +1752,7 @@ const parseAutoMessage = (message: string): AutoMessageData | null => {
     label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : "評価",
     tone,
     sections: sections.length > 0 ? sections : [{ title: "内容", lines: [body], chips: [] }],
-    nextAction: getAutoMessageNextAction(tone, title, body),
+    nextAction: getAutoMessageNextAction(tone, title, body, isOwnMessage),
   };
 };
 
@@ -1793,7 +1811,7 @@ const MessageRow = memo(function MessageRow({
   showAvatar: boolean;
   avatar: React.ReactNode;
 }) {
-  const autoMessage = !message.image_url ? parseAutoMessage(message.message) : null;
+  const autoMessage = !message.image_url ? parseAutoMessage(message.message, isOwnMessage) : null;
 
   if (autoMessage) {
     return (
