@@ -226,7 +226,7 @@ export default function PurchaseModal({
                 </div>
 
                 {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-6 sm:py-8 space-y-8 custom-scrollbar pb-48">
+                <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-6 sm:py-8 space-y-8 custom-scrollbar pb-64 sm:pb-72">
                     
                     {/* 支払い方法 */}
                     <section>
