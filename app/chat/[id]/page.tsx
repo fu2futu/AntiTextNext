@@ -1061,6 +1061,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         <Link href={backHref} className="p-1">
           <ArrowLeft className="w-6 h-6 text-black" />
         </Link>
+        <div className="h-10 w-10 flex-shrink-0">
+          {otherChatAvatar}
+        </div>
         <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
           {itemThumbnailUrl ? (
             <Image
@@ -1597,7 +1600,7 @@ const MessageList = memo(function MessageList({
   );
 });
 
-type AutoMessageTone = "request" | "cancel" | "schedule" | "rating";
+type AutoMessageTone = "request" | "cancel" | "schedule" | "rating" | "complete";
 
 type AutoMessageSection = {
   title: string;
@@ -1610,7 +1613,7 @@ type AutoMessageData = {
   label: string;
   tone: AutoMessageTone;
   sections: AutoMessageSection[];
-  nextAction: string;
+  nextAction: string | null;
 };
 
 const AUTO_MESSAGE_TONES: Record<AutoMessageTone, {
@@ -1648,6 +1651,13 @@ const AUTO_MESSAGE_TONES: Record<AutoMessageTone, {
     chip: "bg-white text-yellow-800 border-yellow-200",
     next: "bg-yellow-100/70 text-yellow-900",
   },
+  complete: {
+    card: "bg-sky-50/90 border-sky-200",
+    border: "border-l-sky-500",
+    label: "bg-sky-100 text-sky-700",
+    chip: "bg-white text-sky-700 border-sky-200",
+    next: "bg-sky-100/70 text-sky-900",
+  },
 };
 
 const normalizeAutoSectionTitle = (title: string) => {
@@ -1663,6 +1673,8 @@ const normalizeAutoSectionTitle = (title: string) => {
 
 const classifyAutoMessageTone = (title: string, body: string): AutoMessageTone => {
   const text = `${title}\n${body}`;
+  if (text.includes("双方の評価が完了")) return "complete";
+  if (title.includes("購入リクエスト") || title.includes("購入相談")) return "request";
   if (text.includes("評価")) return "rating";
   if (text.includes("取り下げ") || text.includes("相談が終了") || text.includes("リクエスト終了") || text.includes("再公開") || text.includes("辞退") || text.includes("期限切れ")) return "cancel";
   if (text.includes("予定") || text.includes("日程") || text.includes("日時") || text.includes("受け渡し完了")) return "schedule";
@@ -1671,32 +1683,42 @@ const classifyAutoMessageTone = (title: string, body: string): AutoMessageTone =
 
 const getAutoMessageNextAction = (tone: AutoMessageTone, title: string, body: string, isOwnMessage: boolean) => {
   const text = `${title}\n${body}`;
+  if (tone === "complete") {
+    return null;
+  }
   if (tone === "request") {
-    return isOwnMessage
-      ? "相手の返信をお待ちください。"
-      : "出品者様は、都合のよい条件を選んで返信してください。";
+    return "日程調整を行ってください。";
   }
   if (tone === "cancel") {
-    return isOwnMessage
-      ? "キャンセルが完了しました。もし問題があれば運営までお問い合わせください。"
-      : "相手がキャンセルしました。不服などあればお問い合わせからご連絡ください。";
+    return "もし問題があれば、お問い合わせから運営までご連絡ください。";
   }
   if (tone === "rating") {
-    return isOwnMessage
-      ? "評価の送信が完了しました！終了です。"
-      : "評価が完了していなければ評価を完了してください。";
+    if (text.includes("受け渡し完了")) {
+      return "相手の評価を行ってください。";
+    }
+    return "評価が完了していなければ評価を完了してください。";
   }
   if (text.includes("変更提案")) {
-    return isOwnMessage
-      ? "相手の返信をお待ちください。"
-      : "提案された日程から受け渡し可能な日時を選択してください。";
+    return "提案された日程から受け渡し可能な日時を選択してください。";
   }
   if (text.includes("受け渡し完了")) {
-    return isOwnMessage
-      ? "評価の送信が完了しました！終了です。"
-      : "評価が完了していなければ評価を完了してください。";
+    return "相手の評価を行ってください。";
   }
   return "日時、場所を確認しそこで受け渡しを行ってください。日程場所は変更し、再登録も可能です。";
+};
+
+const isAutoMessageGuidanceLine = (line: string) => {
+  return [
+    "出品者様は",
+    "この候補で問題ないか",
+    "相手の方は",
+    "当日はよろしく",
+    "この予定は予定管理に反映",
+    "不当だと感じ",
+    "お互いの評価",
+    "取引完了ボタンより",
+    "ご利用ありがとうございました",
+  ].some((keyword) => line.includes(keyword));
 };
 
 const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageData | null => {
@@ -1719,6 +1741,7 @@ const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageDa
   body.split(/\r?\n/).forEach((rawLine) => {
     const line = rawLine.trim();
     if (!line) return;
+    if (isAutoMessageGuidanceLine(line)) return;
 
     if (/^(■|▼)?\s*[^:：]+[:：]$/.test(line) || /^(候補日時|候補場所|変更前|変更後の候補)[:：]?$/.test(line)) {
       flush();
@@ -1749,7 +1772,7 @@ const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageDa
 
   return {
     title,
-    label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : "評価",
+    label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : tone === "complete" ? "取引完了" : "評価",
     tone,
     sections: sections.length > 0 ? sections : [{ title: "内容", lines: [body], chips: [] }],
     nextAction: getAutoMessageNextAction(tone, title, body, isOwnMessage),
@@ -1793,9 +1816,11 @@ const AutoMessageCard = memo(function AutoMessageCard({ data }: { data: AutoMess
         ))}
       </div>
 
-      <div className={`mt-4 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${tone.next}`}>
-        次にすること: {data.nextAction}
-      </div>
+      {data.nextAction && (
+        <div className={`mt-4 rounded-xl px-3 py-2 text-xs font-bold leading-5 ${tone.next}`}>
+          次にすること: {data.nextAction}
+        </div>
+      )}
     </div>
   );
 });
