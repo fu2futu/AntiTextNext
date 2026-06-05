@@ -105,6 +105,29 @@ export interface Database {
                     created_at?: string
                 }
             }
+            book_subjects: {
+                Row: {
+                    isbn: string
+                    school: string
+                    dept: string
+                    dept_label: string
+                    synced_at: string
+                }
+                Insert: {
+                    isbn: string
+                    school: string
+                    dept: string
+                    dept_label: string
+                    synced_at?: string
+                }
+                Update: {
+                    isbn?: string
+                    school?: string
+                    dept?: string
+                    dept_label?: string
+                    synced_at?: string
+                }
+            }
             search_histories: {
                 Row: {
                     id: string

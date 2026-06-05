@@ -6,7 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Search, History, Heart, Bell, Loader2, CheckCircle } from "lucide-react";
+import { ArrowLeft, Search, History, Heart, Bell, Loader2, CheckCircle, SlidersHorizontal } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -36,6 +36,12 @@ export type Item = {
 type Suggestion = {
   id: string;
   title: string;
+};
+
+// 学院 -> 系（分野フィルタの選択肢）。book_subjects から動的に構築。
+type SubjectTaxonomy = {
+  school: string;
+  depts: { dept: string; dept_label: string }[];
 };
 
 // ひらがな→カタカナ変換
@@ -75,13 +81,50 @@ function SearchContent() {
   const favoriteSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const loginPrompt = useLoginRequiredPrompt();
 
+  // 分野フィルタ（学院＋系）
+  const [taxonomy, setTaxonomy] = useState<SubjectTaxonomy[]>([]);
+  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
+  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+
+  // book_subjects から学院＋系の選択肢を構築
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("book_subjects")
+        .select("school, dept, dept_label");
+      if (error || !data) return;
+      const map = new Map<string, Map<string, string>>();
+      for (const r of data as { school: string; dept: string; dept_label: string }[]) {
+        if (!map.has(r.school)) map.set(r.school, new Map());
+        map.get(r.school)!.set(r.dept, r.dept_label);
+      }
+      const tax: SubjectTaxonomy[] = Array.from(map.entries()).map(([school, depts]) => ({
+        school,
+        depts: Array.from(depts.entries()).map(([dept, dept_label]) => ({ dept, dept_label })),
+      }));
+      setTaxonomy(tax);
+    })();
+  }, []);
+
   useEffect(() => {
     favoriteStateRef.current = new Set(favorites);
   }, [favorites]);
 
-  // 検索実�?
-  const executeSearch = async (query: string) => {
-    if (!query.trim()) return;
+  const ITEM_SELECT =
+    "id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)";
+
+  // キーワード（任意）＋分野フィルタ（任意）を組み合わせて検索する。
+  // 分野が選択されている場合、book_subjects から対象ISBNを引き、items を絞り込む。
+  const runSearch = async (query: string, school: string | null, dept: string | null) => {
+    const trimmed = query.trim();
+    const hasQuery = trimmed.length > 0;
+    const hasSubject = !!school;
+
+    if (!hasQuery && !hasSubject) {
+      setResults([]);
+      setHasSearched(false);
+      return;
+    }
 
     setIsLoading(true);
     setShowSuggestions(false);
@@ -89,36 +132,59 @@ function SearchContent() {
     setWatchSaved(false);
 
     try {
-      // ひらがな・カタカナ変換
-      const hiragana = katakanaToHiragana(query);
-      const katakana = hiraganaToKatakana(query);
+      // 分野が選択されていれば対象ISBN集合を取得
+      let isbnFilter: string[] | null = null;
+      if (hasSubject) {
+        let sq = supabase.from("book_subjects").select("isbn").eq("school", school!);
+        if (dept) sq = sq.eq("dept", dept);
+        const { data: subjData } = await sq.limit(2000);
+        isbnFilter = Array.from(new Set((subjData || []).map((r: any) => r.isbn as string)));
+        if (isbnFilter.length === 0) {
+          setResults([]);
+          setIsLoading(false);
+          return;
+        }
+      }
 
-      // 重�?を除去した検索パターン
-      const searches = [query, hiragana, katakana].filter((v, i, a) => a.indexOf(v) === i);
+      let rawResults: any[] = [];
+      if (hasQuery) {
+        // ひらがな・カタカナ変換した複数パターンで検索（分野フィルタと AND）
+        const hiragana = katakanaToHiragana(trimmed);
+        const katakana = hiraganaToKatakana(trimmed);
+        const searches = [trimmed, hiragana, katakana].filter((v, i, a) => a.indexOf(v) === i);
 
-      // �?パターンで検索を実�?
-      const searchResults = await Promise.all(
-        searches.map(async (searchTerm) => {
-          const { data, error } = await supabase
-            .from("items")
-            .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)")
-            .in("status", ["available", "trading"])
-            .ilike("title", `%${searchTerm}%`)
-            .order("created_at", { ascending: false })
-            .limit(20);
+        const searchResults = await Promise.all(
+          searches.map(async (searchTerm) => {
+            let q = supabase
+              .from("items")
+              .select(ITEM_SELECT)
+              .in("status", ["available", "trading"])
+              .ilike("title", `%${searchTerm}%`);
+            if (isbnFilter) q = q.in("isbn", isbnFilter);
+            const { data, error } = await q.order("created_at", { ascending: false }).limit(20);
+            if (error) {
+              console.error("Search error:", error);
+              return [];
+            }
+            return data || [];
+          })
+        );
+        rawResults = searchResults.flat();
+      } else {
+        // 分野のみの閲覧（キーワードなし）
+        const { data, error } = await supabase
+          .from("items")
+          .select(ITEM_SELECT)
+          .in("status", ["available", "trading"])
+          .in("isbn", isbnFilter!)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        rawResults = error ? [] : data || [];
+      }
 
-          if (error) {
-            console.error("Search error:", error);
-            return [];
-          }
-          return data || [];
-        })
-      );
-
-      // 結果を結合して重�?を除去
-      const allResults = searchResults.flat();
+      // 重複を除去
       const seenIds = new Set<string>();
-      const uniqueResults = allResults.filter((item: any) => {
+      const uniqueResults = rawResults.filter((item: any) => {
         if (seenIds.has(item.id)) return false;
         seenIds.add(item.id);
         return true;
@@ -127,17 +193,17 @@ function SearchContent() {
       const mappedResults = uniqueResults.map((item: any) => ({
         ...item,
         favorite_count: item.favorites?.[0]?.count || 0,
-        favorites: undefined
+        favorites: undefined,
       })) as Item[];
 
       setResults(mappedResults);
 
-      // 検索履歴の保�?
-      if (user) {
-        (supabase.from("search_histories") as any).insert({
-          user_id: user.id,
-          keyword: query,
-        }).then(() => { }).catch(() => { });
+      // 検索履歴の保存（キーワード検索時のみ）
+      if (user && hasQuery) {
+        (supabase.from("search_histories") as any)
+          .insert({ user_id: user.id, keyword: trimmed })
+          .then(() => {})
+          .catch(() => {});
       }
     } catch (err) {
       console.error("Search error:", err);
@@ -145,6 +211,24 @@ function SearchContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // キーワード検索（現在選択中の分野フィルタを引き継ぐ）
+  const executeSearch = (query: string) => runSearch(query, selectedSchool, selectedDept);
+
+  // 学院チップ: 選択/解除。系の選択はリセットして即検索。
+  const handleSchoolSelect = (school: string) => {
+    const next = selectedSchool === school ? null : school;
+    setSelectedSchool(next);
+    setSelectedDept(null);
+    runSearch(searchQuery, next, null);
+  };
+
+  // 系チップ: 選択/解除して即検索。
+  const handleDeptSelect = (dept: string) => {
+    const next = selectedDept === dept ? null : dept;
+    setSelectedDept(next);
+    runSearch(searchQuery, selectedSchool, next);
   };
 
   // URLパラメータからの初期検索
@@ -381,6 +465,61 @@ function SearchContent() {
           )}
         </form>
       </header>
+
+      {/* 分野フィルタ（学院＋系） */}
+      {taxonomy.length > 0 && (
+        <div className="px-6 pt-4 pb-3 border-b bg-white">
+          <div className="flex items-center gap-2 mb-2">
+            <SlidersHorizontal className="w-4 h-4 text-gray-500" />
+            <span className="text-sm font-semibold text-gray-700">分野で絞り込み</span>
+            {selectedSchool && (
+              <button
+                type="button"
+                onClick={() => handleSchoolSelect(selectedSchool)}
+                className="ml-auto text-xs font-medium text-primary hover:underline"
+              >
+                クリア
+              </button>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {taxonomy.map((t) => (
+              <button
+                key={t.school}
+                type="button"
+                onClick={() => handleSchoolSelect(t.school)}
+                className={`flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                  selectedSchool === t.school
+                    ? "bg-primary text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                }`}
+              >
+                {t.school}
+              </button>
+            ))}
+          </div>
+          {selectedSchool && (
+            <div className="flex gap-2 overflow-x-auto pb-1 mt-2 -mx-1 px-1">
+              {taxonomy
+                .find((t) => t.school === selectedSchool)
+                ?.depts.map((d) => (
+                  <button
+                    key={d.dept}
+                    type="button"
+                    onClick={() => handleDeptSelect(d.dept)}
+                    className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      selectedDept === d.dept
+                        ? "bg-primary/15 text-primary ring-1 ring-primary/40"
+                        : "bg-gray-50 text-gray-500 hover:bg-gray-100"
+                    }`}
+                  >
+                    {d.dept_label}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Click outside to close suggestions */}
       {showSuggestions && (

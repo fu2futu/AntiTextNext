@@ -450,6 +450,15 @@ export default function ListingPage() {
           }),
         }).catch(() => {}); // 失敗しても出品自体はブロックしない
 
+        // 分野分類をシラバスDBから取得してキャッシュ（バックグラウンド・失敗無視）
+        if (isbn) {
+          fetch("/api/subjects/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isbns: [isbn] }),
+          }).catch(() => {});
+        }
+
         setStep("success");
         setTimeout(() => {
           router.push("/");
