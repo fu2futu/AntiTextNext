@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
-import { User, GraduationCap, CheckCircle, XCircle, Loader2 } from "lucide-react";
-import Image from "next/image";
+import { User, GraduationCap, CheckCircle, XCircle, Loader2, Bell } from "lucide-react";
+import { enableWebPush, getCurrentPushStatus } from "@/lib/web-push-client";
+import type { PushPermissionState } from "@/lib/web-push-client";
 
 export default function SetupProfilePage() {
     const router = useRouter();
@@ -22,6 +23,11 @@ export default function SetupProfilePage() {
     const [notifyWatch, setNotifyWatch] = useState(true);
     const [notifyProgress, setNotifyProgress] = useState(true);
     const [notifyReminders, setNotifyReminders] = useState(true);
+    const [pushSupported, setPushSupported] = useState(false);
+    const [pushSubscribed, setPushSubscribed] = useState(false);
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushPermission, setPushPermission] = useState<PushPermissionState>("unsupported");
+    const [pushMessage, setPushMessage] = useState("");
 
     // ユーザーネーム重複チェック用
     const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken" | "invalid">("idle");
@@ -51,6 +57,18 @@ export default function SetupProfilePage() {
             checkProfile();
         }
     }, [user, authLoading, router]);
+
+    useEffect(() => {
+        const checkPushStatus = async () => {
+            if (!user) return;
+            const status = await getCurrentPushStatus();
+            setPushSupported(status.supported);
+            setPushPermission(status.permission);
+            setPushSubscribed(status.subscribed);
+        };
+
+        checkPushStatus();
+    }, [user]);
 
     // ユーザーネームのリアルタイム重複チェック
     const checkUsername = useCallback(async (value: string) => {
@@ -149,6 +167,23 @@ export default function SetupProfilePage() {
             setError(err.message || "プロフィールの作成に失敗しました");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleEnablePush = async () => {
+        setPushBusy(true);
+        setPushMessage("");
+        setError("");
+
+        try {
+            const result = await enableWebPush();
+            setPushPermission(result.permission);
+            setPushSubscribed(result.subscribed);
+            setPushMessage(result.message);
+        } catch (err: any) {
+            setPushMessage(err.message || "ホーム画面通知を有効にできませんでした。");
+        } finally {
+            setPushBusy(false);
         }
     };
 
@@ -366,6 +401,44 @@ export default function SetupProfilePage() {
                                         </div>
                                         <span className="text-sm text-gray-700 group-hover:text-gray-900">取引前日のリマインド通知</span>
                                     </label>
+                                </div>
+                            </div>
+
+                            <div className="animate-slide-in-left bg-blue-50 p-4 rounded-xl border border-blue-100 mt-4" style={{ animationDelay: '290ms' }}>
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-0.5 rounded-full bg-white p-2 text-primary shadow-sm">
+                                        <Bell className="h-5 w-5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="text-sm font-bold text-gray-900 mb-1">プッシュ通知設定</h3>
+                                        <p className="text-xs leading-relaxed text-gray-600">
+                                            ホーム画面に追加したTextNextで、お知らせやチャット通知を受け取るための設定です。後からマイページの設定でも変更できます。
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={handleEnablePush}
+                                            disabled={pushBusy || pushSubscribed || !pushSupported || pushPermission === "denied"}
+                                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90 disabled:bg-gray-300 disabled:text-gray-600"
+                                        >
+                                            {pushBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+                                            {pushSubscribed ? "プッシュ通知は有効です" : "プッシュ通知を有効にする"}
+                                        </button>
+                                        {!pushSupported && (
+                                            <p className="mt-2 text-xs font-bold text-gray-500">
+                                                このブラウザではホーム画面通知に対応していません。
+                                            </p>
+                                        )}
+                                        {pushPermission === "denied" && (
+                                            <p className="mt-2 text-xs font-bold text-amber-700">
+                                                通知がブロックされています。ブラウザまたは端末設定からTextNextの通知を許可してください。
+                                            </p>
+                                        )}
+                                        {pushMessage && (
+                                            <p className="mt-2 text-xs font-bold text-gray-700">
+                                                {pushMessage}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
 

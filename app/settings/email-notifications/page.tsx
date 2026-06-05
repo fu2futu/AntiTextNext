@@ -6,32 +6,8 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, Save, MessageSquare, Bell, BellOff } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { supabase } from "@/lib/supabase";
-
-const vapidPublicKey = process.env.NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY || "";
-
-const urlBase64ToUint8Array = (base64String: string) => {
-    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-
-    for (let i = 0; i < rawData.length; i += 1) {
-        outputArray[i] = rawData.charCodeAt(i);
-    }
-
-    return outputArray;
-};
-
-const getPushSupport = () => {
-    if (typeof window === "undefined") return false;
-    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-};
-
-const getServiceWorkerRegistration = async () => {
-    const existing = await navigator.serviceWorker.getRegistration("/");
-    if (existing) return existing;
-    return navigator.serviceWorker.register("/sw.js");
-};
+import { disableWebPush, enableWebPush, getCurrentPushStatus, getPushSupport } from "@/lib/web-push-client";
+import type { PushPermissionState } from "@/lib/web-push-client";
 
 export default function EmailNotificationsSettingsPage() {
     const router = useRouter();
@@ -46,7 +22,7 @@ export default function EmailNotificationsSettingsPage() {
     const [pushBusy, setPushBusy] = useState(false);
     const [pushTestBusy, setPushTestBusy] = useState(false);
     const [pushMessage, setPushMessage] = useState("");
-    const [pushPermission, setPushPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+    const [pushPermission, setPushPermission] = useState<PushPermissionState>("unsupported");
 
     // 通知設定のstate
     const [notifyWatch, setNotifyWatch] = useState(true);
@@ -89,23 +65,10 @@ export default function EmailNotificationsSettingsPage() {
 
     useEffect(() => {
         const checkPushStatus = async () => {
-            const supported = getPushSupport();
-            setPushSupported(supported);
-
-            if (!supported) {
-                setPushPermission("unsupported");
-                return;
-            }
-
-            setPushPermission(Notification.permission);
-
-            try {
-                const registration = await getServiceWorkerRegistration();
-                const subscription = await registration.pushManager.getSubscription();
-                setPushSubscribed(Boolean(subscription));
-            } catch {
-                setPushSubscribed(false);
-            }
+            const status = await getCurrentPushStatus();
+            setPushSupported(status.supported);
+            setPushPermission(status.permission);
+            setPushSubscribed(status.subscribed);
         };
 
         if (user) {
@@ -119,47 +82,10 @@ export default function EmailNotificationsSettingsPage() {
         setError("");
 
         try {
-            if (!getPushSupport()) {
-                setPushMessage("このブラウザではホーム画面通知に対応していません。");
-                return;
-            }
-
-            if (!vapidPublicKey) {
-                setPushMessage("通知用の公開キーがまだ設定されていません。");
-                return;
-            }
-
-            const permission = await Notification.requestPermission();
-            setPushPermission(permission);
-
-            if (permission !== "granted") {
-                setPushMessage("通知が許可されませんでした。ブラウザの設定から許可できます。");
-                return;
-            }
-
-            const registration = await getServiceWorkerRegistration();
-            let subscription = await registration.pushManager.getSubscription();
-
-            if (!subscription) {
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-                });
-            }
-
-            const response = await fetch("/api/push/subscription", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(subscription.toJSON()),
-            });
-
-            if (!response.ok) {
-                const result = await response.json().catch(() => ({}));
-                throw new Error(result.error || "通知設定を保存できませんでした");
-            }
-
-            setPushSubscribed(true);
-            setPushMessage("ホーム画面通知を有効にしました。");
+            const result = await enableWebPush();
+            setPushPermission(result.permission);
+            setPushSubscribed(result.subscribed);
+            setPushMessage(result.message);
         } catch (err: any) {
             setPushMessage(err.message || "ホーム画面通知を有効にできませんでした。");
         } finally {
@@ -173,22 +99,10 @@ export default function EmailNotificationsSettingsPage() {
         setError("");
 
         try {
-            if (!getPushSupport()) return;
-
-            const registration = await getServiceWorkerRegistration();
-            const subscription = await registration.pushManager.getSubscription();
-
-            if (subscription) {
-                await fetch("/api/push/subscription", {
-                    method: "DELETE",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ endpoint: subscription.endpoint }),
-                });
-                await subscription.unsubscribe();
-            }
-
-            setPushSubscribed(false);
-            setPushMessage("ホーム画面通知を停止しました。");
+            const result = await disableWebPush();
+            setPushPermission(result.permission);
+            setPushSubscribed(result.subscribed);
+            setPushMessage(result.message);
         } catch (err: any) {
             setPushMessage(err.message || "ホーム画面通知を停止できませんでした。");
         } finally {

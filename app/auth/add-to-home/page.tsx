@@ -63,7 +63,7 @@ export default function AddToHomePage() {
                             <CheckCircle className="w-10 h-10 text-green-600" />
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900 mb-4 animate-slide-in-left">
-                            準備完了！
+                            準備完了
                         </h1>
                         <p className="text-gray-600 mb-8 animate-slide-in-left" style={{ animationDelay: '100ms' }}>
                             アプリとしてご利用いただいています。
@@ -91,7 +91,7 @@ export default function AddToHomePage() {
                             <Smartphone className="w-10 h-10 text-primary" />
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900 mb-3 animate-slide-in-left">
-                            🎉 登録完了！
+                            登録完了
                         </h1>
                         <p className="text-gray-600 animate-slide-in-left" style={{ animationDelay: '100ms' }}>
                             TextNextをもっと快適に使うために、
@@ -102,7 +102,7 @@ export default function AddToHomePage() {
 
                     {/* メリット説明 */}
                     <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 mb-6 animate-slide-in-left" style={{ animationDelay: '150ms' }}>
-                        <h3 className="font-semibold text-blue-900 mb-3">📱 ホーム画面に追加すると...</h3>
+                        <h3 className="font-semibold text-blue-900 mb-3">ホーム画面に追加すると</h3>
                         <ul className="space-y-2 text-sm text-blue-800">
                             <li className="flex items-start gap-2">
                                 <CheckCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -123,7 +123,7 @@ export default function AddToHomePage() {
                     {(platform === "ios" || platform === "other") && (
                         <div className="bg-white rounded-2xl shadow-lg border p-6 mb-4 animate-slide-in-left" style={{ animationDelay: '200ms' }}>
                             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span className="text-lg">🍎</span> iPhoneの場合（Safari）
+                                iPhoneの場合（Safari）
                             </h3>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
@@ -160,7 +160,7 @@ export default function AddToHomePage() {
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-gray-700 text-sm">
-                                            右上の<span className="font-semibold">「追加」</span>をタップして完了！
+                                            右上の<span className="font-semibold">「追加」</span>をタップして完了!!
                                         </p>
                                     </div>
                                 </div>
@@ -172,7 +172,7 @@ export default function AddToHomePage() {
                     {(platform === "android" || platform === "other") && (
                         <div className="bg-white rounded-2xl shadow-lg border p-6 mb-6 animate-slide-in-left" style={{ animationDelay: '250ms' }}>
                             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span className="text-lg">🤖</span> Androidの場合（Chrome）
+                                Androidの場合（Chrome）
                             </h3>
                             <div className="space-y-4">
                                 <div className="flex items-start gap-3">
@@ -206,7 +206,7 @@ export default function AddToHomePage() {
                                     </div>
                                     <div className="flex-1">
                                         <p className="text-gray-700 text-sm">
-                                            <span className="font-semibold">「追加」</span>をタップして完了！
+                                            <span className="font-semibold">「追加」</span>をタップして完了!!
                                         </p>
                                     </div>
                                 </div>

@@ -50,6 +50,9 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const [isVisible, setIsVisible] = useState(false);
   const frontImageUrl = getItemImageUrl(item, "front", "detail");
   const backImageUrl = getItemImageUrl(item, "back", "detail");
+  const purchaseModalThumbnailUrl =
+    getItemImageUrl(item, "front", "thumbnail") ||
+    getItemImageUrl(item, "back", "thumbnail");
   const [isClosing, setIsClosing] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -822,6 +825,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
         onSubmit={handlePurchaseSubmit}
         itemTitle={item.title}
         lockedUntil={lockedUntil}
+        itemThumbnailUrl={purchaseModalThumbnailUrl}
       />
 
       {/* Edit Modal */}
