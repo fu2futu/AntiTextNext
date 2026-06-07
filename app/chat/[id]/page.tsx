@@ -72,6 +72,13 @@ type UserProfile = {
   created_at?: string | null;
   listing_count?: number;
   early_registration?: boolean;
+  admin_frame?: boolean;
+};
+
+type ChatSenderProfile = {
+  nickname: string;
+  roleLabel?: string;
+  avatar: React.ReactNode;
 };
 
 const TIME_SLOT_LABELS: Record<string, string> = {
@@ -119,6 +126,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const [otherUserProfile, setOtherUserProfile] = useState<UserProfile | null>(null);
   const [ownAvatarReward, setOwnAvatarReward] = useState({ listingCount: 0, earlyRegistration: false });
+  const [ownAdminFrame, setOwnAdminFrame] = useState(false);
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, UserProfile>>({});
   const [accessDenied, setAccessDenied] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -506,6 +515,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             { data: otherRewardOverride },
             { count: ownListingCount },
             { data: ownRewardOverride },
+            { data: ownAdminCheck },
           ] = await Promise.all([
             supabase
               .from("profiles")
@@ -537,9 +547,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               .select("early_registration_override")
               .eq("user_id", user.id)
               .maybeSingle(),
+            (supabase as any).rpc("is_current_user_admin"),
           ]);
 
           const setting = rewardSetting as RewardSetting | null;
+          const isCurrentAdmin = Boolean(ownAdminCheck);
+          setOwnAdminFrame(isCurrentAdmin);
 
           if (profileData) {
             const profile = profileData as UserProfile;
@@ -566,6 +579,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                   setting,
                   otherRewardOverride as RewardOverride | null
                 ),
+                admin_frame: transactionResult.data?.is_demo === true && other === transactionResult.data?.seller_id,
               });
             }
           }
@@ -578,6 +592,50 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               ownRewardOverride as RewardOverride | null
             ),
           });
+
+          if (transactionResult.data) {
+            const tx = transactionResult.data as Transaction;
+            const ids = Array.from(new Set([tx.buyer_id, tx.seller_id].filter(Boolean)));
+            const { data: participantProfileRows } = await supabase
+              .from("profiles")
+              .select("user_id, avatar_url, nickname, is_deactivated, created_at")
+              .in("user_id", ids);
+
+            const counts = await Promise.all(
+              ids.map(async (id) => {
+                const { count } = await supabase
+                  .from("items")
+                  .select("*", { count: "exact", head: true })
+                  .eq("seller_id", id)
+                  .neq("status", "deleted");
+                return [id, count ?? 0] as const;
+              })
+            );
+            const countMap = new Map(counts);
+            const nextProfiles: Record<string, UserProfile> = {};
+
+            for (const row of (participantProfileRows ?? []) as any[]) {
+              let resolvedAvatarUrl = row.avatar_url as string | null;
+              if (resolvedAvatarUrl && !resolvedAvatarUrl.startsWith("http") && !resolvedAvatarUrl.startsWith("/")) {
+                const { data } = supabase.storage.from("avatars").getPublicUrl(resolvedAvatarUrl);
+                resolvedAvatarUrl = data.publicUrl;
+              }
+              nextProfiles[row.user_id] = {
+                avatar_url: resolvedAvatarUrl,
+                nickname: row.is_deactivated ? "退会済みユーザー" : row.nickname,
+                is_deactivated: row.is_deactivated,
+                created_at: row.created_at,
+                listing_count: countMap.get(row.user_id) ?? 0,
+                early_registration: resolveEarlyRegistrationEligible(
+                  row.created_at,
+                  setting,
+                  row.user_id === other ? otherRewardOverride as RewardOverride | null : ownRewardOverride as RewardOverride | null
+                ),
+                admin_frame: tx.is_demo === true && row.user_id === tx.seller_id,
+              };
+            }
+            setParticipantProfiles(nextProfiles);
+          }
         }
       }
 
@@ -922,8 +980,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       size={40}
       listingCount={ownAvatarReward.listingCount}
       earlyRegistration={ownAvatarReward.earlyRegistration}
+      adminFrame={ownAdminFrame}
     />
-  ), [avatarUrl, ownAvatarReward.earlyRegistration, ownAvatarReward.listingCount]);
+  ), [avatarUrl, ownAdminFrame, ownAvatarReward.earlyRegistration, ownAvatarReward.listingCount]);
 
   const otherChatAvatar = useMemo(() => {
     const avatar = (
@@ -933,6 +992,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         size={40}
         listingCount={otherUserProfile?.listing_count ?? 0}
         earlyRegistration={otherUserProfile?.early_registration}
+        adminFrame={otherUserProfile?.admin_frame}
       />
     );
 
@@ -953,8 +1013,84 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     otherUserId,
     otherUserProfile?.avatar_url,
     otherUserProfile?.early_registration,
+    otherUserProfile?.admin_frame,
     otherUserProfile?.is_deactivated,
     otherUserProfile?.listing_count,
+  ]);
+
+  const senderProfiles = useMemo(() => {
+    const result: Record<string, ChatSenderProfile> = {};
+    Object.entries(participantProfiles).forEach(([userId, profile]) => {
+      const avatar = (
+        <RewardAvatar
+          src={profile.avatar_url || null}
+          alt={profile.nickname || "avatar"}
+          size={40}
+          listingCount={profile.listing_count ?? 0}
+          earlyRegistration={profile.early_registration}
+          adminFrame={profile.admin_frame}
+        />
+      );
+
+      const wrappedAvatar = profile.is_deactivated ? avatar : (
+        <Link
+          href={`/seller/${userId}`}
+          className="block rounded-full transition-transform active:scale-95"
+          aria-label={`${profile.nickname || "相手"}の情報を見る`}
+        >
+          {avatar}
+        </Link>
+      );
+
+      result[userId] = {
+        nickname: profile.nickname || "ユーザー",
+        roleLabel: transaction
+          ? userId === transaction.seller_id
+            ? "出品者"
+            : userId === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: wrappedAvatar,
+      };
+    });
+
+    if (user?.id && !result[user.id]) {
+      result[user.id] = {
+        nickname: "自分",
+        roleLabel: transaction
+          ? user.id === transaction.seller_id
+            ? "出品者"
+            : user.id === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: ownChatAvatar,
+      };
+    }
+    if (otherUserId && !result[otherUserId]) {
+      result[otherUserId] = {
+        nickname: otherUserProfile?.nickname || "相手",
+        roleLabel: transaction
+          ? otherUserId === transaction.seller_id
+            ? "出品者"
+            : otherUserId === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: otherChatAvatar,
+      };
+    }
+
+    return result;
+  }, [
+    otherChatAvatar,
+    otherUserId,
+    otherUserProfile?.nickname,
+    ownChatAvatar,
+    participantProfiles,
+    transaction,
+    user?.id,
   ]);
 
   if (authLoading || loading) {
@@ -1314,6 +1450,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             currentUserId={user?.id}
             ownAvatar={ownChatAvatar}
             otherAvatar={otherChatAvatar}
+            senderProfiles={senderProfiles}
             messagesEndRef={messagesEndRef}
             showAllAvatars={isDemoTransaction}
           />
@@ -1597,6 +1734,7 @@ const MessageList = memo(function MessageList({
   currentUserId,
   ownAvatar,
   otherAvatar,
+  senderProfiles,
   messagesEndRef,
   showAllAvatars = false,
 }: {
@@ -1604,6 +1742,7 @@ const MessageList = memo(function MessageList({
   currentUserId?: string;
   ownAvatar: React.ReactNode;
   otherAvatar: React.ReactNode;
+  senderProfiles?: Record<string, ChatSenderProfile>;
   messagesEndRef: React.RefObject<HTMLDivElement>;
   showAllAvatars?: boolean;
 }) {
@@ -1621,8 +1760,12 @@ const MessageList = memo(function MessageList({
     <div className="space-y-4">
       {messages.map((msg, index) => {
         const prevMsg = messages[index - 1];
-        const isOwnMessage = msg.sender_id === currentUserId;
+        const senderId = String(msg.sender_id || "");
+        const viewerId = String(currentUserId || "");
+        const isOwnMessage = !!viewerId && senderId === viewerId;
         const showAvatar = showAllAvatars || !prevMsg || prevMsg.sender_id !== msg.sender_id;
+        const senderProfile = senderProfiles?.[senderId];
+        const senderAvatar = senderProfile?.avatar ?? (isOwnMessage ? ownAvatar : otherAvatar);
 
         return (
           <MessageRow
@@ -1630,7 +1773,10 @@ const MessageList = memo(function MessageList({
             message={msg}
             isOwnMessage={isOwnMessage}
             showAvatar={showAvatar}
-            avatar={isOwnMessage ? ownAvatar : otherAvatar}
+            avatar={senderAvatar}
+            senderName={senderProfile?.nickname}
+            senderRoleLabel={senderProfile?.roleLabel}
+            showSenderLabel={showAllAvatars}
           />
         );
       })}
@@ -1869,32 +2015,60 @@ const MessageRow = memo(function MessageRow({
   isOwnMessage,
   showAvatar,
   avatar,
+  senderName,
+  senderRoleLabel,
+  showSenderLabel = false,
 }: {
   message: Message;
   isOwnMessage: boolean;
   showAvatar: boolean;
   avatar: React.ReactNode;
+  senderName?: string;
+  senderRoleLabel?: string;
+  showSenderLabel?: boolean;
 }) {
   const autoMessage = !message.image_url ? parseAutoMessage(message.message, isOwnMessage) : null;
+  const senderLabel = [senderRoleLabel, senderName].filter(Boolean).join(" / ");
 
   if (autoMessage) {
     return (
-      <div className={`flex items-start gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-        <div className="flex-shrink-0 pt-1" style={{ width: 40 }}>
-          {showAvatar && avatar}
+      <div className={`flex w-full items-start gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+        {!isOwnMessage && (
+          <div className="flex-shrink-0 pt-1" style={{ width: 40 }}>
+            {showAvatar && avatar}
+          </div>
+        )}
+        <div className={`flex max-w-[88%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+          {showSenderLabel && senderLabel && (
+            <p className={`mb-1 max-w-full truncate px-1 text-[10px] font-black text-gray-400 ${isOwnMessage ? "text-right" : "text-left"}`}>
+              {senderLabel}
+            </p>
+          )}
+          <AutoMessageCard data={autoMessage} />
         </div>
-        <AutoMessageCard data={autoMessage} />
+        {isOwnMessage && (
+          <div className="flex-shrink-0 pt-1" style={{ width: 40 }}>
+            {showAvatar && avatar}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className={`flex items-end gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-      <div className="flex-shrink-0" style={{ width: 40 }}>
-        {showAvatar && avatar}
-      </div>
+    <div className={`flex w-full items-end gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+      {!isOwnMessage && (
+        <div className="flex-shrink-0" style={{ width: 40 }}>
+          {showAvatar && avatar}
+        </div>
+      )}
 
       <div className={`flex max-w-[55%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+        {showSenderLabel && senderLabel && (
+          <p className={`mb-1 max-w-full truncate px-1 text-[10px] font-black text-gray-400 ${isOwnMessage ? "text-right" : "text-left"}`}>
+            {senderLabel}
+          </p>
+        )}
         <div
           className={`w-fit min-w-[50px] px-4 py-2.5 rounded-2xl shadow-sm border ${isOwnMessage
             ? "rounded-br-sm bg-sky-50 border-sky-200"
@@ -1934,6 +2108,11 @@ const MessageRow = memo(function MessageRow({
           </div>
         )}
       </div>
+      {isOwnMessage && (
+        <div className="flex-shrink-0" style={{ width: 40 }}>
+          {showAvatar && avatar}
+        </div>
+      )}
     </div>
   );
 });
