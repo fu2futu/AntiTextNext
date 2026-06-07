@@ -1043,7 +1043,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       );
 
       result[userId] = {
-        nickname: profile.nickname || "ユーザー",
+        nickname: transaction?.is_demo ? "" : profile.nickname || "ユーザー",
         roleLabel: transaction
           ? userId === transaction.seller_id
             ? "出品者"
@@ -1057,7 +1057,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
     if (user?.id && !result[user.id]) {
       result[user.id] = {
-        nickname: "自分",
+        nickname: transaction?.is_demo ? "" : "自分",
         roleLabel: transaction
           ? user.id === transaction.seller_id
             ? "出品者"
@@ -1070,7 +1070,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     }
     if (otherUserId && !result[otherUserId]) {
       result[otherUserId] = {
-        nickname: otherUserProfile?.nickname || "相手",
+        nickname: transaction?.is_demo ? "" : otherUserProfile?.nickname || "相手",
         roleLabel: transaction
           ? otherUserId === transaction.seller_id
             ? "出品者"
@@ -1776,7 +1776,7 @@ const MessageList = memo(function MessageList({
             avatar={senderAvatar}
             senderName={senderProfile?.nickname}
             senderRoleLabel={senderProfile?.roleLabel}
-            showSenderLabel={showAllAvatars}
+            showSenderLabel={showAllAvatars || showAvatar}
           />
         );
       })}
