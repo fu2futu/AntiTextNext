@@ -141,16 +141,19 @@ export default function SellerDetailPage({
                     .select("id, title, selling_price, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider")
                     .eq("seller_id", params.id)
                     .eq("status", "available")
+                    .eq("is_demo", false)
                     .order("created_at", { ascending: false }),
                 supabase
                     .from("items")
                     .select("*", { count: "exact", head: true })
                     .eq("seller_id", params.id)
-                    .neq("status", "deleted"),
+                    .neq("status", "deleted")
+                    .eq("is_demo", false),
                 supabase
                     .from("ratings")
                     .select("score")
-                    .eq("rated_id", params.id),
+                    .eq("rated_id", params.id)
+                    .eq("is_demo", false),
                 supabase
                     .from("transactions")
                     .select("*", { count: "exact", head: true })

@@ -1,31 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
-import { Search, Heart, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2, Grid3X3 } from "lucide-react";
-import { useState, useCallback, memo, useMemo, useEffect, useRef, TouchEvent as ReactTouchEvent } from "react";
+import { Search, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2, Grid3X3 } from "lucide-react";
+import { useState, useCallback, useMemo, useEffect, useRef, TouchEvent as ReactTouchEvent } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
-import { getItemImageUrl } from "@/lib/image-storage";
 import { RewardAvatar } from "@/components/reward-avatar";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting } from "@/lib/rewards";
-import { LoginRequiredBubble, useLoginRequiredPrompt } from "@/components/login-required-prompt";
+import { useLoginRequiredPrompt } from "@/components/login-required-prompt";
+import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components/home-item-card";
 
-type Item = {
-  id: string;
-  title: string;
-  selling_price: number;
-  //condition: string;
-  front_image_url: string | null;
-  front_thumbnail_url?: string | null;
-  front_image_storage_path?: string | null;
-  front_thumbnail_storage_path?: string | null;
-  image_storage_provider?: string | null;
-  favorite_count?: number;
-  seller_id?: string;
-  status?: string;
-};
+type Item = HomeItem;
 
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 9;
@@ -39,9 +25,6 @@ const ACTIVE_TRANSACTION_STATUSES = [
   "pending",
   "confirmed",
 ];
-type MobileHomeLayout = "list" | "square" | "image";
-
-const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
 
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
@@ -118,162 +101,22 @@ function LoadMoreButton({
   );
 }
 
-// アイテムカードをメモ化して再レンダリングを防止
-const ItemCard = memo(function ItemCard({
-  item,
-  isFavorite,
-  onToggleFavorite,
-  showLoginPrompt,
-  index,
-  mobileLayout,
-}: {
-  item: Item;
-  isFavorite: boolean;
-  onToggleFavorite: (id: string) => void;
-  showLoginPrompt: boolean;
-  index: number;
-  mobileLayout: MobileHomeLayout;
-}) {
-  const isTrading = item.status === "trading" || item.status === "transaction_pending";
-  const imageUrl = getItemImageUrl(item, "front", "thumbnail");
-
-  const HeartButton = ({ compact = false }: { compact?: boolean }) => (
-    <div className="relative flex items-center gap-1">
-      <LoginRequiredBubble visible={showLoginPrompt} />
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onToggleFavorite(item.id);
-        }}
-        className={`${compact ? "h-9 w-9 bg-white/95 shadow-md ring-1 ring-black/5" : "p-2 -m-2 hover:bg-red-50"} group/heart relative rounded-full transition-all active:scale-90 flex items-center justify-center heart-container`}
-        aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
-      >
-        <div className={`heart-ring ${isFavorite ? 'active' : ''}`} />
-        <div className={`heart-particle-container ${isFavorite ? 'active' : ''}`}>
-          {[...Array(7)].map((_, i) => (
-            <div key={i} className="heart-dot" />
-          ))}
-        </div>
-        <Heart
-          className={`${compact ? "h-5 w-5" : "h-5 w-5"} transition-all duration-300 relative heart-main ${isFavorite
-            ? "fill-red-500 text-red-500 heart-pop"
-            : "text-gray-300 group-hover/heart:text-red-300"
-          }`}
-        />
-      </button>
-      {!compact && item.favorite_count !== undefined && item.favorite_count > 0 && (
-        <span className={`text-xs font-bold transition-colors duration-300 ${isFavorite ? 'text-red-500' : 'text-gray-400'}`}>
-          {item.favorite_count}
-        </span>
-      )}
-      {compact && item.favorite_count !== undefined && item.favorite_count > 0 && (
-        <span className="absolute -bottom-1 -right-1 min-w-4 rounded-full bg-red-500 px-1 text-center text-[9px] font-black text-white">
-          {item.favorite_count}
-        </span>
-      )}
-    </div>
-  );
-
-  const ImageBlock = ({ className = "w-full h-full" }: { className?: string }) => (
-    imageUrl ? (
-      <Image
-        src={imageUrl}
-        alt={item.title}
-        width={160}
-        height={160}
-        className={`${className} object-cover`}
-        loading="lazy"
-        quality={55}
-      />
-    ) : (
-      <div className={`${className} flex items-center justify-center bg-gray-100 text-gray-400`}>
-        <BookOpen className="h-8 w-8" />
-      </div>
-    )
-  );
-
-  return (
-    <Link href={`/product/${item.id}`} className="block h-full">
-      {mobileLayout !== "list" && (
-        <div
-          className={`relative overflow-hidden rounded-2xl border bg-white shadow-sm transition-all duration-300 animate-slide-in-up md:hidden ${
-            isTrading ? "border-gray-200 bg-gray-100" : "border-gray-200"
-          }`}
-          style={{ animationDelay: `${index * 80}ms` }}
-        >
-          <div className={`relative aspect-square overflow-hidden bg-gray-100 ${isTrading ? "grayscale opacity-75" : ""}`}>
-            <ImageBlock />
-            <div className="absolute right-2 top-2 z-10">
-              <HeartButton compact />
-            </div>
-            {isTrading && (
-              <div className="absolute left-2 top-2 z-10 rounded-full bg-gray-700 px-2 py-0.5 text-[9px] font-black text-white shadow-sm">
-                取引中
-              </div>
-            )}
-          </div>
-          {mobileLayout === "square" && (
-            <div className="px-2.5 py-2">
-              <p className={`truncate text-xs font-black ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
-                {compactTitle(item.title)}
-              </p>
-              <p className={`mt-0.5 text-sm font-black ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
-                ¥{item.selling_price.toLocaleString()}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-      <div 
-        className={`relative h-full rounded-xl border p-3 shadow-sm transition-all duration-300 animate-slide-in-up ${mobileLayout !== "list" ? "hidden md:block" : ""} ${
-          isTrading
-            ? "border-gray-200 bg-gray-100 hover:shadow-lg"
-            : "border-gray-200 bg-white hover:shadow-xl hover:border-primary/30 hover:-translate-y-1"
-        }`}
-        style={{ animationDelay: `${index * 80}ms` }}
-      >
-        {isTrading && (
-          <div className="absolute right-3 top-3 z-10 rounded-full bg-gray-700 px-2.5 py-1 text-[10px] font-black text-white shadow-sm">
-            取引中
-          </div>
-        )}
-        <div className="flex items-start gap-3">
-          {/* サムネイル画像 */}
-          <div className={`w-20 h-20 flex-shrink-0 bg-gray-100 rounded-xl overflow-hidden ${isTrading ? "grayscale opacity-70" : ""}`}>
-            <ImageBlock />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <h3 className={`text-sm font-bold mb-1 line-clamp-2 leading-snug ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
-              {item.title}
-            </h3>
-            <p className={`text-lg font-bold ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
-              ¥{item.selling_price.toLocaleString()}
-            </p>
-          </div>
-
-          {/* ハートボタン & カウント */}
-          <HeartButton />
-        </div>
-      </div>
-    </Link>
-  );
-});
-
 type HomeClientProps = {
   items: Item[];
   popularItems: Item[];
   totalPopularCount: number;
+  demoPreview?: boolean;
+  demoItemHrefPrefix?: string;
 };
 
-export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount }: HomeClientProps) {
+export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix }: HomeClientProps) {
   const { user, avatarUrl, loading } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("list");
   const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("list");
-  const isAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
+  const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
+  const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
   
   // 各アイテムの状態管理（サーバーのキャッシュを上書きできるようにState化）
   const [recommendedItems, setRecommendedItems] = useState<Item[]>(initialRecommendedItems);
@@ -334,6 +177,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   );
 
   useEffect(() => {
+    if (demoPreview) {
+      setProfileAvatar({ listingCount: 0, earlyRegistration: false });
+      return;
+    }
+
     if (!user) {
       setProfileAvatar({ listingCount: 0, earlyRegistration: false });
       return;
@@ -350,7 +198,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             .from("items")
             .select("*", { count: "exact", head: true })
             .eq("seller_id", user.id)
-            .neq("status", "deleted"),
+            .neq("status", "deleted")
+            .eq("is_demo", false),
           (supabase as any)
             .from("reward_settings")
             .select("*")
@@ -377,7 +226,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     };
 
     void loadProfileAvatarRewards();
-  }, [user]);
+  }, [user, demoPreview]);
 
   // 初期表示時にお気に入り & パーソナライズされたおすすめをロード
   useEffect(() => {
@@ -385,6 +234,20 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     let cancelled = false;
 
     const fetchData = async () => {
+      if (demoPreview) {
+        setFavorites([]);
+        setRecommendedItems(initialRecommendedItems);
+        setPopularItems(initialPopularItems);
+        setTotalVisiblePopularCount(totalPopularCount);
+        setHasMore(false);
+        setHasMoreRecommended(false);
+        setTotalRecommendedCount(initialRecommendedItems.length);
+        setHiddenTransactionItemIds(new Set());
+        setLoadingRecommended(false);
+        setLoadingPopular(false);
+        return;
+      }
+
       // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
       // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
       if (user) {
@@ -421,10 +284,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             .select("id, favorites(count)")
             .in("id", itemIds)
             .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
+            .eq("is_demo", false)
         );
       }
 
-      if (user && !isAdminHomeView) {
+      if (user && !isOfficialAdminHomeView) {
         setLoadingRecommended(true);
         promises.push(
           supabase
@@ -447,7 +311,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       let countRes = itemIds.length > 0 ? results[0] : null;
       let favRes = user ? results[1] : null;
-      let profileRes = user && !isAdminHomeView ? results[2] : null;
+      let profileRes = user && !isOfficialAdminHomeView ? results[2] : null;
 
       // カウントの反映 & 削除されたアイテムのフィルタリング
       if (countRes?.data) {
@@ -496,6 +360,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .neq("seller_id", user.id)
           .order("created_at", { ascending: false });
 
@@ -516,7 +381,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       }
 
       // 2. パーソナライズされたおすすめの取得
-      if (isAdminHomeView) {
+      if (isOfficialAdminHomeView) {
         setRecommendedItems([]);
         setHasMoreRecommended(false);
         setTotalRecommendedCount(0);
@@ -528,6 +393,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
             .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)", { count: 'exact' })
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .neq("seller_id", user.id)
           .eq("profiles.department", department);
         
@@ -563,7 +429,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     return () => {
       cancelled = true;
     };
-  }, [user, initialRecommendedItems, isAdminHomeView]); // userが変わった時（ログイン/ログアウト）に再実行
+  }, [user, initialRecommendedItems, initialPopularItems, totalPopularCount, isOfficialAdminHomeView, demoPreview]); // userが変わった時（ログイン/ログアウト）に再実行
 
   const favoriteStateRef = useRef<Set<string>>(new Set(favorites));
   const favoriteSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -678,6 +544,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)")
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .neq("seller_id", user.id)
           .eq("profiles.department", (profile as any).department);
         
@@ -717,6 +584,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         .from("items")
         .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
         .in("status", ["available", "trading"])
+        .eq("is_demo", false)
         .order("created_at", { ascending: false });
 
       if (user) {
@@ -748,7 +616,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
     if (
       user &&
-      !isAdminHomeView &&
+      !isOfficialAdminHomeView &&
       recommendedItems.length > 0 &&
       visibleRecommendedItems.length < recommendedTargetCount &&
       hasMoreRecommended &&
@@ -765,7 +633,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     recommendedMobileLayout,
     popularMobileLayout,
     user?.id,
-    isAdminHomeView,
+    isOfficialAdminHomeView,
     recommendedItems.length,
     popularItems.length,
     visibleRecommendedItems.length,
@@ -807,6 +675,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .order("created_at", { ascending: false });
 
         if (user) {
@@ -840,28 +709,30 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   return (
     <div
       className="min-h-screen bg-white pb-4 font-gentle"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={demoPreview ? undefined : handleTouchStart}
+      onTouchMove={demoPreview ? undefined : handleTouchMove}
+      onTouchEnd={demoPreview ? undefined : handleTouchEnd}
     >
       {/* Pull-to-Refresh Indicator */}
-      <div
-        className="flex items-center justify-center overflow-hidden transition-all duration-200"
-        style={{
-          height: pullDistance > 0 ? `${pullDistance}px` : '0px',
-          opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
-        }}
-      >
-        <RefreshCw
-          className={`w-6 h-6 text-primary transition-transform duration-200 ${isRefreshing ? 'animate-spin' : ''}`}
+      {!demoPreview && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all duration-200"
           style={{
-            transform: isRefreshing ? undefined : `rotate(${pullDistance * 3}deg)`,
+            height: pullDistance > 0 ? `${pullDistance}px` : '0px',
+            opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),
           }}
-        />
-        <span className="ml-2 text-sm text-gray-500 font-medium">
-          {isRefreshing ? t('home.refreshing') : pullDistance >= PULL_THRESHOLD ? t('home.pull_to_refresh') : t('home.pull_to_refresh')}
-        </span>
-      </div>
+        >
+          <RefreshCw
+            className={`w-6 h-6 text-primary transition-transform duration-200 ${isRefreshing ? 'animate-spin' : ''}`}
+            style={{
+              transform: isRefreshing ? undefined : `rotate(${pullDistance * 3}deg)`,
+            }}
+          />
+          <span className="ml-2 text-sm text-gray-500 font-medium">
+            {isRefreshing ? t('home.refreshing') : pullDistance >= PULL_THRESHOLD ? t('home.pull_to_refresh') : t('home.pull_to_refresh')}
+          </span>
+        </div>
+      )}
 
       {/* CSS for animations */}
       <style jsx global>{`
@@ -879,6 +750,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           animation: slideInUp 0.4s ease-out forwards;
           opacity: 0;
         }
+        ${demoPreview ? "" : `
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
            固定の試験運用バナー分は scroll-padding-top で吸収する。 */
@@ -894,10 +766,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             scroll-padding-top: calc(var(--app-top-offset) + 5rem);
           }
         }
+        `}
       `}</style>
 
       {/* Header（PCでは共通のDesktopHeaderに集約するため非表示） */}
-      <header className="lg:hidden bg-white px-6 pt-8 pb-6 border-b snap-start">
+      <header className={`${demoPreview ? "" : "lg:hidden"} bg-white px-6 pt-8 pb-6 border-b snap-start`}>
         <div className="flex items-end justify-between mb-6">
           <div className="flex flex-col">
             <h1 className="text-3xl font-bold gradient-text-blue leading-none tracking-tight">
@@ -919,7 +792,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                   size={40}
                   listingCount={profileAvatar.listingCount}
                   earlyRegistration={profileAvatar.earlyRegistration}
-                  adminFrame={isAdminHomeView}
+                  adminFrame={shouldUseAdminAvatarFrame}
                 />
               </Link>
             ) : (
@@ -950,7 +823,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       </header>
 
       {/* おすすめの教材 */}
-      {user && !isAdminHomeView && (
+      {((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView)) && (
         <div className="px-6 py-8 snap-start">
           <div className="flex items-center gap-2 mb-6">
             <TrendingUp className="w-6 h-6 text-primary" />
@@ -985,13 +858,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     const showLoadMoreHere = hasMoreRecommended && index === visibleRecommendedItems.length - 1;
                     return (
                     <div key={item.id} className="relative min-w-0 snap-start">
-                      <ItemCard
+                      <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
                         onToggleFavorite={toggleFavorite}
                         showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                         index={index}
                         mobileLayout={recommendedMobileLayout}
+                        href={demoItemHrefPrefix ? `${demoItemHrefPrefix}/${item.id}/preview` : undefined}
                       />
                       {showLoadMoreHere && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent lg:hidden" />
@@ -1053,13 +927,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
                     return (
                     <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
-                      <ItemCard
+                      <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
                         onToggleFavorite={toggleFavorite}
                         showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                         index={index}
                         mobileLayout={popularMobileLayout}
+                        href={demoItemHrefPrefix ? `${demoItemHrefPrefix}/${item.id}/preview` : undefined}
                       />
                       {showLoadMoreHere && (
                         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent lg:hidden" />

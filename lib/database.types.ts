@@ -76,6 +76,9 @@ export interface Database {
                     front_image_url: string | null
                     back_image_url: string | null
                     isbn: string | null
+                    is_demo: boolean
+                    created_by_admin_id: string | null
+                    demo_purpose: string | null
                     created_at: string
                 }
                 Insert: {
@@ -89,6 +92,9 @@ export interface Database {
                     front_image_url?: string | null
                     back_image_url?: string | null
                     isbn?: string | null
+                    is_demo?: boolean
+                    created_by_admin_id?: string | null
+                    demo_purpose?: string | null
                     created_at?: string
                 }
                 Update: {
@@ -102,6 +108,9 @@ export interface Database {
                     front_image_url?: string | null
                     back_image_url?: string | null
                     isbn?: string | null
+                    is_demo?: boolean
+                    created_by_admin_id?: string | null
+                    demo_purpose?: string | null
                     created_at?: string
                 }
             }
@@ -152,6 +161,7 @@ export interface Database {
                 Row: {
                     id: string
                     item_id: string
+                    transaction_id: string | null
                     sender_id: string
                     receiver_id: string
                     message: string
@@ -161,6 +171,7 @@ export interface Database {
                 Insert: {
                     id?: string
                     item_id: string
+                    transaction_id?: string | null
                     sender_id: string
                     receiver_id: string
                     message: string
@@ -170,6 +181,7 @@ export interface Database {
                 Update: {
                     id?: string
                     item_id?: string
+                    transaction_id?: string | null
                     sender_id?: string
                     receiver_id?: string
                     message?: string
@@ -198,6 +210,8 @@ export interface Database {
                     previous_final_meetup_location: string | null
                     handover_token: string | null
                     handover_token_expires_at: string | null
+                    is_demo: boolean
+                    created_by_admin_id: string | null
                 }
                 Insert: {
                     id?: string
@@ -219,6 +233,8 @@ export interface Database {
                     previous_final_meetup_location?: string | null
                     handover_token?: string | null
                     handover_token_expires_at?: string | null
+                    is_demo?: boolean
+                    created_by_admin_id?: string | null
                 }
                 Update: {
                     id?: string
@@ -240,6 +256,8 @@ export interface Database {
                     previous_final_meetup_location?: string | null
                     handover_token?: string | null
                     handover_token_expires_at?: string | null
+                    is_demo?: boolean
+                    created_by_admin_id?: string | null
                 }
             }
             watch_keywords: {

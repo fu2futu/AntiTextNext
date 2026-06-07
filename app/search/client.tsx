@@ -141,6 +141,7 @@ export default function SearchClient({ initialResults, initialQuery }: SearchCli
           .from("items")
           .select("id, favorites(count)")
           .in("id", itemIds)
+          .eq("is_demo", false)
       ];
 
       if (user) {
@@ -236,6 +237,7 @@ export default function SearchClient({ initialResults, initialQuery }: SearchCli
           .from("items")
           .select("id, title")
           .eq("status", "available")
+          .eq("is_demo", false)
           .or(`locked_until.is.null,locked_until.lt.${now}`)
           .or(`title.ilike.%${query}%,title.ilike.%${hiragana}%,title.ilike.%${katakana}%`)
           .limit(5);

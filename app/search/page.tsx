@@ -159,6 +159,7 @@ function SearchContent() {
               .from("items")
               .select(ITEM_SELECT)
               .in("status", ["available", "trading"])
+              .eq("is_demo", false)
               .ilike("title", `%${searchTerm}%`);
             if (isbnFilter) q = q.in("isbn", isbnFilter);
             const { data, error } = await q.order("created_at", { ascending: false }).limit(20);
@@ -176,6 +177,7 @@ function SearchContent() {
           .from("items")
           .select(ITEM_SELECT)
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .in("isbn", isbnFilter!)
           .order("created_at", { ascending: false })
           .limit(50);
@@ -259,6 +261,7 @@ function SearchContent() {
               .from("items")
               .select("id, title")
               .in("status", ["available", "trading"])
+              .eq("is_demo", false)
               .ilike("title", `%${searchTerm}%`)
               .limit(5);
 

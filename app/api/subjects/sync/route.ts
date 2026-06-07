@@ -72,7 +72,8 @@ export async function POST(request: NextRequest) {
       const { data, error } = await service
         .from("items")
         .select("isbn")
-        .not("isbn", "is", null);
+        .not("isbn", "is", null)
+        .eq("is_demo", false);
       if (error) {
         return NextResponse.json({ error: "DB error", detail: error.message }, { status: 500 });
       }

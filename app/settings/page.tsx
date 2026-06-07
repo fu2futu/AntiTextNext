@@ -67,7 +67,8 @@ export default function SettingsPage() {
                 .from("items") as any)
                 .select("id")
                 .eq("seller_id", user.id)
-                .eq("status", "available");
+                .eq("status", "available")
+                .eq("is_demo", false);
 
             setListingCount(listings?.length || 0);
         } catch {

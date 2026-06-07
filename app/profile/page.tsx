@@ -53,9 +53,9 @@ export default async function Mypage() {
         { data: rewardOverride }
     ] = await Promise.all([
         supabase.from("profiles").select("user_id,nickname,department,avatar_url,created_at").eq("user_id", userId).single(),
-        supabase.from("ratings").select("score").eq("rated_id", userId),
-        supabase.from("favorites").select("item_id, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", userId),
-        supabase.from("items").select("id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId),
+        supabase.from("ratings").select("score").eq("rated_id", userId).eq("is_demo", false),
+        supabase.from("favorites").select("item_id, items(id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", userId),
+        supabase.from("items").select("id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId).eq("is_demo", false),
         supabase.from("transactions").select("id, item_id, status").eq("seller_id", userId),
         supabase
             .from("transactions")
@@ -97,7 +97,7 @@ export default async function Mypage() {
     // Extract favorite items
     const favoriteItems = (favoritesData || [])
         .map(f => f.items)
-        .filter((item: any) => item && ["available", "trading", "transaction_pending"].includes(item.status));
+        .filter((item: any) => item && item.is_demo !== true && ["available", "trading", "transaction_pending"].includes(item.status));
 
     return (
         <MypageClient 

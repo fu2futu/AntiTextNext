@@ -50,6 +50,7 @@ function TextbookListingsContent() {
           )
           .eq("isbn", isbn)
           .in("status", ["available", "trading"])
+          .eq("is_demo", false)
           .order("created_at", { ascending: false });
 
         if (!error && data) {
