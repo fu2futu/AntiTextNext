@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, User, GraduationCap, Heart, Star, Image as ImageIcon, Camera, Pencil, X, Loader2, Eye, ImagePlus } from "lucide-react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { ArrowLeft, User, GraduationCap, Star, Image as ImageIcon, Camera, Pencil, X, Loader2, Eye, ImagePlus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { RewardAvatar, RewardBadges } from "@/components/reward-avatar";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting, type UserBadge } from "@/lib/rewards";
 import { ALLOWED_IMAGE_ACCEPT, ALLOWED_IMAGE_MIME_TYPES, getItemImageUrl } from "@/lib/image-storage";
-import { LoginRequiredBubble, useLoginRequiredPrompt } from "@/components/login-required-prompt";
 
 type SellerProfile = {
     user_id: string;
@@ -44,8 +43,6 @@ export default function SellerDetailPage({
     const [profile, setProfile] = useState<SellerProfile | null>(null);
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
-    const [favorites, setFavorites] = useState<string[]>([]);
-    const [loginPromptItemId, setLoginPromptItemId] = useState<string | null>(null);
     const [averageRating, setAverageRating] = useState(0);
     const [listingCount, setListingCount] = useState(0);
     const [transactionCount, setTransactionCount] = useState(0);
@@ -63,7 +60,6 @@ export default function SellerDetailPage({
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [avatarError, setAvatarError] = useState("");
     const avatarFileRef = useRef<HTMLInputElement>(null);
-    const loginPrompt = useLoginRequiredPrompt();
 
     const handleBack = () => {
         if (cameFromProfile) {
@@ -233,18 +229,6 @@ export default function SellerDetailPage({
         }
     };
 
-    const toggleFavorite = useCallback((id: string) => {
-        if (!user) {
-            setLoginPromptItemId(id);
-            loginPrompt.show();
-            return;
-        }
-
-        setFavorites((prev) =>
-            prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]
-        );
-    }, [user, loginPrompt]);
-
     if (loading) {
         return (
             <div className="min-h-screen bg-white flex items-center justify-center">
@@ -277,7 +261,7 @@ export default function SellerDetailPage({
                         <User className="w-10 h-10 text-gray-300" />
                     </div>
                     <h2 className="text-xl font-bold text-gray-700 mb-3">退会済みユーザー</h2>
-                    <p className="text-gray-500 mb-6">このユーザーは現在アカウントを停止しています</p>
+                    <p className="text-gray-500 mb-6">このユーザーは退会済みです</p>
                     <Link href="/" className="inline-block px-8 py-3 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95">
                         ホームに戻る
                     </Link>
@@ -462,14 +446,14 @@ export default function SellerDetailPage({
                                     {listingCount}件出品
                                 </span>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="rounded-2xl bg-primary/5 px-3 py-2 text-center">
-                                    <p className="text-[10px] font-black text-primary/70">出品数</p>
-                                    <p className="text-base font-black text-primary">{listingCount}件</p>
+                            <div className="flex flex-wrap items-center gap-2 text-left">
+                                <div className="rounded-xl bg-primary/5 px-2.5 py-1.5">
+                                    <p className="text-[9px] font-black leading-none text-primary/60">出品数</p>
+                                    <p className="mt-0.5 text-sm font-black leading-none text-primary">{listingCount}件</p>
                                 </div>
-                                <div className="rounded-2xl bg-gray-50 px-3 py-2 text-center">
-                                    <p className="text-[10px] font-black text-gray-500">取引数</p>
-                                    <p className="text-base font-black text-gray-900">{transactionCount}件</p>
+                                <div className="rounded-xl bg-gray-50 px-2.5 py-1.5">
+                                    <p className="text-[9px] font-black leading-none text-gray-500">取引数</p>
+                                    <p className="mt-0.5 text-sm font-black leading-none text-gray-900">{transactionCount}件</p>
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-gray-600">
@@ -507,55 +491,37 @@ export default function SellerDetailPage({
                         <p className="text-gray-500">現在出品中の商品はありません</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
                         {items.map((item) => (
-                            <Link key={item.id} href={`/product/${item.id}`}>
-                                <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-md hover:shadow-xl hover:border-primary/30 hover:-translate-y-1 transition-all duration-300">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="relative h-24 w-16 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50 shadow-sm">
-                                            {getItemImageUrl(item, "front", "thumbnail") ? (
-                                                <Image
-                                                    src={getItemImageUrl(item, "front", "thumbnail")!}
-                                                    alt={item.title}
-                                                    fill
-                                                    sizes="64px"
-                                                    className="object-cover"
-                                                    unoptimized
-                                                />
-                                            ) : (
-                                                <div className="flex h-full w-full items-center justify-center">
-                                                    <ImageIcon className="h-6 w-6 text-gray-300" />
-                                                </div>
-                                            )}
+                            <Link
+                                key={item.id}
+                                href={`/product/${item.id}`}
+                                className="group overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all hover:scale-[1.02] hover:shadow-md"
+                            >
+                                <div className="relative aspect-square overflow-hidden bg-gray-50">
+                                    {getItemImageUrl(item, "front", "thumbnail") ? (
+                                        <Image
+                                            src={getItemImageUrl(item, "front", "thumbnail")!}
+                                            alt={item.title}
+                                            fill
+                                            sizes="33vw"
+                                            className="object-cover transition-transform duration-500 group-hover:scale-110"
+                                            quality={55}
+                                            unoptimized
+                                        />
+                                    ) : (
+                                        <div className="flex h-full w-full items-center justify-center">
+                                            <ImageIcon className="h-6 w-6 text-gray-300" />
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-                                                {item.title}
-                                            </h3>
-                                            <p className="text-2xl font-bold text-primary">
-                                                ¥{item.selling_price.toLocaleString()}
-                                            </p>
-                                        </div>
-                                        <div className="relative">
-                                        <LoginRequiredBubble visible={loginPrompt.visible && loginPromptItemId === item.id} />
-                                        <button
-                                            onClick={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                toggleFavorite(item.id);
-                                            }}
-                                            className="p-2 hover:bg-gray-100 rounded-full transition-all active:scale-90"
-                                            aria-label={favorites.includes(item.id) ? "お気に入りから削除" : "お気に入りに追加"}
-                                        >
-                                            <Heart
-                                                className={`w-6 h-6 transition-all duration-200 ${favorites.includes(item.id)
-                                                    ? "fill-red-500 text-red-500 scale-110"
-                                                    : "text-gray-300 hover:text-red-300"
-                                                    }`}
-                                            />
-                                        </button>
-                                        </div>
-                                    </div>
+                                    )}
+                                </div>
+                                <div className="space-y-0.5 p-2">
+                                    <h3 className="truncate text-xs font-bold text-gray-900 transition-colors group-hover:text-primary">
+                                        {item.title}
+                                    </h3>
+                                    <p className="text-xs font-extrabold gradient-text-price">
+                                        ¥{item.selling_price.toLocaleString()}
+                                    </p>
                                 </div>
                             </Link>
                         ))}

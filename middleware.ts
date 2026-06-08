@@ -150,7 +150,6 @@ export async function middleware(request: NextRequest) {
     '/auth/update-password',
     '/auth/setup-profile',
     '/auth/add-to-home',
-    '/auth/reactivate',
     '/api/',
     '/contact',
     '/settings',

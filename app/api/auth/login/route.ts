@@ -1,4 +1,6 @@
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
+import { createHash } from "crypto";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { isCurrentUserAdmin, normalizeEmail } from "@/lib/admin";
@@ -6,6 +8,7 @@ import { isCurrentUserAdmin, normalizeEmail } from "@/lib/admin";
 export const runtime = "nodejs";
 
 const GENERIC_LOGIN_ERROR = "ログイン情報が正しくありません";
+const ACCOUNT_UNAVAILABLE_ERROR = "このアカウントは利用できません。心当たりがない場合は運営へお問い合わせください。";
 
 const getClientIp = (request: NextRequest) => {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -40,6 +43,22 @@ const createRouteSupabaseClient = () => {
     }
   );
 };
+
+const createServiceClient = () => {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+};
+
+const hashEmail = (email: string) =>
+  createHash("sha256")
+    .update(`${email.trim().toLowerCase()}:${process.env.ACCOUNT_DELETION_HASH_PEPPER || ""}`)
+    .digest("hex");
 
 const recordLoginAttempt = async (
   supabase: ReturnType<typeof createRouteSupabaseClient>,
@@ -97,6 +116,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const serviceClient = createServiceClient();
+  if (serviceClient) {
+    const { data: emailBans, error: emailBanError } = await (serviceClient as any)
+      .from("account_email_bans")
+      .select("id")
+      .eq("email_hash", hashEmail(email))
+      .is("lifted_at", null)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .limit(1);
+
+    if (emailBanError) {
+      console.error("Failed to check account email ban:", emailBanError);
+    } else if ((emailBans ?? []).length > 0) {
+      await recordLoginAttempt(supabase, email, ipAddress, userAgent, false);
+      return NextResponse.json({ error: ACCOUNT_UNAVAILABLE_ERROR }, { status: 403 });
+    }
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -115,6 +152,44 @@ export async function POST(request: NextRequest) {
 
   await recordLoginAttempt(supabase, email, ipAddress, userAgent, true);
 
+  const { data: activeRestriction } = await (supabase as any)
+    .from("user_restrictions")
+    .select("restriction_type, ends_at, lifted_at, reason")
+    .eq("user_id", data.user.id)
+    .in("restriction_type", ["temporary_suspend", "permanent_ban"])
+    .is("lifted_at", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeRestriction) {
+    const isActiveTemporarySuspend =
+      activeRestriction.restriction_type === "temporary_suspend" &&
+      activeRestriction.ends_at &&
+      new Date(activeRestriction.ends_at).getTime() > Date.now();
+    const isPermanentBan = activeRestriction.restriction_type === "permanent_ban";
+
+    if (isPermanentBan && serviceClient) {
+      await (serviceClient as any)
+        .from("account_email_bans")
+        .upsert(
+          {
+            email_hash: hashEmail(email),
+            reason: activeRestriction.reason || "既存の永久BAN",
+            lifted_at: null,
+            lifted_by: null,
+            admin_note: "login_sync_from_user_restrictions",
+          },
+          { onConflict: "email_hash" }
+        );
+    }
+
+    if (isPermanentBan || isActiveTemporarySuspend) {
+      await supabase.auth.signOut();
+      return NextResponse.json({ error: ACCOUNT_UNAVAILABLE_ERROR }, { status: 403 });
+    }
+  }
+
   const { data: profile } = await (supabase.from("profiles") as any)
     .select("user_id, is_deactivated")
     .eq("user_id", data.user.id)
@@ -124,7 +199,8 @@ export async function POST(request: NextRequest) {
   if (!profile) {
     nextPath = "/auth/setup-profile";
   } else if (profile.is_deactivated) {
-    nextPath = "/auth/reactivate";
+    await supabase.auth.signOut();
+    return NextResponse.json({ error: GENERIC_LOGIN_ERROR }, { status: 401 });
   }
 
   const isAdmin = await isCurrentUserAdmin(supabase as any);

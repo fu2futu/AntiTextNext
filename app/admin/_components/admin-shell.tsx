@@ -12,6 +12,7 @@ import {
   Database,
   ScrollText,
   Users,
+  UserX,
   Eye,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ const navItems = [
   { href: "/admin", label: "ダッシュボード", icon: Gauge },
   { href: "/admin/access", label: "アクセス分析", icon: Eye },
   { href: "/admin/users", label: "ユーザー管理", icon: Users },
+  { href: "/admin/deleted-accounts", label: "削除済みアカウント", icon: UserX },
   { href: "/admin/home-preview", label: "ホームSimulation", icon: Eye },
   { href: "/admin/demo-home", label: "スクショDemo", icon: Eye },
   { href: "/admin/demo-items", label: "デモ出品管理", icon: BookOpen },

@@ -161,6 +161,10 @@ export default function SetupProfilePage() {
                 return;
             }
 
+            fetch("/api/auth/complete-registration", { method: "POST" }).catch((cleanupError) => {
+                console.error("Failed to clear old deleted-account retention:", cleanupError);
+            });
+
             router.push("/auth/add-to-home");
             router.refresh();
         } catch (err: any) {

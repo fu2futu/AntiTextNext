@@ -30,7 +30,7 @@ export default function SettingsPage() {
     const { user, loading: authLoading, signOut } = useAuth();
     const { locale, setLocale, t } = useI18n();
 
-    // アカウント停止関連
+    // アカウント削除関連
     const [deactivateStep, setDeactivateStep] = useState<DeactivateStep>("idle");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +39,15 @@ export default function SettingsPage() {
     const [activeTransactionCount, setActiveTransactionCount] = useState(0);
     const [listingCount, setListingCount] = useState(0);
     const [checkingTransactions, setCheckingTransactions] = useState(false);
+    const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
+    const [currentPasswordForChange, setCurrentPasswordForChange] = useState("");
+    const [passwordChangeVerified, setPasswordChangeVerified] = useState(false);
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [verifyingPasswordChange, setVerifyingPasswordChange] = useState(false);
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [passwordChangeError, setPasswordChangeError] = useState("");
+    const [passwordChangeSuccess, setPasswordChangeSuccess] = useState("");
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -91,6 +100,86 @@ export default function SettingsPage() {
         setDeactivateError("");
     };
 
+    const resetPasswordChangeForm = () => {
+        setCurrentPasswordForChange("");
+        setPasswordChangeVerified(false);
+        setNewPassword("");
+        setConfirmPassword("");
+        setVerifyingPasswordChange(false);
+        setChangingPassword(false);
+        setPasswordChangeError("");
+    };
+
+    const handleCurrentPasswordVerify = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user?.email) return;
+
+        setPasswordChangeError("");
+        setPasswordChangeSuccess("");
+
+        if (!currentPasswordForChange) {
+            setPasswordChangeError("現在のパスワードを入力してください");
+            return;
+        }
+
+        setVerifyingPasswordChange(true);
+        try {
+            const { error: verifyError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: currentPasswordForChange,
+            });
+
+            if (verifyError) throw verifyError;
+
+            setPasswordChangeVerified(true);
+            setPasswordChangeError("");
+        } catch {
+            setPasswordChangeError("現在のパスワードが正しくありません。確認して再度入力してください。");
+        } finally {
+            setVerifyingPasswordChange(false);
+        }
+    };
+
+    const handlePasswordChange = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !passwordChangeVerified) return;
+
+        setPasswordChangeError("");
+        setPasswordChangeSuccess("");
+
+        if (newPassword.length < 8) {
+            setPasswordChangeError("パスワードは8文字以上で入力してください");
+            return;
+        }
+
+        if (newPassword !== confirmPassword) {
+            setPasswordChangeError("確認用パスワードが一致しません");
+            return;
+        }
+
+        setChangingPassword(true);
+        try {
+            const { error: updateError } = await supabase.auth.updateUser({
+                password: newPassword,
+            });
+
+            if (updateError) throw updateError;
+
+            resetPasswordChangeForm();
+            setShowPasswordChangeForm(false);
+            setPasswordChangeSuccess("パスワードを更新しました。次回ログインから新しいパスワードを使えます。");
+        } catch (err: any) {
+            const message = String(err?.message || "").toLowerCase();
+            if (message.includes("weak") || message.includes("password")) {
+                setPasswordChangeError("パスワード条件を満たしていません。8文字以上で、推測されにくいパスワードを入力してください。");
+            } else {
+                setPasswordChangeError("パスワードの更新に失敗しました。時間を置いて再度お試しください。");
+            }
+        } finally {
+            setChangingPassword(false);
+        }
+    };
+
     const handleDeactivateSubmit = async () => {
         if (!user || !password.trim()) {
             setDeactivateError("パスワードを入力してください");
@@ -113,24 +202,24 @@ export default function SettingsPage() {
                 return;
             }
 
-            // アカウント停止APIを呼ぶ
-            const res = await fetch("/api/deactivate-account", {
+            // アカウント削除APIを呼ぶ
+            const res = await fetch("/api/delete-account", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId: user.id }),
+                body: JSON.stringify({ reason: "user_request" }),
             });
 
             const data = await res.json();
 
             if (data.success) {
                 setDeactivateStep("done");
-                // 3秒後にサインアウトしてログイン画面へ
+                // 3秒後にログイン画面へ
                 setTimeout(async () => {
                     await signOut();
                     router.push("/auth/login");
                 }, 3000);
             } else {
-                setDeactivateError(data.error || "アカウント停止に失敗しました");
+                setDeactivateError(data.error || "アカウント削除に失敗しました");
                 setDeactivateStep("error");
             }
         } catch {
@@ -243,6 +332,139 @@ export default function SettingsPage() {
                         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
                             アカウント管理
                         </h2>
+                        <div className="mb-3 rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5">
+                                        <Lock className="h-5 w-5 text-primary" />
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="font-bold text-gray-700">パスワード変更</span>
+                                        <p className="mt-0.5 text-xs text-gray-400">現在のパスワード確認後に変更します</p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowPasswordChangeForm((current) => {
+                                            if (current) {
+                                                resetPasswordChangeForm();
+                                            } else {
+                                                setPasswordChangeError("");
+                                                setPasswordChangeSuccess("");
+                                            }
+                                            return !current;
+                                        });
+                                    }}
+                                    className="shrink-0 rounded-xl border border-primary/20 bg-white px-3 py-2 text-xs font-bold text-primary shadow-sm transition-colors hover:bg-primary/5"
+                                >
+                                    {showPasswordChangeForm ? "閉じる" : "変更"}
+                                </button>
+                            </div>
+
+                            {passwordChangeSuccess && (
+                                <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                                    {passwordChangeSuccess}
+                                </div>
+                            )}
+
+                            {showPasswordChangeForm && (
+                                <div className="mt-4 space-y-4">
+                                    {passwordChangeError && (
+                                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                                            {passwordChangeError}
+                                        </div>
+                                    )}
+
+                                    {!passwordChangeVerified ? (
+                                        <form onSubmit={handleCurrentPasswordVerify} className="space-y-4">
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    現在のパスワード
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={currentPasswordForChange}
+                                                    onChange={(e) => setCurrentPasswordForChange(e.target.value)}
+                                                    placeholder="現在のパスワードを入力"
+                                                    autoComplete="current-password"
+                                                    required
+                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="submit"
+                                                disabled={verifyingPasswordChange}
+                                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-white transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {verifyingPasswordChange ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                        確認中...
+                                                    </>
+                                                ) : (
+                                                    "現在のパスワードを確認"
+                                                )}
+                                            </button>
+                                        </form>
+                                    ) : (
+                                        <form onSubmit={handlePasswordChange} className="space-y-4">
+                                            <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+                                                現在のパスワードを確認しました。新しいパスワードを入力してください。
+                                            </div>
+
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    新しいパスワード
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={newPassword}
+                                                    onChange={(e) => setNewPassword(e.target.value)}
+                                                    placeholder="8文字以上"
+                                                    autoComplete="new-password"
+                                                    minLength={8}
+                                                    required
+                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+
+                                            <div>
+                                                <label className="mb-2 block text-sm font-medium text-gray-700">
+                                                    新しいパスワード確認
+                                                </label>
+                                                <input
+                                                    type="password"
+                                                    value={confirmPassword}
+                                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                                    placeholder="もう一度入力"
+                                                    autoComplete="new-password"
+                                                    minLength={8}
+                                                    required
+                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
+                                                />
+                                            </div>
+
+                                            <button
+                                                type="submit"
+                                                disabled={changingPassword}
+                                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 font-semibold text-white transition-all hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                {changingPassword ? (
+                                                    <>
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                        更新中...
+                                                    </>
+                                                ) : (
+                                                    "パスワードを更新"
+                                                )}
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <button
                             onClick={handleStartDeactivate}
                             className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-red-200 transition-all group"
@@ -252,8 +474,8 @@ export default function SettingsPage() {
                                     <UserX className="w-5 h-5 text-red-500" />
                                 </div>
                                 <div className="text-left">
-                                    <span className="font-bold text-gray-700 group-hover:text-red-600 transition-colors">アカウントを停止する</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">アカウントの利用を一時停止します</p>
+                                    <span className="font-bold text-gray-700 group-hover:text-red-600 transition-colors">アカウントを削除する</span>
+                                    <p className="text-xs text-gray-400 mt-0.5">ログインできない状態にし、プロフィール等を匿名化します</p>
                                 </div>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-all" />
@@ -263,7 +485,7 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            {/* === アカウント停止モーダル群 === */}
+            {/* === アカウント削除モーダル群 === */}
 
             {/* Step 1: 確認画面 */}
             {deactivateStep === "confirm" && (
@@ -275,10 +497,10 @@ export default function SettingsPage() {
                                 <ShieldAlert className="w-8 h-8 text-red-500" />
                             </div>
                             <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-                                アカウントを停止しますか？
+                                アカウントを削除しますか？
                             </h2>
-                            <p className="text-gray-500 text-sm text-center mb-6">
-                                以下の内容をご確認ください
+                            <p className="text-gray-500 text-sm text-left leading-relaxed mb-6">
+                                アカウントを削除すると、プロフィールや出品情報は表示されなくなり、ログインできなくなります。この操作は原則として取り消せません。ただし、不正防止・トラブル対応・サービス運営上必要な範囲で、取引履歴や問い合わせ対応記録を一定期間保持する場合があります。
                             </p>
 
                             {checkingTransactions ? (
@@ -302,7 +524,7 @@ export default function SettingsPage() {
                                             {hasActiveTransactions ? (
                                                 <p className="text-xs text-red-600 mt-1">
                                                     {activeTransactionCount}件の進行中取引があります。<br />
-                                                    取引が全て完了するまでアカウントを停止できません。
+                                                    取引が全て完了するまでアカウントを削除できません。
                                                 </p>
                                             ) : (
                                                 <p className="text-xs text-green-600 mt-1">
@@ -319,7 +541,7 @@ export default function SettingsPage() {
                                             <p className="text-sm font-bold text-yellow-700">出品中の商品</p>
                                             <p className="text-xs text-yellow-600 mt-1">
                                                 {listingCount > 0 ? (
-                                                    <>出品中の{listingCount}件の商品は<span className="font-bold">すべて非公開</span>になります。</>
+                                                    <>出品中の{listingCount}件の商品は<span className="font-bold">削除・非表示</span>になり、画像も削除対象になります。</>
                                                 ) : (
                                                     <>出品中の商品はありません。</>
                                                 )}
@@ -327,13 +549,13 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
 
-                                    {/* 復旧について */}
-                                    <div className="flex items-start gap-3 bg-blue-50 border-2 border-blue-200 p-3 rounded-xl">
-                                        <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                    {/* 削除後について */}
+                                    <div className="flex items-start gap-3 bg-slate-50 border-2 border-slate-200 p-3 rounded-xl">
+                                        <AlertTriangle className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
                                         <div>
-                                            <p className="text-sm font-bold text-blue-700">アカウント復旧</p>
-                                            <p className="text-xs text-blue-600 mt-1">
-                                                停止後も再度ログインすることで復旧できます。データは保持されます。
+                                            <p className="text-sm font-bold text-slate-700">削除後の扱い</p>
+                                            <p className="text-xs text-slate-600 mt-1">
+                                                通常画面では退会済みユーザーとして扱われます。相手ユーザーにメールアドレス等の個人情報は開示されません。
                                             </p>
                                         </div>
                                     </div>
@@ -346,7 +568,7 @@ export default function SettingsPage() {
                                     disabled={hasActiveTransactions || checkingTransactions}
                                     className="w-full bg-red-500 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    停止手続きを進める
+                                    削除手続きを進める
                                 </button>
                                 <button
                                     onClick={() => setDeactivateStep("idle")}
@@ -373,7 +595,7 @@ export default function SettingsPage() {
                                 本人確認
                             </h2>
                             <p className="text-gray-500 text-sm text-center mb-6">
-                                アカウント停止を確定するため、パスワードを入力してください
+                                アカウント削除を確定するため、パスワードを入力してください
                             </p>
 
                             {deactivateError && (
@@ -413,7 +635,7 @@ export default function SettingsPage() {
                                     disabled={!password.trim()}
                                     className="w-full bg-red-500 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    アカウントを停止する
+                                    アカウントを削除する
                                 </button>
                                 <button
                                     onClick={() => setDeactivateStep("confirm")}
@@ -433,7 +655,7 @@ export default function SettingsPage() {
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
                     <div className="relative bg-white w-full max-w-sm rounded-[28px] overflow-hidden shadow-2xl p-8 text-center">
                         <Loader2 className="w-12 h-12 animate-spin text-red-500 mx-auto mb-4" />
-                        <p className="text-gray-600 font-medium">アカウントを停止しています...</p>
+                        <p className="text-gray-600 font-medium">アカウントを削除しています...</p>
                     </div>
                 </div>
             )}
@@ -447,11 +669,11 @@ export default function SettingsPage() {
                             <CheckCircle className="w-8 h-8 text-gray-500" />
                         </div>
                         <h2 className="text-xl font-black text-gray-900 mb-2">
-                            アカウントを停止しました
+                            アカウントを削除しました
                         </h2>
                         <p className="text-gray-500 text-sm mb-4">
                             ご利用ありがとうございました。<br />
-                            再度ログインすることで復旧できます。
+                            このアカウントではログインできなくなります。
                         </p>
                         <p className="text-xs text-gray-400">
                             自動的にログアウトします...
