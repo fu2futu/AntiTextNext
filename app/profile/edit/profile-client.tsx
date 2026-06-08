@@ -29,6 +29,7 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
     const router = useRouter();
     const searchParams = useSearchParams();
     const fromParam = searchParams.get('from');
+    const returnToParam = searchParams.get('returnTo');
     const { user, loading: authLoading, signOut, refreshAvatar } = useAuth();
     const [nickname, setNickname] = useState(initialProfile?.nickname || "");
     const [department, setDepartment] = useState(initialProfile?.department || "");
@@ -240,9 +241,9 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
             // 保存成功後、元のページに戻る
             setTimeout(() => {
                 if (fromParam === 'seller' && user) {
-                    router.push(`/seller/${user.id}`);
+                    router.replace(returnToParam === 'profile' ? `/seller/${user.id}?from=profile` : `/seller/${user.id}`);
                 } else {
-                    router.push('/profile');
+                    router.replace('/profile');
                 }
                 router.refresh();
             }, 800);
@@ -361,15 +362,15 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
                 <div className="flex items-center gap-4 mb-6">
                     <button onClick={() => {
                         if (fromParam === 'seller' && user) {
-                            router.push(`/seller/${user.id}`);
+                            router.replace(returnToParam === 'profile' ? `/seller/${user.id}?from=profile` : `/seller/${user.id}`);
                         } else {
-                            router.push('/profile');
+                            router.replace('/profile');
                         }
                     }}>
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </button>
                     <h1 className="text-3xl font-bold text-primary">
-                        プロフィール
+                        プロフィール編集
                     </h1>
                 </div>
             </header>

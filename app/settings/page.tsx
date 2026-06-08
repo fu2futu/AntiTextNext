@@ -155,36 +155,13 @@ export default function SettingsPage() {
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
                     <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
-                        その他設定
+                        設定
                     </h1>
                 </div>
             </header>
 
             <div className="px-6 py-8">
                 <div className="max-w-md mx-auto space-y-6">
-
-                    {/* お問い合わせ */}
-                    <section className="animate-slide-in-left">
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            サポート
-                        </h2>
-                        <Link
-                            href="/contact"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                                    <MessageSquare className="w-5 h-5 text-primary" />
-                                </div>
-                                <div>
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">お問い合わせ</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">不具合報告・通報・要望など</p>
-                                </div>
-                            </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-                        </Link>
-                    </section>
-
                     {/* 言語設定 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '25ms' }}>
                         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">

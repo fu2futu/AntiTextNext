@@ -150,7 +150,7 @@ export default function ContactPage() {
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/settings">
+                        <Link href="/profile">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -192,7 +192,7 @@ export default function ContactPage() {
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/settings">
+                        <Link href="/profile">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -368,7 +368,7 @@ export default function ContactPage() {
         <div className="min-h-screen bg-white">
             <header className="bg-white px-6 pt-8 pb-6 border-b">
                 <div className="flex items-center gap-4">
-                    <Link href="/settings">
+                    <Link href="/profile">
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
                     <h1 className="text-3xl font-bold text-primary animate-slide-in-left">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, User, GraduationCap, Heart, Star, Image as ImageIcon, Camera, Pencil, X, Loader2, Eye, ImagePlus } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import Image from "next/image";
@@ -38,6 +39,8 @@ export default function SellerDetailPage({
     params: { id: string };
 }) {
     const { user, refreshAvatar } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const [profile, setProfile] = useState<SellerProfile | null>(null);
     const [items, setItems] = useState<Item[]>([]);
     const [loading, setLoading] = useState(true);
@@ -53,6 +56,7 @@ export default function SellerDetailPage({
 
     // アバター編集関連
     const isOwnPage = user?.id === params.id;
+    const cameFromProfile = isOwnPage && searchParams.get("from") === "profile";
     const [showAvatarMenu, setShowAvatarMenu] = useState(false);
     const [showAvatarPreview, setShowAvatarPreview] = useState(false);
     const [showAvatarUpload, setShowAvatarUpload] = useState(false);
@@ -60,6 +64,15 @@ export default function SellerDetailPage({
     const [avatarError, setAvatarError] = useState("");
     const avatarFileRef = useRef<HTMLInputElement>(null);
     const loginPrompt = useLoginRequiredPrompt();
+
+    const handleBack = () => {
+        if (cameFromProfile) {
+            router.replace("/profile");
+            return;
+        }
+
+        window.history.back();
+    };
 
     const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -392,7 +405,7 @@ export default function SellerDetailPage({
             {/* Header */}
             <header className="bg-white/80 backdrop-blur-md px-6 pt-8 pb-8 border-b border-gray-100 shadow-sm">
                 <div className="flex items-center gap-4 mb-8">
-                    <button onClick={() => window.history.back()} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors active:scale-90">
+                    <button onClick={handleBack} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors active:scale-90">
                         <ArrowLeft className="w-6 h-6 text-gray-600" />
                     </button>
                     <h1 className="text-2xl font-black text-gray-900 tracking-tighter">出品者情報</h1>
@@ -419,17 +432,18 @@ export default function SellerDetailPage({
                         )}
                     </button>
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                            <h2 className="text-2xl font-black text-gray-900 truncate">
+                        <div className="mb-1 flex min-w-0 items-center gap-2">
+                            <h2 className="min-w-0 flex-1 truncate text-2xl font-black text-gray-900">
                                 {profile.nickname}
                             </h2>
                             {isOwnPage && (
                                 <Link
-                                    href="/profile/edit?from=seller"
-                                    className="flex-shrink-0 p-1.5 hover:bg-gray-100 rounded-full transition-colors active:scale-90"
+                                    href={cameFromProfile ? "/profile/edit?from=seller&returnTo=profile" : "/profile/edit?from=seller"}
+                                    className="inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[11px] font-black text-primary shadow-sm transition-colors hover:bg-primary/10 active:scale-95"
                                     aria-label="プロフィールを編集"
                                 >
-                                    <Pencil className="w-4 h-4 text-gray-400" />
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    編集
                                 </Link>
                             )}
                         </div>
