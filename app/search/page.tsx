@@ -66,6 +66,8 @@ type LibraryState = {
   error: string;
   textnext: LibraryBook[];
   suggestions: LibraryBook[];
+  errors?: Array<{ source: string; message: string }>;
+  debug?: Record<string, unknown>;
   fetchedAt?: string;
 };
 
@@ -427,8 +429,10 @@ function SearchContent() {
         setLibraryState({
           loading: false,
           error: "",
-          textnext: payload.textnext ?? [],
-          suggestions: payload.suggestions ?? [],
+          textnext: payload.textnextResults ?? payload.textnext ?? [],
+          suggestions: payload.externalResults ?? payload.suggestions ?? [],
+          errors: payload.errors ?? [],
+          debug: payload.debug,
           fetchedAt: payload.fetchedAt,
         });
       } catch (err: any) {
@@ -438,6 +442,7 @@ function SearchContent() {
           error: "図書館情報を取得できませんでした",
           textnext: [],
           suggestions: [],
+          errors: [],
         });
       }
     }, 450);
@@ -893,6 +898,12 @@ function LibrarySearchSection({
       {!state.loading && state.error && (
         <div className="rounded-2xl bg-red-50 px-4 py-4 text-sm font-semibold text-red-700">
           {state.error}
+        </div>
+      )}
+
+      {!state.loading && !state.error && state.errors && state.errors.length > 0 && (
+        <div className="mb-4 rounded-2xl bg-yellow-50 px-4 py-3 text-xs font-semibold text-yellow-700">
+          図書館情報の一部を取得できませんでした。
         </div>
       )}
 
