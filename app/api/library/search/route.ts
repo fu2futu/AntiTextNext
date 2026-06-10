@@ -42,7 +42,23 @@ type LibrarySearchDebug = {
   googleBooksRawCount: number;
   googleBooksWithIsbnCount: number;
   externalIsbnCount: number;
+  externalCalilCheckedCount: number;
+  textnextCalilHitCount: number;
   externalCalilHitCount: number;
+  calilContinueCount: number;
+  calilCompleted: boolean;
+  calilLibkeysSeen: string[];
+  calilRawStatusesSample: Array<{ isbn: string; statuses: Record<string, string> }>;
+  sampleExternalTitles: string[];
+  sampleExternalIsbns: string[];
+};
+
+type CalilLookupResult = {
+  books: Map<string, any>;
+  continueCount: number;
+  completed: boolean;
+  libkeysSeen: string[];
+  rawStatusesSample: Array<{ isbn: string; statuses: Record<string, string> }>;
 };
 
 type CacheEntry<T> = {
@@ -50,14 +66,18 @@ type CacheEntry<T> = {
   value: T;
 };
 
-const calilCache = new Map<string, CacheEntry<Map<string, any>>>();
+const calilCache = new Map<string, CacheEntry<CalilLookupResult>>();
 const googleCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const CALIL_CACHE_MS = 7 * 60 * 1000;
 const GOOGLE_CACHE_MS = 12 * 60 * 60 * 1000;
 
-const normalizeIsbn = (value: unknown) => String(value || "").replace(/\D/g, "");
+const normalizeIsbn = (value: unknown) => String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
 
 const isIsbn13 = (value: string) => /^97[89]\d{10}$/.test(value);
+
+const isIsbn10 = (value: string) => /^\d{9}[\dX]$/.test(value);
+
+const isValidIsbn = (value: string) => isIsbn13(value) || isIsbn10(value);
 
 const unique = <T,>(values: T[]) => Array.from(new Set(values));
 
@@ -94,18 +114,27 @@ async function fetchCalilOnce(isbns: string[]) {
 }
 
 async function fetchCalilAvailability(isbns: string[]) {
-  const normalized = unique(isbns.map(normalizeIsbn).filter(isIsbn13)).slice(0, 20);
-  if (normalized.length === 0) return new Map<string, any>();
+  const normalized = unique(isbns.map(normalizeIsbn).filter(isValidIsbn)).slice(0, 20);
+  if (normalized.length === 0) {
+    return {
+      books: new Map<string, any>(),
+      continueCount: 0,
+      completed: true,
+      libkeysSeen: [],
+      rawStatusesSample: [],
+    };
+  }
 
-  const cacheKey = `${process.env.CALIL_SYSTEM_ID || "Univ_Titech"}:${normalized.sort().join(",")}`;
+  const sortedIsbns = [...normalized].sort();
+  const cacheKey = `${process.env.CALIL_SYSTEM_ID || "Univ_Titech"}:${sortedIsbns.join(",")}`;
   const cached = calilCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
   let payload = await withTimeout(fetchCalilOnce(normalized), 10000, "calil_timeout");
-  let attempts = 0;
+  let continueCount = 0;
 
-  while (payload?.continue === 1 && payload.session && attempts < 6) {
-    attempts += 1;
+  while (String(payload?.continue) === "1" && payload.session && continueCount < 10) {
+    continueCount += 1;
     await new Promise((resolve) => setTimeout(resolve, 850));
     const appKey = process.env.CALIL_APP_KEY;
     const url = new URL("https://api.calil.jp/check");
@@ -121,13 +150,34 @@ async function fetchCalilAvailability(isbns: string[]) {
 
   const systemId = process.env.CALIL_SYSTEM_ID || "Univ_Titech";
   const books = new Map<string, any>();
-  for (const isbn of normalized) {
+  const libkeysSeen = new Set<string>();
+  const rawStatusesSample: Array<{ isbn: string; statuses: Record<string, string> }> = [];
+  for (const isbn of sortedIsbns) {
     const result = payload?.books?.[isbn]?.[systemId] ?? null;
     books.set(isbn, result);
+    const libkey = result?.libkey && typeof result.libkey === "object" ? result.libkey : {};
+    const statusEntries = Object.entries(libkey).reduce<Record<string, string>>((acc, [key, value]) => {
+      libkeysSeen.add(key);
+      acc[key] = String(value || "");
+      return acc;
+    }, {});
+    if (Object.keys(statusEntries).length > 0 && rawStatusesSample.length < 8) {
+      rawStatusesSample.push({ isbn, statuses: statusEntries });
+    }
   }
 
-  calilCache.set(cacheKey, { expiresAt: Date.now() + CALIL_CACHE_MS, value: books });
-  return books;
+  const result: CalilLookupResult = {
+    books,
+    continueCount,
+    completed: String(payload?.continue) !== "1",
+    libkeysSeen: Array.from(libkeysSeen),
+    rawStatusesSample,
+  };
+
+  if (result.completed) {
+    calilCache.set(cacheKey, { expiresAt: Date.now() + CALIL_CACHE_MS, value: result });
+  }
+  return result;
 }
 
 const NON_HOLDING_STATUS_PATTERNS = [
@@ -135,7 +185,6 @@ const NON_HOLDING_STATUS_PATTERNS = [
   "所蔵なし",
   "データなし",
   "取得失敗",
-  "なし",
   "Not Found",
   "Error",
 ];
@@ -227,9 +276,10 @@ async function searchGoogleBooks(query: string): Promise<BookSearchProviderResul
 
     for (const item of items) {
       const info = item?.volumeInfo;
-      const isbn = (info?.industryIdentifiers ?? [])
+      const normalizedIsbns = (info?.industryIdentifiers ?? [])
         .map((entry: any) => normalizeIsbn(entry?.identifier))
-        .find(isIsbn13);
+        .filter(isValidIsbn);
+      const isbn = normalizedIsbns.find(isIsbn13) || normalizedIsbns.find(isIsbn10);
 
       if (!isbn || !info?.title) continue;
       withIsbnCount += 1;
@@ -261,7 +311,7 @@ const bookSearchProviders = [
 
 function toTextnextLibraryBook(book: TextnextBookInput, result: any, fetchedAt: string): LibraryBook | null {
   const isbn = normalizeIsbn(book.isbn);
-  if (!isIsbn13(isbn) || !book.title) return null;
+  if (!isValidIsbn(isbn) || !book.title) return null;
   const normalized = normalizeLibraryStatuses(result);
   return {
     source: "textnext",
@@ -306,7 +356,7 @@ export async function POST(request: NextRequest) {
             ...book,
             isbn: normalizeIsbn(book.isbn),
           }))
-          .filter((book) => isIsbn13(String(book.isbn)) && book.title)
+          .filter((book) => isValidIsbn(String(book.isbn)) && book.title)
           .slice(0, mode === "selected_item" ? 1 : 12)
       : [];
 
@@ -325,7 +375,15 @@ export async function POST(request: NextRequest) {
           googleBooksRawCount: 0,
           googleBooksWithIsbnCount: 0,
           externalIsbnCount: 0,
+          externalCalilCheckedCount: 0,
+          textnextCalilHitCount: 0,
           externalCalilHitCount: 0,
+          calilContinueCount: 0,
+          calilCompleted: true,
+          calilLibkeysSeen: [],
+          calilRawStatusesSample: [],
+          sampleExternalTitles: [],
+          sampleExternalIsbns: [],
         } : undefined,
         fetchedAt: new Date().toISOString(),
       });
@@ -367,9 +425,21 @@ export async function POST(request: NextRequest) {
 
     const allIsbns = unique([...textnextIsbns, ...externalIsbns]).slice(0, 20);
     const fetchedAt = new Date().toISOString();
-    let calilResults = new Map<string, any>();
+    let calilLookup: CalilLookupResult = {
+      books: new Map<string, any>(),
+      continueCount: 0,
+      completed: true,
+      libkeysSeen: [],
+      rawStatusesSample: [],
+    };
     try {
-      calilResults = await fetchCalilAvailability(allIsbns);
+      calilLookup = await fetchCalilAvailability(allIsbns);
+      if (!calilLookup.completed) {
+        errors.push({
+          source: "calil",
+          message: "Calil lookup did not complete before timeout",
+        });
+      }
     } catch (err: any) {
       console.error("Calil lookup failed:", err);
       if (err.message === "missing_calil_app_key") {
@@ -385,15 +455,16 @@ export async function POST(request: NextRequest) {
     }
 
     const textnextResults = textnextBooks
-      .map((book) => toTextnextLibraryBook(book, calilResults.get(String(book.isbn)), fetchedAt))
+      .map((book) => toTextnextLibraryBook(book, calilLookup.books.get(String(book.isbn)), fetchedAt))
       .filter((book): book is LibraryBook => Boolean(book));
 
     const externalResults = externalCandidates
       .filter((book) => externalIsbns.includes(book.isbn))
-      .map((book) => toExternalLibraryBook(book, calilResults.get(book.isbn), fetchedAt))
+      .map((book) => toExternalLibraryBook(book, calilLookup.books.get(book.isbn), fetchedAt))
       .filter((book): book is LibraryBook => Boolean(book))
       .slice(0, 8);
 
+    const textnextCalilHitCount = textnextResults.filter((book) => book.hasHolding).length;
     const debug: LibrarySearchDebug = {
       query,
       mode,
@@ -402,10 +473,28 @@ export async function POST(request: NextRequest) {
       googleBooksRawCount,
       googleBooksWithIsbnCount,
       externalIsbnCount: externalIsbns.length,
+      externalCalilCheckedCount: externalIsbns.length,
+      textnextCalilHitCount,
       externalCalilHitCount: externalResults.length,
+      calilContinueCount: calilLookup.continueCount,
+      calilCompleted: calilLookup.completed,
+      calilLibkeysSeen: calilLookup.libkeysSeen,
+      calilRawStatusesSample: calilLookup.rawStatusesSample,
+      sampleExternalTitles: externalCandidates.slice(0, 5).map((book) => book.title),
+      sampleExternalIsbns: externalIsbns.slice(0, 8),
     };
 
     console.log("[library-search]", debug);
+    if (process.env.NODE_ENV !== "production") {
+      for (const sample of calilLookup.rawStatusesSample) {
+        console.log("[calil-raw-status]", {
+          isbn: sample.isbn,
+          libkeys: Object.keys(sample.statuses),
+          statuses: sample.statuses,
+        });
+      }
+      console.log("[calil-request-isbns]", { isbns: allIsbns });
+    }
 
     return NextResponse.json({
       textnextResults,
