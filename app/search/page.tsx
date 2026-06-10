@@ -452,7 +452,7 @@ function SearchContent() {
               mode: searchMode,
               textnextBooks: offset === 0 ? textnextBooks : [],
               externalOffset: offset,
-              externalLimit: 9,
+              externalLimit: 12,
               externalTotalLimit: 63,
             }),
           });

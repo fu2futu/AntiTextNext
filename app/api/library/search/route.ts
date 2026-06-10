@@ -137,10 +137,10 @@ const GOOGLE_CACHE_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_EXTERNAL_LIMIT = 10;
 const MAX_DEBUG_EXTERNAL_LIMIT = 63;
 const EXTERNAL_TOTAL_LOOKUP_LIMIT = 63;
-const EXTERNAL_BATCH_LIMIT = 9;
+const EXTERNAL_BATCH_LIMIT = 12;
 const EXTERNAL_DISPLAY_LIMIT = 8;
 const CALIL_CHUNK_SIZE = 3;
-const CALIL_CONCURRENCY = 3;
+const CALIL_CONCURRENCY = 4;
 const EXTERNAL_BATCH_TIME_BUDGET_MS = 8000;
 
 const normalizeIsbn = (value: unknown) => String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
