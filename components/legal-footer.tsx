@@ -57,7 +57,7 @@ function renderLegalText(text: string) {
   });
 }
 
-export function LegalLinksPanel({ footer = false }: { footer?: boolean }) {
+export function LegalLinksPanel() {
   const [active, setActive] = useState<LegalKind | null>(null);
 
   const title = active === "terms" ? "利用規約" : "プライバシーポリシー";
@@ -65,28 +65,22 @@ export function LegalLinksPanel({ footer = false }: { footer?: boolean }) {
 
   return (
     <>
-      {footer ? (
-        <footer className="border-t border-gray-100 bg-white px-6 py-6 pb-28 text-center text-xs text-gray-500">
-          <LegalButtons onSelect={setActive} compact />
-        </footer>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => setActive("terms")}
-            className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
-          >
-            利用規約
-          </button>
-          <button
-            type="button"
-            onClick={() => setActive("privacy")}
-            className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
-          >
-            プライバシーポリシー
-          </button>
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => setActive("terms")}
+          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
+        >
+          利用規約
+        </button>
+        <button
+          type="button"
+          onClick={() => setActive("privacy")}
+          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
+        >
+          プライバシーポリシー
+        </button>
+      </div>
 
       {active && (
         <div className="fixed inset-0 z-[120] flex items-end justify-center">
@@ -121,30 +115,4 @@ export function LegalLinksPanel({ footer = false }: { footer?: boolean }) {
       )}
     </>
   );
-}
-
-function LegalButtons({ onSelect, compact }: { onSelect: (kind: LegalKind) => void; compact?: boolean }) {
-  return (
-    <div className="flex items-center justify-center gap-4">
-      <button
-        type="button"
-        onClick={() => onSelect("terms")}
-        className={compact ? "font-semibold text-gray-600 hover:text-primary" : ""}
-      >
-        利用規約
-      </button>
-      <span className="text-gray-300">|</span>
-      <button
-        type="button"
-        onClick={() => onSelect("privacy")}
-        className={compact ? "font-semibold text-gray-600 hover:text-primary" : ""}
-      >
-        プライバシーポリシー
-      </button>
-    </div>
-  );
-}
-
-export default function LegalFooter() {
-  return <LegalLinksPanel footer />;
 }

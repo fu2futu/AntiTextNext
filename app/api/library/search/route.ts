@@ -1178,8 +1178,8 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       sampleDroppedExternalTitles: droppedExternalCandidates.slice(0, 8).map((book) => book.title),
     };
 
-    console.log("[library-search]", debug);
     if (includeDebug) {
+      console.log("[library-search]", debug);
       for (const sample of mergedCalilLookup.rawStatusesSample) {
         console.log("[calil-raw-status]", {
           isbn: sample.isbn,

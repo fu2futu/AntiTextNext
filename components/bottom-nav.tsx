@@ -37,7 +37,7 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={true}
+                prefetch={false}
                 className="flex flex-col items-center justify-center"
               >
                 <div className={cn(
@@ -60,7 +60,7 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
             <Link
               key={item.href}
               href={item.href}
-              prefetch={true}
+              prefetch={false}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full space-y-1 transition-all duration-200 relative",
                 isActive
