@@ -6,7 +6,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft, Search, History, Heart, Bell, Loader2, CheckCircle, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Search, History, Heart, Bell, Loader2, CheckCircle, SlidersHorizontal, BookOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -22,6 +22,7 @@ export type SearchHistory = {
 export type Item = {
   id: string;
   title: string;
+  isbn?: string | null;
   selling_price: number;
   front_image_url: string | null;
   front_thumbnail_url?: string | null;
@@ -36,6 +37,36 @@ export type Item = {
 type Suggestion = {
   id: string;
   title: string;
+  isbn?: string | null;
+  front_image_url?: string | null;
+  front_thumbnail_url?: string | null;
+  front_image_storage_path?: string | null;
+  front_thumbnail_storage_path?: string | null;
+  image_storage_provider?: string | null;
+};
+
+type SearchMode = "keyword" | "selected_item";
+
+type LibraryBook = {
+  source: "textnext" | "external";
+  itemId?: string;
+  title: string;
+  isbn: string;
+  authors?: string[];
+  publisher?: string | null;
+  imageUrl?: string | null;
+  reserveUrl?: string | null;
+  statuses: Array<{ name: string; status: string; available: boolean }>;
+  hasHolding: boolean;
+  fetchedAt: string;
+};
+
+type LibraryState = {
+  loading: boolean;
+  error: string;
+  textnext: LibraryBook[];
+  suggestions: LibraryBook[];
+  fetchedAt?: string;
 };
 
 // 学院 -> 系（分野フィルタの選択肢）。book_subjects から動的に構築。
@@ -58,6 +89,21 @@ const katakanaToHiragana = (str: string): string => {
   );
 };
 
+const formatLibraryFetchedAt = (value?: string) => {
+  if (!value) return "";
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.max(0, Math.floor(diffMs / 60000));
+  if (minutes < 1) return "たった今更新";
+  if (minutes < 60) return `${minutes}分前に更新`;
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+};
+
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -77,8 +123,17 @@ function SearchContent() {
   const [hasSearched, setHasSearched] = useState(false);
   const [watchSaving, setWatchSaving] = useState(false);
   const [watchSaved, setWatchSaved] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
+  const [selectedSuggestion, setSelectedSuggestion] = useState<Suggestion | null>(null);
+  const [libraryState, setLibraryState] = useState<LibraryState>({
+    loading: false,
+    error: "",
+    textnext: [],
+    suggestions: [],
+  });
   const favoriteStateRef = useRef<Set<string>>(new Set());
   const favoriteSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const libraryRequestSeqRef = useRef(0);
   const loginPrompt = useLoginRequiredPrompt();
 
   // 分野フィルタ（学院＋系）
@@ -111,7 +166,7 @@ function SearchContent() {
   }, [favorites]);
 
   const ITEM_SELECT =
-    "id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)";
+    "id, title, isbn, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count)";
 
   // キーワード（任意）＋分野フィルタ（任意）を組み合わせて検索する。
   // 分野が選択されている場合、book_subjects から対象ISBNを引き、items を絞り込む。
@@ -221,6 +276,8 @@ function SearchContent() {
   // 学院チップ: 選択/解除。系の選択はリセットして即検索。
   const handleSchoolSelect = (school: string) => {
     const next = selectedSchool === school ? null : school;
+    setSearchMode("keyword");
+    setSelectedSuggestion(null);
     setSelectedSchool(next);
     setSelectedDept(null);
     runSearch(searchQuery, next, null);
@@ -229,6 +286,8 @@ function SearchContent() {
   // 系チップ: 選択/解除して即検索。
   const handleDeptSelect = (dept: string) => {
     const next = selectedDept === dept ? null : dept;
+    setSearchMode("keyword");
+    setSelectedSuggestion(null);
     setSelectedDept(next);
     runSearch(searchQuery, selectedSchool, next);
   };
@@ -259,7 +318,7 @@ function SearchContent() {
           searches.map(async (searchTerm) => {
             const { data, error } = await supabase
               .from("items")
-              .select("id, title")
+              .select("id, title, isbn, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider")
               .in("status", ["available", "trading"])
               .eq("is_demo", false)
               .ilike("title", `%${searchTerm}%`)
@@ -274,7 +333,16 @@ function SearchContent() {
         const uniqueTitles = new Map<string, Suggestion>();
         allResults.forEach((item: any) => {
           if (!uniqueTitles.has(item.title)) {
-            uniqueTitles.set(item.title, { id: item.id, title: item.title });
+            uniqueTitles.set(item.title, {
+              id: item.id,
+              title: item.title,
+              isbn: item.isbn,
+              front_image_url: item.front_image_url,
+              front_thumbnail_url: item.front_thumbnail_url,
+              front_image_storage_path: item.front_image_storage_path,
+              front_thumbnail_storage_path: item.front_thumbnail_storage_path,
+              image_storage_provider: item.image_storage_provider,
+            });
           }
         });
 
@@ -304,6 +372,79 @@ function SearchContent() {
     }
   }, [user, results]);
 
+  useEffect(() => {
+    if (!hasSearched || isLoading) return;
+
+    const query = searchQuery.trim();
+    const selectedBook = searchMode === "selected_item" && selectedSuggestion
+      ? selectedSuggestion
+      : null;
+    const textnextItems = selectedBook
+      ? [selectedBook]
+      : results;
+    const textnextBooks = textnextItems
+      .map((item: any) => ({
+        id: item.id,
+        title: item.title,
+        isbn: item.isbn || null,
+        imageUrl: getItemImageUrl(item, "front", "thumbnail"),
+      }))
+      .filter((item) => item.title && item.isbn);
+
+    if (searchMode === "selected_item" && textnextBooks.length === 0) {
+      setLibraryState({ loading: false, error: "", textnext: [], suggestions: [] });
+      return;
+    }
+
+    if (searchMode === "keyword" && query.length <= 2 && textnextBooks.length === 0) {
+      setLibraryState({ loading: false, error: "", textnext: [], suggestions: [] });
+      return;
+    }
+
+    const seq = libraryRequestSeqRef.current + 1;
+    libraryRequestSeqRef.current = seq;
+    const debounceTimer = setTimeout(async () => {
+      setLibraryState((current) => ({
+        ...current,
+        loading: true,
+        error: "",
+      }));
+
+      try {
+        const response = await fetch("/api/library/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query,
+            mode: searchMode,
+            textnextBooks,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "library_search_failed");
+        if (libraryRequestSeqRef.current !== seq) return;
+
+        setLibraryState({
+          loading: false,
+          error: "",
+          textnext: payload.textnext ?? [],
+          suggestions: payload.suggestions ?? [],
+          fetchedAt: payload.fetchedAt,
+        });
+      } catch (err: any) {
+        if (libraryRequestSeqRef.current !== seq) return;
+        setLibraryState({
+          loading: false,
+          error: "図書館情報を取得できませんでした",
+          textnext: [],
+          suggestions: [],
+        });
+      }
+    }, 450);
+
+    return () => clearTimeout(debounceTimer);
+  }, [hasSearched, isLoading, results, searchMode, searchQuery, selectedSuggestion]);
+
   // 検索履歴取�?
   useEffect(() => {
     if (user && !authLoading) {
@@ -324,6 +465,8 @@ function SearchContent() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setSearchMode("keyword");
+      setSelectedSuggestion(null);
       router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
       executeSearch(searchQuery);
     }
@@ -331,12 +474,16 @@ function SearchContent() {
 
   const handleSuggestionClick = (suggestion: Suggestion) => {
     setSearchQuery(suggestion.title);
+    setSearchMode("selected_item");
+    setSelectedSuggestion(suggestion);
     router.push(`/search?q=${encodeURIComponent(suggestion.title)}`);
     executeSearch(suggestion.title);
   };
 
   const handleHistoryClick = (keyword: string) => {
     setSearchQuery(keyword);
+    setSearchMode("keyword");
+    setSelectedSuggestion(null);
     router.push(`/search?q=${encodeURIComponent(keyword)}`);
     executeSearch(keyword);
   };
@@ -443,7 +590,11 @@ function SearchContent() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setSearchMode("keyword");
+                setSelectedSuggestion(null);
+              }}
               onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
               placeholder={t('home.search_placeholder')}
               className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
@@ -684,8 +835,167 @@ function SearchContent() {
             )}
           </div>
         ) : null}
+        {!isLoading && hasSearched && (
+          <LibrarySearchSection
+            state={libraryState}
+            searchMode={searchMode}
+            query={searchQuery}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+function LibrarySearchSection({
+  state,
+  searchMode,
+  query,
+}: {
+  state: LibraryState;
+  searchMode: SearchMode;
+  query: string;
+}) {
+  const queryLength = query.trim().length;
+  const hasTextnext = state.textnext.length > 0;
+  const hasSuggestions = state.suggestions.length > 0;
+  const shouldShow =
+    state.loading ||
+    !!state.error ||
+    hasTextnext ||
+    hasSuggestions ||
+    (searchMode === "keyword" && queryLength > 2 && state.fetchedAt);
+
+  if (!shouldShow) return null;
+
+  const showNotFound =
+    !state.loading &&
+    !state.error &&
+    !hasTextnext &&
+    !hasSuggestions &&
+    searchMode === "keyword" &&
+    queryLength > 2;
+
+  return (
+    <section className="mt-8 border-t border-gray-100 pt-6">
+      <div className="mb-4 flex items-center gap-2">
+        <BookOpen className="h-5 w-5 text-primary" />
+        <h2 className="text-lg font-black text-gray-900">大学図書館</h2>
+      </div>
+
+      {state.loading && (
+        <div className="flex items-center gap-2 rounded-2xl bg-gray-50 px-4 py-4 text-sm font-semibold text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          読み込み中...
+        </div>
+      )}
+
+      {!state.loading && state.error && (
+        <div className="rounded-2xl bg-red-50 px-4 py-4 text-sm font-semibold text-red-700">
+          {state.error}
+        </div>
+      )}
+
+      {!state.loading && !state.error && hasTextnext && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-black text-gray-700">
+            TextNextの検索結果に関連する本
+          </h3>
+          {state.textnext.map((book) => (
+            <LibraryBookCard key={`textnext-${book.itemId || book.isbn}`} book={book} />
+          ))}
+        </div>
+      )}
+
+      {!state.loading && !state.error && hasSuggestions && (
+        <div className={hasTextnext ? "mt-7 space-y-3" : "space-y-3"}>
+          <h3 className="text-sm font-black text-gray-700">
+            もしかして図書館ではこんな本が見つかりました
+          </h3>
+          {state.suggestions.map((book) => (
+            <LibraryBookCard key={`external-${book.isbn}`} book={book} />
+          ))}
+        </div>
+      )}
+
+      {showNotFound && (
+        <div className="rounded-2xl bg-gray-50 px-4 py-4 text-sm font-semibold text-gray-500">
+          大学図書館で関連する本は見つかりませんでした
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LibraryBookCard({ book }: { book: LibraryBook }) {
+  const hasStatuses = book.statuses.length > 0;
+
+  return (
+    <article className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
+      <div className="flex gap-3">
+        <div className="h-20 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50">
+          {book.imageUrl ? (
+            <img
+              src={book.imageUrl}
+              alt={book.title}
+              className="h-full w-full object-cover"
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <BookOpen className="h-5 w-5 text-gray-300" />
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h4 className="line-clamp-2 text-sm font-black leading-snug text-gray-900">
+            {book.title}
+          </h4>
+          {(book.authors?.length || book.publisher) && (
+            <p className="mt-1 truncate text-xs font-medium text-gray-500">
+              {[book.authors?.join("、"), book.publisher].filter(Boolean).join(" / ")}
+            </p>
+          )}
+          <p className="mt-1 text-[11px] font-semibold text-gray-400">ISBN: {book.isbn}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {hasStatuses ? (
+          book.statuses.map((status) => (
+            <span
+              key={`${book.isbn}-${status.name}-${status.status}`}
+              className={`rounded-full px-2.5 py-1 text-xs font-black ${
+                status.available
+                  ? "bg-green-50 text-green-700 ring-1 ring-green-100"
+                  : "bg-yellow-50 text-yellow-700 ring-1 ring-yellow-100"
+              }`}
+            >
+              {status.name}: {status.status}
+            </span>
+          ))
+        ) : (
+          <span className="rounded-full bg-gray-50 px-2.5 py-1 text-xs font-black text-gray-500 ring-1 ring-gray-100">
+            蔵書なし
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold text-gray-400">
+        <span>図書館情報: {formatLibraryFetchedAt(book.fetchedAt)}</span>
+        {book.reserveUrl && (
+          <a
+            href={book.reserveUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            図書館で見る
+          </a>
+        )}
+      </div>
+    </article>
   );
 }
 
