@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
-import { useI18n, Locale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
 import {
     ArrowLeft,
@@ -14,6 +14,7 @@ import {
     AlertTriangle,
     Loader2,
     Lock,
+    LogOut,
     Eye,
     EyeOff,
     XCircle,
@@ -39,15 +40,7 @@ export default function SettingsPage() {
     const [activeTransactionCount, setActiveTransactionCount] = useState(0);
     const [listingCount, setListingCount] = useState(0);
     const [checkingTransactions, setCheckingTransactions] = useState(false);
-    const [showPasswordChangeForm, setShowPasswordChangeForm] = useState(false);
-    const [currentPasswordForChange, setCurrentPasswordForChange] = useState("");
-    const [passwordChangeVerified, setPasswordChangeVerified] = useState(false);
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [verifyingPasswordChange, setVerifyingPasswordChange] = useState(false);
-    const [changingPassword, setChangingPassword] = useState(false);
-    const [passwordChangeError, setPasswordChangeError] = useState("");
-    const [passwordChangeSuccess, setPasswordChangeSuccess] = useState("");
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -100,84 +93,10 @@ export default function SettingsPage() {
         setDeactivateError("");
     };
 
-    const resetPasswordChangeForm = () => {
-        setCurrentPasswordForChange("");
-        setPasswordChangeVerified(false);
-        setNewPassword("");
-        setConfirmPassword("");
-        setVerifyingPasswordChange(false);
-        setChangingPassword(false);
-        setPasswordChangeError("");
-    };
-
-    const handleCurrentPasswordVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user?.email) return;
-
-        setPasswordChangeError("");
-        setPasswordChangeSuccess("");
-
-        if (!currentPasswordForChange) {
-            setPasswordChangeError("現在のパスワードを入力してください");
-            return;
-        }
-
-        setVerifyingPasswordChange(true);
-        try {
-            const { error: verifyError } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: currentPasswordForChange,
-            });
-
-            if (verifyError) throw verifyError;
-
-            setPasswordChangeVerified(true);
-            setPasswordChangeError("");
-        } catch {
-            setPasswordChangeError("現在のパスワードが正しくありません。確認して再度入力してください。");
-        } finally {
-            setVerifyingPasswordChange(false);
-        }
-    };
-
-    const handlePasswordChange = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !passwordChangeVerified) return;
-
-        setPasswordChangeError("");
-        setPasswordChangeSuccess("");
-
-        if (newPassword.length < 8) {
-            setPasswordChangeError("パスワードは8文字以上で入力してください");
-            return;
-        }
-
-        if (newPassword !== confirmPassword) {
-            setPasswordChangeError("確認用パスワードが一致しません");
-            return;
-        }
-
-        setChangingPassword(true);
-        try {
-            const { error: updateError } = await supabase.auth.updateUser({
-                password: newPassword,
-            });
-
-            if (updateError) throw updateError;
-
-            resetPasswordChangeForm();
-            setShowPasswordChangeForm(false);
-            setPasswordChangeSuccess("パスワードを更新しました。次回ログインから新しいパスワードを使えます。");
-        } catch (err: any) {
-            const message = String(err?.message || "").toLowerCase();
-            if (message.includes("weak") || message.includes("password")) {
-                setPasswordChangeError("パスワード条件を満たしていません。8文字以上で、推測されにくいパスワードを入力してください。");
-            } else {
-                setPasswordChangeError("パスワードの更新に失敗しました。時間を置いて再度お試しください。");
-            }
-        } finally {
-            setChangingPassword(false);
-        }
+    const handleSignOut = async () => {
+        await signOut();
+        router.replace("/auth/login");
+        router.refresh();
     };
 
     const handleDeactivateSubmit = async () => {
@@ -253,8 +172,9 @@ export default function SettingsPage() {
                 <div className="max-w-md mx-auto space-y-6">
                     {/* 言語設定 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '25ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            {t("settings.language")}
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">{t("settings.language")}</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
                         <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
                             <div className="px-5 py-4">
@@ -292,8 +212,9 @@ export default function SettingsPage() {
 
                     {/* 探している教科書 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '50ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            通知設定
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">通知設定</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
                         <Link
                             href="/settings/watch-keywords"
@@ -329,142 +250,40 @@ export default function SettingsPage() {
 
                     {/* アカウント管理 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '100ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            アカウント管理
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">アカウント管理</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
-                        <div className="mb-3 rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5">
-                                        <Lock className="h-5 w-5 text-primary" />
-                                    </div>
-                                    <div className="text-left">
-                                        <span className="font-bold text-gray-700">パスワード変更</span>
-                                        <p className="mt-0.5 text-xs text-gray-400">現在のパスワード確認後に変更します</p>
-                                    </div>
+                        <Link
+                            href="/settings/password"
+                            className="mb-3 flex items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-primary/30 group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5">
+                                    <Lock className="h-5 w-5 text-primary" />
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowPasswordChangeForm((current) => {
-                                            if (current) {
-                                                resetPasswordChangeForm();
-                                            } else {
-                                                setPasswordChangeError("");
-                                                setPasswordChangeSuccess("");
-                                            }
-                                            return !current;
-                                        });
-                                    }}
-                                    className="shrink-0 rounded-xl border border-primary/20 bg-white px-3 py-2 text-xs font-bold text-primary shadow-sm transition-colors hover:bg-primary/5"
-                                >
-                                    {showPasswordChangeForm ? "閉じる" : "変更"}
-                                </button>
+                                <div className="text-left">
+                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">パスワード変更</span>
+                                    <p className="mt-0.5 text-xs text-gray-400">別ページで安全に変更します</p>
+                                </div>
                             </div>
-
-                            {passwordChangeSuccess && (
-                                <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                                    {passwordChangeSuccess}
+                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1 group-hover:text-primary" />
+                        </Link>
+                        <button
+                            onClick={() => setShowLogoutConfirm(true)}
+                            className="mb-3 flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-gray-300 group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 group-hover:bg-gray-200 transition-colors">
+                                    <LogOut className="h-5 w-5 text-gray-600" />
                                 </div>
-                            )}
-
-                            {showPasswordChangeForm && (
-                                <div className="mt-4 space-y-4">
-                                    {passwordChangeError && (
-                                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-                                            {passwordChangeError}
-                                        </div>
-                                    )}
-
-                                    {!passwordChangeVerified ? (
-                                        <form onSubmit={handleCurrentPasswordVerify} className="space-y-4">
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                                    現在のパスワード
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={currentPasswordForChange}
-                                                    onChange={(e) => setCurrentPasswordForChange(e.target.value)}
-                                                    placeholder="現在のパスワードを入力"
-                                                    autoComplete="current-password"
-                                                    required
-                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
-                                                />
-                                            </div>
-
-                                            <button
-                                                type="submit"
-                                                disabled={verifyingPasswordChange}
-                                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-white transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                {verifyingPasswordChange ? (
-                                                    <>
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                        確認中...
-                                                    </>
-                                                ) : (
-                                                    "現在のパスワードを確認"
-                                                )}
-                                            </button>
-                                        </form>
-                                    ) : (
-                                        <form onSubmit={handlePasswordChange} className="space-y-4">
-                                            <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                                                現在のパスワードを確認しました。新しいパスワードを入力してください。
-                                            </div>
-
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                                    新しいパスワード
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={newPassword}
-                                                    onChange={(e) => setNewPassword(e.target.value)}
-                                                    placeholder="8文字以上"
-                                                    autoComplete="new-password"
-                                                    minLength={8}
-                                                    required
-                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                                    新しいパスワード確認
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={confirmPassword}
-                                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                                    placeholder="もう一度入力"
-                                                    autoComplete="new-password"
-                                                    minLength={8}
-                                                    required
-                                                    className="w-full rounded-xl border border-gray-300 px-4 py-3 transition-all focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary"
-                                                />
-                                            </div>
-
-                                            <button
-                                                type="submit"
-                                                disabled={changingPassword}
-                                                className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-3 font-semibold text-white transition-all hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
-                                            >
-                                                {changingPassword ? (
-                                                    <>
-                                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                                        更新中...
-                                                    </>
-                                                ) : (
-                                                    "パスワードを更新"
-                                                )}
-                                            </button>
-                                        </form>
-                                    )}
+                                <div className="text-left">
+                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">ログアウト</span>
+                                    <p className="mt-0.5 text-xs text-gray-400">この端末からログアウトします</p>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1" />
+                        </button>
                         <button
                             onClick={handleStartDeactivate}
                             className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-red-200 transition-all group"
@@ -486,6 +305,37 @@ export default function SettingsPage() {
             </div>
 
             {/* === アカウント削除モーダル群 === */}
+
+            {showLogoutConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-in fade-in duration-200">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)} />
+                    <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] bg-white p-6 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-5 duration-200">
+                        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">
+                            <LogOut className="h-8 w-8 text-gray-600" />
+                        </div>
+                        <h2 className="mb-2 text-center text-xl font-black text-gray-900">
+                            ログアウトしますか？
+                        </h2>
+                        <p className="mb-6 text-center text-sm leading-6 text-gray-500">
+                            この端末からログアウトします。再度利用するにはログインが必要です。
+                        </p>
+                        <div className="space-y-2">
+                            <button
+                                onClick={handleSignOut}
+                                className="w-full rounded-2xl bg-gray-900 py-3.5 font-black text-white shadow-lg shadow-gray-900/10 transition-all hover:bg-gray-800 active:scale-[0.98]"
+                            >
+                                ログアウトする
+                            </button>
+                            <button
+                                onClick={() => setShowLogoutConfirm(false)}
+                                className="w-full rounded-2xl bg-gray-100 py-3.5 font-bold text-gray-600 transition-all hover:bg-gray-200"
+                            >
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Step 1: 確認画面 */}
             {deactivateStep === "confirm" && (

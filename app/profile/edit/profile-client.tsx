@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
-import { ArrowLeft, User, GraduationCap, LogOut, Camera, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, User, GraduationCap, Camera, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { ProfileSkeleton } from "./skeleton";
 import { ALLOWED_IMAGE_ACCEPT, ALLOWED_IMAGE_MIME_TYPES } from "@/lib/image-storage";
 import { INPUT_LIMITS } from "@/lib/input-limits";
@@ -30,7 +30,7 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
     const searchParams = useSearchParams();
     const fromParam = searchParams.get('from');
     const returnToParam = searchParams.get('returnTo');
-    const { user, loading: authLoading, signOut, refreshAvatar } = useAuth();
+    const { user, loading: authLoading, refreshAvatar } = useAuth();
     const [nickname, setNickname] = useState(initialProfile?.nickname || "");
     const [department, setDepartment] = useState(initialProfile?.department || "");
     const [degree, setDegree] = useState(initialProfile?.degree || "学士");
@@ -243,12 +243,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
         } finally {
             setSaving(false);
         }
-    };
-
-    const handleSignOut = async () => {
-        await signOut();
-        router.replace("/auth/login");
-        router.refresh();
     };
 
     if (!initialCheckDone || authLoading) {
@@ -499,15 +493,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
                             </button>
                         </form>
 
-                        <div className="mt-6 pt-6 border-t">
-                            <button
-                                onClick={handleSignOut}
-                                className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
-                            >
-                                <LogOut className="w-5 h-5" />
-                                ログアウト
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>
