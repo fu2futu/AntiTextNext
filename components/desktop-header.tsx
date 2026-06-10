@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, Camera, ClipboardList, Bell, User, Search, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
+import { useState } from "react";
 
 interface DesktopHeaderProps {
   unreadCount: number;
@@ -13,7 +14,9 @@ interface DesktopHeaderProps {
 
 export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
+  const [searchValue, setSearchValue] = useState("");
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
@@ -36,16 +39,33 @@ export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderP
       </Link>
 
       {/* 検索バー */}
-      <Link href="/search" prefetch={true} className="flex-1 max-w-md">
-        <div className="relative group">
+      <form
+        className="flex-1 max-w-md"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const query = searchValue.trim();
+          router.push(query ? `/search?q=${encodeURIComponent(query)}` : "/search");
+        }}
+      >
+        <div className="relative group flex items-center">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Search className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+            <Search className="w-5 h-5 text-gray-400 group-focus-within:text-primary group-hover:text-primary transition-colors" />
           </div>
-          <div className="w-full py-2.5 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-400 group-hover:border-primary/50 group-hover:bg-white transition-all cursor-pointer">
-            {t("home.search_placeholder")}
-          </div>
+          <input
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+            placeholder={t("home.search_placeholder")}
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pl-12 pr-12 text-sm font-bold text-gray-700 outline-none transition-all placeholder:text-gray-400 hover:border-primary/50 hover:bg-white focus:border-primary focus:bg-white"
+          />
+          <button
+            type="submit"
+            aria-label="検索"
+            className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-sky-50 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            <Search className="h-4 w-4" />
+          </button>
         </div>
-      </Link>
+      </form>
 
       {/* ナビゲーション（ヘッダー右側の空白に配置） */}
       <nav className="flex items-center gap-1 ml-auto">
