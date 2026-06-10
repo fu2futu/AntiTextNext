@@ -71,6 +71,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isManaging, setIsManaging] = useState(false);
   const [currentStatus, setCurrentStatus] = useState(item.status);
+  const [hasCheckedActionState, setHasCheckedActionState] = useState(false);
 
   // 相談中の商品で、現在のユーザーが取引の当事者（出品者 or 相談中の購入者）かどうか。
   // 当事者ならチャットへ遷移できるようにし、それ以外の人は「相談中」表示のまま。
@@ -312,47 +313,75 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const isReservedByOther = isReserved && !isOwnItem;
 
   // 相談中のとき、現在のユーザーがこの商品の取引当事者（出品者 or 相談中の購入者）か確認する。
+  // 商品詳細は短時間キャッシュされるため、購入リクエスト直後に古い available 表示が来ることがある。
+  // その状態で編集/停止/削除が一瞬出ないよう、現在の status と取引参加状態を確認するまで出品者操作は出さない。
   useEffect(() => {
+    setHasCheckedActionState(false);
+
     if (!user) {
       setIsChatParticipant(false);
       setChatTransactionId(null);
+      setHasCheckedActionState(true);
       return;
     }
 
     let cancelled = false;
     const checkParticipation = async () => {
-      let query = (supabase as any)
-        .from("transactions")
-        .select("id, status, created_at")
-        .eq("item_id", item.id)
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-        .order("created_at", { ascending: false });
+      try {
+        let transactionQuery = (supabase as any)
+          .from("transactions")
+          .select("id, status, created_at")
+          .eq("item_id", item.id)
+          .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+          .order("created_at", { ascending: false });
 
-      if (targetTransactionId) {
-        query = query.eq("id", targetTransactionId);
+        if (targetTransactionId) {
+          transactionQuery = transactionQuery.eq("id", targetTransactionId);
+        }
+
+        const [{ data: liveItem }, { data, error }] = await Promise.all([
+          (supabase as any)
+            .from("items")
+            .select("status")
+            .eq("id", item.id)
+            .maybeSingle(),
+          transactionQuery,
+        ]);
+
+        if (cancelled) return;
+
+        const liveStatus = liveItem?.status || item.status;
+        if (liveItem?.status) {
+          setCurrentStatus(liveItem.status);
+        }
+
+        // 相談中は未終了取引を優先。過去取引から開いた場合は tx 指定の終了済み取引も許可する。
+        const TERMINAL_STATUSES = ["cancelled", "rejected", "declined", "expired", "auto_closed", "completed"];
+        const activeTx = !error && Array.isArray(data)
+          ? (targetTransactionId
+            ? (data as any[])[0]
+            : (data as any[]).find((tx) => !TERMINAL_STATUSES.includes(tx.status)) || (liveStatus === "sold" ? (data as any[])[0] : null))
+          : null;
+
+        setIsChatParticipant(!!activeTx);
+        setChatTransactionId(activeTx?.id ?? null);
+        setHasCheckedActionState(true);
+      } catch (err) {
+        console.error("Error checking product action state:", err);
+        if (!cancelled) {
+          setIsChatParticipant(false);
+          setChatTransactionId(null);
+          // 出品者本人の場合は安全側に倒し、編集/停止/削除ボタンを表示しない。
+          setHasCheckedActionState(user.id !== item.seller_id);
+        }
       }
-
-      const { data, error } = await query;
-
-      if (cancelled) return;
-
-      // 相談中は未終了取引を優先。過去取引から開いた場合は tx 指定の終了済み取引も許可する。
-      const TERMINAL_STATUSES = ["cancelled", "rejected", "declined", "expired", "auto_closed", "completed"];
-      const activeTx = !error && Array.isArray(data)
-        ? (targetTransactionId
-          ? (data as any[])[0]
-          : (data as any[]).find((tx) => !TERMINAL_STATUSES.includes(tx.status)) || (isSold ? (data as any[])[0] : null))
-        : null;
-
-      setIsChatParticipant(!!activeTx);
-      setChatTransactionId(activeTx?.id ?? null);
     };
 
     checkParticipation();
     return () => {
       cancelled = true;
     };
-  }, [user, item.id, isSold, targetTransactionId]);
+  }, [user, item.id, item.seller_id, targetTransactionId]);
 
   const chatHref = chatTransactionId
     ? `/chat/${item.id}?tx=${chatTransactionId}`
@@ -703,6 +732,24 @@ export default function ProductDetailClient({ item }: { item: Item }) {
                 <MessageCircle className="w-5 h-5" />
                 チャットを見る
               </Link>
+            ) : isOwnItem && !hasCheckedActionState ? (
+              <button
+                type="button"
+                disabled
+                className="flex-1 py-3 md:py-4 bg-gray-100 text-gray-500 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+              >
+                <Loader2 className="w-5 h-5 animate-spin" />
+                取引状態を確認中
+              </button>
+            ) : isOwnItem && isPending ? (
+              <button
+                type="button"
+                disabled
+                className="flex-1 py-3 md:py-4 bg-gray-100 text-gray-500 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+              >
+                <MessageCircle className="w-5 h-5" />
+                取引中です
+              </button>
             ) : isOwnItem ? (
               <div className="flex gap-2 flex-1">
                 <button

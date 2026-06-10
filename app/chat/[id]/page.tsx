@@ -1381,8 +1381,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
               </button>
 
-              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/10 transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[440px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
-                <div className="px-4 pb-4 pt-3">
+              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/10 transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[min(440px,calc(100dvh-var(--chat-header-height)-8rem))] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
+                <div className="max-h-[min(420px,calc(100dvh-var(--chat-header-height)-9rem))] overflow-y-auto overscroll-contain px-4 pb-4 pt-3 [-webkit-overflow-scrolling:touch]">
                   <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
                     日程が決まり、こちらに記録していただくと予定管理に反映されます。
                   </p>
