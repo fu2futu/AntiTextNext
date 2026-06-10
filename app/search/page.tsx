@@ -50,6 +50,8 @@ type SearchMode = "keyword" | "selected_item";
 type LibraryBook = {
   source: "textnext" | "external";
   itemId?: string;
+  itemIds?: string[];
+  textnextItemCount?: number;
   title: string;
   isbn: string;
   authors?: string[];
@@ -969,6 +971,11 @@ function LibraryBookCard({ book }: { book: LibraryBook }) {
             </p>
           )}
           <p className="mt-1 text-[11px] font-semibold text-gray-400">ISBN: {book.isbn}</p>
+          {book.source === "textnext" && book.textnextItemCount && book.textnextItemCount > 1 && (
+            <p className="mt-1 text-[11px] font-black text-primary">
+              TextNext出品: {book.textnextItemCount}件
+            </p>
+          )}
         </div>
       </div>
 
