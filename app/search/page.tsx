@@ -453,7 +453,7 @@ function SearchContent() {
               textnextBooks: offset === 0 ? textnextBooks : [],
               externalOffset: offset,
               externalLimit: 9,
-              externalTotalLimit: 30,
+              externalTotalLimit: 63,
             }),
           });
           const payload = await response.json();

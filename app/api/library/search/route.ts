@@ -45,6 +45,12 @@ type LibrarySearchDebug = {
   googleBooksWithIsbnCount: number;
   ndlRawCount: number;
   ndlWithIsbnCount: number;
+  ndlBooksRawCount?: number;
+  ndlFilteredOutArticleCount?: number;
+  ndlFilteredOutPeriodicalCount?: number;
+  ndlFilteredOutSamples?: string[];
+  ndlMediatypeSamples?: string[];
+  ndlDpidSamples?: string[];
   externalIsbnCount: number;
   externalCalilCheckedCount: number;
   textnextCalilHitCount: number;
@@ -129,8 +135,8 @@ const ndlCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const CALIL_CACHE_MS = 7 * 60 * 1000;
 const GOOGLE_CACHE_MS = 12 * 60 * 60 * 1000;
 const DEFAULT_EXTERNAL_LIMIT = 10;
-const MAX_DEBUG_EXTERNAL_LIMIT = 60;
-const EXTERNAL_TOTAL_LOOKUP_LIMIT = 30;
+const MAX_DEBUG_EXTERNAL_LIMIT = 63;
+const EXTERNAL_TOTAL_LOOKUP_LIMIT = 63;
 const EXTERNAL_BATCH_LIMIT = 9;
 const EXTERNAL_DISPLAY_LIMIT = 8;
 const CALIL_CHUNK_SIZE = 3;
@@ -384,8 +390,12 @@ type ExternalBookCandidate = {
   publisher?: string | null;
   publishedDate?: string | null;
   imageUrl?: string | null;
+  mediaType?: string | null;
+  dpid?: string | null;
+  link?: string | null;
   identifierSamples?: string[];
   looksLikeArticle?: boolean;
+  looksLikePeriodical?: boolean;
   score?: number;
 };
 
@@ -405,6 +415,12 @@ type NdlProviderDebug = {
   itemCountBeforeParse: number;
   parsedItemCount: number;
   identifierSamples: string[];
+  booksRawCount: number;
+  filteredOutArticleCount: number;
+  filteredOutPeriodicalCount: number;
+  filteredOutSamples: string[];
+  mediatypeSamples: string[];
+  dpidSamples: string[];
   error?: string;
 };
 
@@ -506,6 +522,21 @@ const getXmlLocalTagValues = (xml: string, localName: string) => {
   return values.filter(Boolean);
 };
 
+const getXmlLocalTagAttributeValues = (xml: string, localName: string, attributeName: string) => {
+  const escapedLocalName = localName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedAttributeName = attributeName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(
+    `<(?:[\\w.-]+:)?${escapedLocalName}\\b[^>]*\\s${escapedAttributeName}=["']([^"']+)["'][^>]*>`,
+    "gi"
+  );
+  const values: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(xml)) !== null) {
+    values.push(decodeXmlText(match[1] || ""));
+  }
+  return values.filter(Boolean);
+};
+
 const getXmlRecords = (xml: string) => {
   const itemRecords = Array.from(xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)).map((match) => match[1] || "");
   if (itemRecords.length > 0) return itemRecords;
@@ -536,6 +567,12 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
         itemCountBeforeParse: 0,
         parsedItemCount: 0,
         identifierSamples: [],
+        booksRawCount: 0,
+        filteredOutArticleCount: 0,
+        filteredOutPeriodicalCount: 0,
+        filteredOutSamples: [],
+        mediatypeSamples: [],
+        dpidSamples: [],
       },
     };
   }
@@ -547,27 +584,32 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
   const requests = [
     (() => {
       const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
-      url.searchParams.set("any", trimmed);
-      url.searchParams.set("cnt", "30");
-      return { url, kind: "ndl_any" };
-    })(),
-    (() => {
-      const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
       url.searchParams.set("title", trimmed);
       url.searchParams.set("cnt", "30");
-      return { url, kind: "ndl_title" };
+      url.searchParams.set("mediatype", "books");
+      return { url, kind: "ndl_title_books" };
     })(),
     (() => {
       const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
       url.searchParams.set("any", trimmed);
       url.searchParams.set("cnt", "30");
-      url.searchParams.set("mediatype", "1");
-      return { url, kind: "ndl_any_book" };
+      url.searchParams.set("mediatype", "books");
+      return { url, kind: "ndl_any_books" };
+    })(),
+    (() => {
+      const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
+      url.searchParams.set("any", trimmed);
+      url.searchParams.set("cnt", "30");
+      url.searchParams.set("mediatype", "books");
+      url.searchParams.set("dpid", "iss-ndl-opac-bib");
+      return { url, kind: "ndl_any_books_opac" };
     })(),
   ];
 
   const records: Array<{ xml: string; kind: string }> = [];
   const identifierSamples = new Set<string>();
+  const mediatypeSamples = new Set<string>();
+  const dpidSamples = new Set<string>();
   const debug: NdlProviderDebug = {
     requestUrlWithoutSecrets: requests.map((request) => request.url.toString()),
     httpStatus: [],
@@ -576,6 +618,12 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
     itemCountBeforeParse: 0,
     parsedItemCount: 0,
     identifierSamples: [],
+    booksRawCount: 0,
+    filteredOutArticleCount: 0,
+    filteredOutPeriodicalCount: 0,
+    filteredOutSamples: [],
+    mediatypeSamples: [],
+    dpidSamples: [],
   };
 
   for (const request of requests) {
@@ -595,12 +643,35 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
   }
 
   debug.itemCountBeforeParse = records.length;
+  debug.booksRawCount = records.length;
   const seen = new Set<string>();
   const candidates: ExternalBookCandidate[] = [];
   let withIsbnCount = 0;
+  let filteredOutArticleCount = 0;
+  let filteredOutPeriodicalCount = 0;
+  const filteredOutSamples = new Set<string>();
 
   for (const record of records) {
     const itemXml = record.xml;
+    const title = getXmlLocalTagValues(itemXml, "title")[0] || getXmlTagValues(itemXml, "dc:title")[0];
+    const links = unique([
+      ...getXmlLocalTagValues(itemXml, "link"),
+      ...getXmlTagValues(itemXml, "link"),
+      ...getXmlLocalTagAttributeValues(itemXml, "link", "href"),
+    ]);
+    const mediaTypes = unique([
+      ...getXmlLocalTagValues(itemXml, "mediaType"),
+      ...getXmlLocalTagValues(itemXml, "mediatype"),
+      ...getXmlLocalTagValues(itemXml, "materialType"),
+      ...getXmlLocalTagValues(itemXml, "type"),
+    ]);
+    const dpids = unique([
+      ...getXmlLocalTagValues(itemXml, "dpid"),
+      ...getXmlLocalTagValues(itemXml, "databaseId"),
+    ]);
+    mediaTypes.slice(0, 4).forEach((value) => mediatypeSamples.add(value.slice(0, 120)));
+    dpids.slice(0, 4).forEach((value) => dpidSamples.add(value.slice(0, 120)));
+
     const identifiers = [
       ...getXmlLocalTagValues(itemXml, "identifier"),
       ...getXmlTagValues(itemXml, "dc:identifier"),
@@ -608,11 +679,32 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
       ...getXmlTagValues(itemXml, "prism:isbn"),
       ...getXmlLocalTagValues(itemXml, "isbn"),
       ...getXmlTagValues(itemXml, "guid"),
+      ...links,
       itemXml,
     ];
     for (const value of identifiers.slice(0, 4)) {
       if (value) identifierSamples.add(value.slice(0, 160));
     }
+
+    const combinedForFiltering = [
+      itemXml,
+      title || "",
+      ...identifiers,
+      ...links,
+      ...mediaTypes,
+      ...dpids,
+    ].join("\n");
+    const looksLikeArticle = /(?:R000000004|R100000004|mediatype\/articles|\/articles\b|雑誌記事|論文|紀要論文|学位論文|巻号)/i.test(combinedForFiltering);
+    const looksLikePeriodical = /(?:mediatype\/periodicals|\/periodicals\b|逐次刊行物|雑誌|新聞|巻号)/i.test(combinedForFiltering);
+    if (looksLikeArticle || looksLikePeriodical) {
+      if (looksLikeArticle) filteredOutArticleCount += 1;
+      if (looksLikePeriodical) filteredOutPeriodicalCount += 1;
+      if (filteredOutSamples.size < 8) {
+        filteredOutSamples.add((title || identifiers[0] || combinedForFiltering).slice(0, 180));
+      }
+      continue;
+    }
+
     const normalizedIsbns = extractIsbnsFromValues(identifiers);
     const isbn = normalizedIsbns.find(isIsbn13) || normalizedIsbns.find(isIsbn10);
     if (!isbn) continue;
@@ -620,16 +712,12 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
     if (seen.has(isbn)) continue;
     seen.add(isbn);
 
-    const title = getXmlLocalTagValues(itemXml, "title")[0] || getXmlTagValues(itemXml, "dc:title")[0];
     if (!title) continue;
     const authors = unique([
       ...getXmlLocalTagValues(itemXml, "author"),
       ...getXmlTagValues(itemXml, "dc:creator"),
       ...getXmlLocalTagValues(itemXml, "creator"),
     ]).slice(0, 3);
-
-    const looksLikeArticle = identifiers.some((value) => value.includes("R000000004-I")) ||
-      itemXml.includes("R000000004-I");
 
     candidates.push({
       provider: "ndl",
@@ -641,14 +729,23 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
       publisher: getXmlTagValues(itemXml, "dc:publisher")[0] || getXmlLocalTagValues(itemXml, "publisher")[0] || null,
       publishedDate: getXmlTagValues(itemXml, "dc:date")[0] || getXmlLocalTagValues(itemXml, "date")[0] || null,
       imageUrl: null,
+      mediaType: mediaTypes[0] || null,
+      dpid: dpids[0] || null,
+      link: links[0] || null,
       identifierSamples: identifiers.slice(0, 3),
       looksLikeArticle,
+      looksLikePeriodical,
     });
 
     if (candidates.length >= 20) break;
   }
   debug.parsedItemCount = candidates.length;
   debug.identifierSamples = Array.from(identifierSamples).slice(0, 8);
+  debug.filteredOutArticleCount = filteredOutArticleCount;
+  debug.filteredOutPeriodicalCount = filteredOutPeriodicalCount;
+  debug.filteredOutSamples = Array.from(filteredOutSamples).slice(0, 8);
+  debug.mediatypeSamples = Array.from(mediatypeSamples).slice(0, 8);
+  debug.dpidSamples = Array.from(dpidSamples).slice(0, 8);
 
   const result = {
     provider: "ndl" as const,
@@ -709,8 +806,12 @@ function mergeExternalCandidate(existing: ExternalBookCandidate, next: ExternalB
     publisher: existing.publisher || next.publisher || null,
     publishedDate: existing.publishedDate || next.publishedDate || null,
     imageUrl: existing.imageUrl || next.imageUrl || null,
+    mediaType: existing.mediaType || next.mediaType || null,
+    dpid: existing.dpid || next.dpid || null,
+    link: existing.link || next.link || null,
     identifierSamples: unique([...(existing.identifierSamples || []), ...(next.identifierSamples || [])]).slice(0, 5),
     looksLikeArticle: Boolean(existing.looksLikeArticle || next.looksLikeArticle),
+    looksLikePeriodical: Boolean(existing.looksLikePeriodical || next.looksLikePeriodical),
   };
 }
 
@@ -721,10 +822,12 @@ function scoreExternalCandidate(candidate: ExternalBookCandidate, query: string)
   const providers = candidate.providers || [candidate.provider];
   const searchKinds = candidate.searchKinds || [];
   const looksLikeArticle = Boolean(candidate.looksLikeArticle);
+  const looksLikePeriodical = Boolean(candidate.looksLikePeriodical);
   let score = 0;
 
   if (titleIncludesQuery) score += 100;
-  if (searchKinds.includes("ndl_title")) score += 50;
+  if (searchKinds.some((kind) => kind.startsWith("ndl_title"))) score += 50;
+  if (searchKinds.includes("ndl_any_books_opac")) score += 15;
   if (providers.length > 1) score += 30;
   if (isIsbn13(candidate.isbn)) score += 20;
   if (candidate.publisher) score += 10;
@@ -732,12 +835,14 @@ function scoreExternalCandidate(candidate: ExternalBookCandidate, query: string)
   if (candidate.authors?.length) score += 5;
   if (!titleIncludesQuery) score -= 20;
   if (looksLikeArticle) score -= 100;
+  if (looksLikePeriodical) score -= 80;
 
   return {
     ...candidate,
     providers,
     searchKinds,
     looksLikeArticle,
+    looksLikePeriodical,
     score,
   };
 }
@@ -811,6 +916,12 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
         ndlItemCountBeforeParse: 0,
         ndlParsedItemCount: 0,
         ndlIdentifierSamples: [],
+        ndlBooksRawCount: 0,
+        ndlFilteredOutArticleCount: 0,
+        ndlFilteredOutPeriodicalCount: 0,
+        ndlFilteredOutSamples: [],
+        ndlMediatypeSamples: [],
+        ndlDpidSamples: [],
         calilChunks: [],
         externalCandidatesBeforeLimitCount: 0,
         externalCandidatesAfterLimitCount: 0,
@@ -1050,6 +1161,12 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       ndlItemCountBeforeParse: ndlDebug?.itemCountBeforeParse,
       ndlParsedItemCount: ndlDebug?.parsedItemCount,
       ndlIdentifierSamples: ndlDebug?.identifierSamples,
+      ndlBooksRawCount: ndlDebug?.booksRawCount,
+      ndlFilteredOutArticleCount: ndlDebug?.filteredOutArticleCount,
+      ndlFilteredOutPeriodicalCount: ndlDebug?.filteredOutPeriodicalCount,
+      ndlFilteredOutSamples: ndlDebug?.filteredOutSamples,
+      ndlMediatypeSamples: ndlDebug?.mediatypeSamples,
+      ndlDpidSamples: ndlDebug?.dpidSamples,
       ndlError: ndlDebug?.error,
       calilChunks,
       externalCandidatesBeforeLimitCount: externalCandidatesBeforeLimit.length,
