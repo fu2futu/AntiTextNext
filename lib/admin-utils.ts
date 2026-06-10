@@ -14,6 +14,7 @@ export const maskEmail = (email?: string | null) => {
 export const formatAdminDate = (value?: string | null) => {
   if (!value) return "-";
   return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
