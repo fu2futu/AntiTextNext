@@ -106,7 +106,7 @@ const googleCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const ndlCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const CALIL_CACHE_MS = 7 * 60 * 1000;
 const GOOGLE_CACHE_MS = 12 * 60 * 60 * 1000;
-const DEFAULT_EXTERNAL_LIMIT = 10;
+const DEFAULT_EXTERNAL_LIMIT = 30;
 const MAX_DEBUG_EXTERNAL_LIMIT = 30;
 
 const normalizeIsbn = (value: unknown) => String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
