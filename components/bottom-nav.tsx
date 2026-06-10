@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Camera, ClipboardList, Bell, User, Settings } from "lucide-react";
+import { Home, Camera, ClipboardList, Bell, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -19,7 +19,7 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
     { href: "/", label: t("nav.home"), icon: Home },
     { href: "/notifications", label: t("nav.notifications"), icon: Bell, badge: unreadCount },
     { href: "/listing", label: t("nav.listing"), icon: Camera, special: true },
-    { href: "/profile" , label: t("nav.mypage"), icon: User, settingsBadge: true },
+    { href: "/profile" , label: t("nav.mypage"), icon: User },
     { href: "/transactions", label: t("nav.schedule"), icon: ClipboardList, dot: hasUnreadMessages },
   ];
 
@@ -81,11 +81,6 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
                 )}
                 {item.dot && (
                   <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white shadow-sm animate-in zoom-in-50 duration-200" />
-                )}
-                {item.settingsBadge && (
-                  <span className="absolute -bottom-1.5 -right-2 flex h-4 w-4 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-200">
-                    <Settings className="h-2.5 w-2.5 text-gray-500" strokeWidth={2.5} />
-                  </span>
                 )}
               </div>
               <span className={cn(
