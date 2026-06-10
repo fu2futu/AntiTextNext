@@ -78,6 +78,28 @@ type LibrarySearchDebug = {
   sampleExternalTitlesBeforeLimit: string[];
   sampleExternalTitlesAfterLimit: string[];
   sampleDroppedExternalTitles: string[];
+  totalElapsedMs?: number;
+  providerElapsedMs?: Record<string, number>;
+  calilElapsedMs?: number;
+  chunkElapsedMs?: number[];
+  calilConcurrency?: number;
+  externalBatchLimit?: number;
+  externalTotalLookupLimit?: number;
+  externalDisplayLimit?: number;
+  externalOffset?: number;
+  externalCheckedCount?: number;
+  externalTotalCount?: number;
+  externalHasMore?: boolean;
+  returnedDueToTimeBudget?: boolean;
+  pendingChunkCount?: number;
+  candidateScoringSamples?: Array<{
+    title: string;
+    isbn: string;
+    providers?: string[];
+    score?: number;
+    looksLikeArticle?: boolean;
+    titleIncludesQuery?: boolean;
+  }>;
 };
 
 type CalilLookupResult = {
@@ -106,8 +128,14 @@ const googleCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const ndlCache = new Map<string, CacheEntry<BookSearchProviderResult>>();
 const CALIL_CACHE_MS = 7 * 60 * 1000;
 const GOOGLE_CACHE_MS = 12 * 60 * 60 * 1000;
-const DEFAULT_EXTERNAL_LIMIT = 30;
+const DEFAULT_EXTERNAL_LIMIT = 10;
 const MAX_DEBUG_EXTERNAL_LIMIT = 30;
+const EXTERNAL_TOTAL_LOOKUP_LIMIT = 30;
+const EXTERNAL_BATCH_LIMIT = 9;
+const EXTERNAL_DISPLAY_LIMIT = 8;
+const CALIL_CHUNK_SIZE = 3;
+const CALIL_CONCURRENCY = 3;
+const EXTERNAL_BATCH_TIME_BUDGET_MS = 8000;
 
 const normalizeIsbn = (value: unknown) => String(value || "").replace(/[^0-9Xx]/g, "").toUpperCase();
 
@@ -246,14 +274,27 @@ async function fetchCalilAvailabilityInChunks(
   isbns: string[],
   chunkSize: number,
   type: "textnext" | "external",
-  noCache = false
+  noCache = false,
+  concurrency = CALIL_CONCURRENCY,
+  timeBudgetMs?: number
 ) {
   const normalized = unique(isbns.map(normalizeIsbn).filter(isValidIsbn));
+  const chunkList: string[][] = [];
+  for (let index = 0; index < normalized.length; index += chunkSize) {
+    chunkList.push(normalized.slice(index, index + chunkSize));
+  }
+
   const lookups: CalilLookupResult[] = [];
   const chunks: CalilChunkDebug[] = [];
-  for (let index = 0; index < normalized.length; index += chunkSize) {
-    const chunk = normalized.slice(index, index + chunkSize);
+  const chunkElapsedMs: number[] = [];
+  const startedAt = Date.now();
+  let nextIndex = 0;
+  let returnedDueToTimeBudget = false;
+
+  async function runOne(chunk: string[]) {
+    const chunkStartedAt = Date.now();
     const lookup = await fetchCalilAvailability(chunk, noCache);
+    chunkElapsedMs.push(Date.now() - chunkStartedAt);
     lookups.push(lookup);
     chunks.push({
       type,
@@ -263,9 +304,24 @@ async function fetchCalilAvailabilityInChunks(
       hitCount: Array.from(lookup.books.values()).filter((result) => normalizeLibraryStatuses(result).hasHolding).length,
     });
   }
+
+  while (nextIndex < chunkList.length) {
+    if (timeBudgetMs && Date.now() - startedAt >= timeBudgetMs) {
+      returnedDueToTimeBudget = true;
+      break;
+    }
+    const wave = chunkList.slice(nextIndex, nextIndex + concurrency);
+    nextIndex += wave.length;
+    await Promise.all(wave.map(runOne));
+  }
+
+  const pendingChunkCount = Math.max(0, chunkList.length - nextIndex);
   return {
     lookup: mergeCalilLookups(lookups),
     chunks,
+    chunkElapsedMs,
+    returnedDueToTimeBudget,
+    pendingChunkCount,
   };
 }
 
@@ -320,11 +376,17 @@ function createNoHoldingStatuses(result: any): LibraryStatus[] {
 
 type ExternalBookCandidate = {
   provider: "google_books" | "ndl";
+  providers?: Array<"google_books" | "ndl">;
+  searchKinds?: string[];
   title: string;
   isbn: string;
   authors?: string[];
   publisher?: string | null;
+  publishedDate?: string | null;
   imageUrl?: string | null;
+  identifierSamples?: string[];
+  looksLikeArticle?: boolean;
+  score?: number;
 };
 
 type BookSearchProviderResult = {
@@ -390,10 +452,13 @@ async function searchGoogleBooks(query: string, noCache = false): Promise<BookSe
       seen.add(isbn);
       candidates.push({
         provider: "google_books",
+        providers: ["google_books"],
+        searchKinds: [googleQuery.startsWith("intitle:") ? "google_intitle" : "google_query"],
         title: info.title,
         isbn,
         authors: Array.isArray(info.authors) ? info.authors.slice(0, 3) : [],
         publisher: info.publisher || null,
+        publishedDate: info.publishedDate || null,
         imageUrl: info.imageLinks?.thumbnail?.replace(/^http:\/\//, "https://") || null,
       });
 
@@ -479,32 +544,32 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
   const cached = ndlCache.get(cacheKey);
   if (!noCache && cached && cached.expiresAt > Date.now()) return cached.value;
 
-  const urls = [
+  const requests = [
     (() => {
       const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
       url.searchParams.set("any", trimmed);
       url.searchParams.set("cnt", "30");
-      return url;
+      return { url, kind: "ndl_any" };
     })(),
     (() => {
       const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
       url.searchParams.set("title", trimmed);
       url.searchParams.set("cnt", "30");
-      return url;
+      return { url, kind: "ndl_title" };
     })(),
     (() => {
       const url = new URL("https://ndlsearch.ndl.go.jp/api/opensearch");
       url.searchParams.set("any", trimmed);
       url.searchParams.set("cnt", "30");
       url.searchParams.set("mediatype", "1");
-      return url;
+      return { url, kind: "ndl_any_book" };
     })(),
   ];
 
-  const records: string[] = [];
+  const records: Array<{ xml: string; kind: string }> = [];
   const identifierSamples = new Set<string>();
   const debug: NdlProviderDebug = {
-    requestUrlWithoutSecrets: urls.map((url) => url.toString()),
+    requestUrlWithoutSecrets: requests.map((request) => request.url.toString()),
     httpStatus: [],
     responseContentType: [],
     responseTextSample: "",
@@ -513,7 +578,8 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
     identifierSamples: [],
   };
 
-  for (const url of urls) {
+  for (const request of requests) {
+    const { url, kind } = request;
     const response = await fetch(url, { next: { revalidate: 60 * 60 * 12 } });
     const xml = await response.text();
     debug.httpStatus.push(response.status);
@@ -525,7 +591,7 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
       debug.error = `ndl_${response.status}`;
       continue;
     }
-    records.push(...getXmlRecords(xml));
+    records.push(...getXmlRecords(xml).map((record) => ({ xml: record, kind })));
   }
 
   debug.itemCountBeforeParse = records.length;
@@ -533,7 +599,8 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
   const candidates: ExternalBookCandidate[] = [];
   let withIsbnCount = 0;
 
-  for (const itemXml of records) {
+  for (const record of records) {
+    const itemXml = record.xml;
     const identifiers = [
       ...getXmlLocalTagValues(itemXml, "identifier"),
       ...getXmlTagValues(itemXml, "dc:identifier"),
@@ -561,13 +628,21 @@ async function searchNdlBooks(query: string, noCache = false): Promise<BookSearc
       ...getXmlLocalTagValues(itemXml, "creator"),
     ]).slice(0, 3);
 
+    const looksLikeArticle = identifiers.some((value) => value.includes("R000000004-I")) ||
+      itemXml.includes("R000000004-I");
+
     candidates.push({
       provider: "ndl",
+      providers: ["ndl"],
+      searchKinds: [record.kind],
       title,
       isbn,
       authors,
       publisher: getXmlTagValues(itemXml, "dc:publisher")[0] || getXmlLocalTagValues(itemXml, "publisher")[0] || null,
+      publishedDate: getXmlTagValues(itemXml, "dc:date")[0] || getXmlLocalTagValues(itemXml, "date")[0] || null,
       imageUrl: null,
+      identifierSamples: identifiers.slice(0, 3),
+      looksLikeArticle,
     });
 
     if (candidates.length >= 20) break;
@@ -625,6 +700,48 @@ function toExternalLibraryBook(book: ExternalBookCandidate, result: any, fetched
   };
 }
 
+function mergeExternalCandidate(existing: ExternalBookCandidate, next: ExternalBookCandidate): ExternalBookCandidate {
+  return {
+    ...existing,
+    providers: unique([...(existing.providers || [existing.provider]), ...(next.providers || [next.provider])]),
+    searchKinds: unique([...(existing.searchKinds || []), ...(next.searchKinds || [])]),
+    authors: existing.authors?.length ? existing.authors : next.authors,
+    publisher: existing.publisher || next.publisher || null,
+    publishedDate: existing.publishedDate || next.publishedDate || null,
+    imageUrl: existing.imageUrl || next.imageUrl || null,
+    identifierSamples: unique([...(existing.identifierSamples || []), ...(next.identifierSamples || [])]).slice(0, 5),
+    looksLikeArticle: Boolean(existing.looksLikeArticle || next.looksLikeArticle),
+  };
+}
+
+function scoreExternalCandidate(candidate: ExternalBookCandidate, query: string): ExternalBookCandidate {
+  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedTitle = candidate.title.toLowerCase();
+  const titleIncludesQuery = normalizedQuery.length > 0 && normalizedTitle.includes(normalizedQuery);
+  const providers = candidate.providers || [candidate.provider];
+  const searchKinds = candidate.searchKinds || [];
+  const looksLikeArticle = Boolean(candidate.looksLikeArticle);
+  let score = 0;
+
+  if (titleIncludesQuery) score += 100;
+  if (searchKinds.includes("ndl_title")) score += 50;
+  if (providers.length > 1) score += 30;
+  if (isIsbn13(candidate.isbn)) score += 20;
+  if (candidate.publisher) score += 10;
+  if (candidate.publishedDate) score += 5;
+  if (candidate.authors?.length) score += 5;
+  if (!titleIncludesQuery) score -= 20;
+  if (looksLikeArticle) score -= 100;
+
+  return {
+    ...candidate,
+    providers,
+    searchKinds,
+    looksLikeArticle,
+    score,
+  };
+}
+
 async function handleLibrarySearch(request: NextRequest, body: any) {
   try {
     const query = String(body.query || "").trim();
@@ -634,9 +751,19 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       (process.env.ENABLE_LIBRARY_DEBUG === "true" && request.nextUrl.searchParams.get("debug") === "1");
     const noCache = includeDebug && request.nextUrl.searchParams.get("noCache") === "1";
     const requestedExternalLimit = Number(request.nextUrl.searchParams.get("externalLimit") || "");
-    const externalLimit = includeDebug && Number.isFinite(requestedExternalLimit) && requestedExternalLimit > 0
-      ? Math.min(Math.floor(requestedExternalLimit), MAX_DEBUG_EXTERNAL_LIMIT)
-      : DEFAULT_EXTERNAL_LIMIT;
+    const bodyExternalOffset = Number(body.externalOffset ?? request.nextUrl.searchParams.get("externalOffset") ?? "");
+    const bodyExternalLimit = Number(body.externalLimit ?? request.nextUrl.searchParams.get("externalLimit") ?? "");
+    const bodyExternalTotalLimit = Number(body.externalTotalLimit ?? request.nextUrl.searchParams.get("externalTotalLimit") ?? "");
+    const externalOffset = Number.isFinite(bodyExternalOffset) && bodyExternalOffset > 0 ? Math.floor(bodyExternalOffset) : 0;
+    const externalLimit = Number.isFinite(bodyExternalLimit) && bodyExternalLimit > 0
+      ? Math.min(Math.floor(bodyExternalLimit), includeDebug ? MAX_DEBUG_EXTERNAL_LIMIT : EXTERNAL_BATCH_LIMIT)
+      : (includeDebug && Number.isFinite(requestedExternalLimit) && requestedExternalLimit > 0
+        ? Math.min(Math.floor(requestedExternalLimit), MAX_DEBUG_EXTERNAL_LIMIT)
+        : EXTERNAL_BATCH_LIMIT);
+    const externalTotalLimit = Number.isFinite(bodyExternalTotalLimit) && bodyExternalTotalLimit > 0
+      ? Math.min(Math.floor(bodyExternalTotalLimit), includeDebug ? MAX_DEBUG_EXTERNAL_LIMIT : EXTERNAL_TOTAL_LOOKUP_LIMIT)
+      : EXTERNAL_TOTAL_LOOKUP_LIMIT;
+    const startedAt = Date.now();
     const errors: LibrarySearchError[] = [];
     const textnextBooks = Array.isArray(body.textnextBooks)
       ? (body.textnextBooks as TextnextBookInput[])
@@ -711,11 +838,14 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
     let ndlRawCount = 0;
     let ndlWithIsbnCount = 0;
     let ndlDebug: NdlProviderDebug | undefined;
+    const providerElapsedMs: Record<string, number> = {};
     const externalProviderBreakdown: LibrarySearchDebug["externalProviderBreakdown"] = {};
     if (mode === "keyword" && query.length > 2) {
       for (const provider of bookSearchProviders) {
         try {
+          const providerStartedAt = Date.now();
           const result = await provider(query, noCache);
+          providerElapsedMs[result.provider] = Date.now() - providerStartedAt;
           externalProviderBreakdown[result.provider] = {
             rawCount: result.rawCount,
             withIsbnCount: result.withIsbnCount,
@@ -743,20 +873,27 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
 
     const externalByIsbn = new Map<string, ExternalBookCandidate>();
     for (const candidate of externalCandidates) {
-      if (!externalByIsbn.has(candidate.isbn)) {
+      const existing = externalByIsbn.get(candidate.isbn);
+      if (existing) {
+        externalByIsbn.set(candidate.isbn, mergeExternalCandidate(existing, candidate));
+      } else {
         externalByIsbn.set(candidate.isbn, candidate);
       }
     }
-    externalCandidates = Array.from(externalByIsbn.values());
-    const externalCandidatesBeforeLimit = [...externalCandidates];
+    externalCandidates = Array.from(externalByIsbn.values())
+      .map((candidate) => scoreExternalCandidate(candidate, query))
+      .sort((a, b) => (b.score || 0) - (a.score || 0));
+    const externalCandidatesBeforeLimit = externalCandidates
+      .filter((book) => !textnextIsbns.includes(book.isbn))
+      .slice(0, externalTotalLimit);
 
-    const externalIsbns = externalCandidates
+    const externalBatchCandidates = externalCandidatesBeforeLimit.slice(externalOffset, externalOffset + externalLimit);
+    const externalIsbns = externalBatchCandidates
       .map((book) => book.isbn)
-      .filter((isbn) => !textnextIsbns.includes(isbn))
-      .slice(0, externalLimit);
+      .filter((isbn) => !textnextIsbns.includes(isbn));
     const externalIsbnSet = new Set(externalIsbns);
-    const externalCandidatesAfterLimit = externalCandidates.filter((book) => externalIsbnSet.has(book.isbn));
-    const droppedExternalCandidates = externalCandidates.filter((book) => !externalIsbnSet.has(book.isbn) && !textnextIsbns.includes(book.isbn));
+    const externalCandidatesAfterLimit = externalCandidatesBeforeLimit.filter((book) => externalIsbnSet.has(book.isbn));
+    const droppedExternalCandidates = externalCandidatesBeforeLimit.filter((book) => !externalIsbnSet.has(book.isbn));
 
     const fetchedAt = new Date().toISOString();
     let textnextCalilLookup: CalilLookupResult = {
@@ -775,10 +912,17 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
     };
     let textnextCalilChunks: CalilChunkDebug[] = [];
     let externalCalilChunks: CalilChunkDebug[] = [];
+    let chunkElapsedMs: number[] = [];
+    let returnedDueToTimeBudget = false;
+    let pendingChunkCount = 0;
+    let calilElapsedMs = 0;
     try {
-      const result = await fetchCalilAvailabilityInChunks(textnextIsbns, 5, "textnext", noCache);
+      const calilStartedAt = Date.now();
+      const result = await fetchCalilAvailabilityInChunks(textnextIsbns, 5, "textnext", noCache, CALIL_CONCURRENCY);
       textnextCalilLookup = result.lookup;
       textnextCalilChunks = result.chunks;
+      chunkElapsedMs = [...chunkElapsedMs, ...result.chunkElapsedMs];
+      calilElapsedMs += Date.now() - calilStartedAt;
       if (!textnextCalilLookup.completed) {
         errors.push({
           source: "calil",
@@ -800,9 +944,21 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
     }
 
     try {
-      const result = await fetchCalilAvailabilityInChunks(externalIsbns, 3, "external", noCache);
+      const calilStartedAt = Date.now();
+      const result = await fetchCalilAvailabilityInChunks(
+        externalIsbns,
+        CALIL_CHUNK_SIZE,
+        "external",
+        noCache,
+        CALIL_CONCURRENCY,
+        EXTERNAL_BATCH_TIME_BUDGET_MS
+      );
       externalCalilLookup = result.lookup;
       externalCalilChunks = result.chunks;
+      chunkElapsedMs = [...chunkElapsedMs, ...result.chunkElapsedMs];
+      returnedDueToTimeBudget = result.returnedDueToTimeBudget;
+      pendingChunkCount = result.pendingChunkCount;
+      calilElapsedMs += Date.now() - calilStartedAt;
       if (!externalCalilLookup.completed) {
         errors.push({
           source: "calil",
@@ -830,15 +986,21 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       })
       .filter(Boolean) as LibraryBook[];
 
-    const externalResults = externalCandidates
+    const externalResults = externalBatchCandidates
       .filter((book) => externalIsbns.includes(book.isbn))
       .map((book) => toExternalLibraryBook(book, externalCalilLookup.books.get(book.isbn), fetchedAt))
       .filter((book): book is LibraryBook => Boolean(book))
-      .slice(0, 8);
+      .slice(0, EXTERNAL_DISPLAY_LIMIT);
 
     const textnextCalilHitCount = textnextResults.filter((book) => book.hasHolding).length;
     const mergedCalilLookup = mergeCalilLookups([textnextCalilLookup, externalCalilLookup]);
     const calilChunks: CalilChunkDebug[] = [...textnextCalilChunks, ...externalCalilChunks];
+    const completedExternalIsbnCount = externalCalilChunks.reduce((sum, chunk) => sum + chunk.isbnCount, 0);
+    const externalCheckedCount = Math.min(
+      externalCandidatesBeforeLimit.length,
+      externalOffset + completedExternalIsbnCount
+    );
+    const externalHasMore = externalCheckedCount < externalCandidatesBeforeLimit.length;
     const debug: LibrarySearchDebug = {
       query,
       mode,
@@ -859,6 +1021,28 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       sampleExternalTitles: externalCandidates.slice(0, 5).map((book) => book.title),
       sampleExternalIsbns: externalIsbns.slice(0, 8),
       externalProviderBreakdown,
+      totalElapsedMs: Date.now() - startedAt,
+      providerElapsedMs,
+      calilElapsedMs,
+      chunkElapsedMs,
+      calilConcurrency: CALIL_CONCURRENCY,
+      externalBatchLimit: externalLimit,
+      externalTotalLookupLimit: externalTotalLimit,
+      externalDisplayLimit: EXTERNAL_DISPLAY_LIMIT,
+      externalOffset,
+      externalCheckedCount,
+      externalTotalCount: externalCandidatesBeforeLimit.length,
+      externalHasMore,
+      returnedDueToTimeBudget,
+      pendingChunkCount,
+      candidateScoringSamples: externalCandidatesBeforeLimit.slice(0, 10).map((book) => ({
+        title: book.title,
+        isbn: book.isbn,
+        providers: book.providers || [book.provider],
+        score: book.score,
+        looksLikeArticle: book.looksLikeArticle,
+        titleIncludesQuery: query.trim().length > 0 && book.title.toLowerCase().includes(query.trim().toLowerCase()),
+      })),
       ndlRequestUrlWithoutSecrets: ndlDebug?.requestUrlWithoutSecrets,
       ndlHttpStatus: ndlDebug?.httpStatus,
       ndlResponseContentType: ndlDebug?.responseContentType,
@@ -893,6 +1077,14 @@ async function handleLibrarySearch(request: NextRequest, body: any) {
       textnextResults,
       externalResults,
       errors,
+      progress: {
+        externalTotalCount: externalCandidatesBeforeLimit.length,
+        externalCheckedCount,
+        externalOffset,
+        externalLimit,
+        externalHasMore,
+        externalCompleted: !externalHasMore,
+      },
       debug: includeDebug ? debug : undefined,
       // Backward-compatible aliases for the current client while rollout completes.
       textnext: textnextResults,

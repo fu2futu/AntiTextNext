@@ -68,6 +68,14 @@ type LibraryState = {
   error: string;
   textnext: LibraryBook[];
   suggestions: LibraryBook[];
+  progress?: {
+    externalTotalCount: number;
+    externalCheckedCount: number;
+    externalOffset: number;
+    externalLimit: number;
+    externalHasMore: boolean;
+    externalCompleted: boolean;
+  };
   errors?: Array<{ source: string; message: string }>;
   debug?: Record<string, unknown>;
   fetchedAt?: string;
@@ -408,35 +416,78 @@ function SearchContent() {
     const seq = libraryRequestSeqRef.current + 1;
     libraryRequestSeqRef.current = seq;
     const debounceTimer = setTimeout(async () => {
-      setLibraryState((current) => ({
-        ...current,
+      const mergeExternalBooks = (existing: LibraryBook[], incoming: LibraryBook[]) => {
+        const map = new Map<string, LibraryBook>();
+        for (const book of existing) map.set(book.isbn, book);
+        for (const book of incoming) {
+          if (!map.has(book.isbn)) map.set(book.isbn, book);
+        }
+        return Array.from(map.values()).slice(0, 8);
+      };
+
+      setLibraryState({
         loading: true,
         error: "",
-      }));
+        textnext: [],
+        suggestions: [],
+        errors: [],
+      });
 
       try {
-        const response = await fetch("/api/library/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            query,
-            mode: searchMode,
-            textnextBooks,
-          }),
-        });
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error || "library_search_failed");
-        if (libraryRequestSeqRef.current !== seq) return;
+        let offset = 0;
+        let hasMore = true;
+        let textnextLibraryResults: LibraryBook[] = [];
+        let externalLibraryResults: LibraryBook[] = [];
+        let latestErrors: Array<{ source: string; message: string }> = [];
+        let latestDebug: Record<string, unknown> | undefined;
+        let latestFetchedAt: string | undefined;
+        let latestProgress: LibraryState["progress"];
 
-        setLibraryState({
-          loading: false,
-          error: "",
-          textnext: payload.textnextResults ?? payload.textnext ?? [],
-          suggestions: payload.externalResults ?? payload.suggestions ?? [],
-          errors: payload.errors ?? [],
-          debug: payload.debug,
-          fetchedAt: payload.fetchedAt,
-        });
+        while (hasMore && libraryRequestSeqRef.current === seq) {
+          const response = await fetch("/api/library/search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query,
+              mode: searchMode,
+              textnextBooks: offset === 0 ? textnextBooks : [],
+              externalOffset: offset,
+              externalLimit: 9,
+              externalTotalLimit: 30,
+            }),
+          });
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.error || "library_search_failed");
+          if (libraryRequestSeqRef.current !== seq) return;
+
+          if (offset === 0) {
+            textnextLibraryResults = payload.textnextResults ?? payload.textnext ?? [];
+          }
+          externalLibraryResults = mergeExternalBooks(
+            externalLibraryResults,
+            payload.externalResults ?? payload.suggestions ?? []
+          );
+          latestErrors = payload.errors ?? [];
+          latestDebug = payload.debug;
+          latestFetchedAt = payload.fetchedAt;
+          latestProgress = payload.progress;
+          hasMore = Boolean(payload.progress?.externalHasMore);
+          offset = Number(payload.progress?.externalCheckedCount ?? offset + 9);
+
+          setLibraryState({
+            loading: hasMore,
+            error: "",
+            textnext: textnextLibraryResults,
+            suggestions: externalLibraryResults,
+            errors: latestErrors,
+            debug: latestDebug,
+            fetchedAt: latestFetchedAt,
+            progress: latestProgress,
+          });
+
+          if (searchMode === "selected_item") break;
+          if (offset <= Number(payload.progress?.externalOffset ?? -1)) break;
+        }
       } catch (err: any) {
         if (libraryRequestSeqRef.current !== seq) return;
         setLibraryState({
@@ -891,9 +942,11 @@ function LibrarySearchSection({
       </div>
 
       {state.loading && (
-        <div className="flex items-center gap-2 rounded-2xl bg-gray-50 px-4 py-4 text-sm font-semibold text-gray-500">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-gray-50 px-4 py-4 text-sm font-semibold text-gray-500">
           <Loader2 className="h-4 w-4 animate-spin" />
-          読み込み中...
+          {state.progress && state.progress.externalTotalCount > 0
+            ? `関連する図書館候補を確認中... ${state.progress.externalCheckedCount} / ${state.progress.externalTotalCount}`
+            : "読み込み中..."}
         </div>
       )}
 
@@ -903,13 +956,13 @@ function LibrarySearchSection({
         </div>
       )}
 
-      {!state.loading && !state.error && state.errors && state.errors.length > 0 && (
+      {!state.error && state.errors && state.errors.length > 0 && (
         <div className="mb-4 rounded-2xl bg-yellow-50 px-4 py-3 text-xs font-semibold text-yellow-700">
           図書館情報の一部を取得できませんでした。
         </div>
       )}
 
-      {!state.loading && !state.error && hasTextnext && (
+      {!state.error && hasTextnext && (
         <div className="space-y-3">
           <h3 className="text-sm font-black text-gray-700">
             TextNextの検索結果に関連する本
@@ -920,7 +973,7 @@ function LibrarySearchSection({
         </div>
       )}
 
-      {!state.loading && !state.error && hasSuggestions && (
+      {!state.error && hasSuggestions && (
         <div className={hasTextnext ? "mt-7 space-y-3" : "space-y-3"}>
           <h3 className="text-sm font-black text-gray-700">
             もしかして図書館ではこんな本が見つかりました
@@ -929,6 +982,12 @@ function LibrarySearchSection({
             <LibraryBookCard key={`external-${book.isbn}`} book={book} />
           ))}
         </div>
+      )}
+
+      {!state.loading && !state.error && state.progress?.externalCompleted && (hasSuggestions || hasTextnext) && (
+        <p className="mt-4 text-center text-xs font-semibold text-gray-400">
+          図書館候補の確認が完了しました
+        </p>
       )}
 
       {showNotFound && (
