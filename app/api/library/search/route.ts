@@ -63,7 +63,7 @@ async function fetchCalilOnce(isbns: string[]) {
   const appKey = process.env.CALIL_APP_KEY;
   if (!appKey) throw new Error("missing_calil_app_key");
 
-  const systemId = process.env.CALIL_SYSTEM_ID || "TokyoTech";
+  const systemId = process.env.CALIL_SYSTEM_ID || "Univ_Titech";
   const url = new URL("https://api.calil.jp/check");
   url.searchParams.set("appkey", appKey);
   url.searchParams.set("isbn", isbns.join(","));
@@ -81,7 +81,7 @@ async function fetchCalilAvailability(isbns: string[]) {
   const normalized = unique(isbns.map(normalizeIsbn).filter(isIsbn13)).slice(0, 20);
   if (normalized.length === 0) return new Map<string, any>();
 
-  const cacheKey = `${process.env.CALIL_SYSTEM_ID || "TokyoTech"}:${normalized.sort().join(",")}`;
+  const cacheKey = `${process.env.CALIL_SYSTEM_ID || "Univ_Titech"}:${normalized.sort().join(",")}`;
   const cached = calilCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
 
@@ -103,7 +103,7 @@ async function fetchCalilAvailability(isbns: string[]) {
     payload = JSON.parse(text);
   }
 
-  const systemId = process.env.CALIL_SYSTEM_ID || "TokyoTech";
+  const systemId = process.env.CALIL_SYSTEM_ID || "Univ_Titech";
   const books = new Map<string, any>();
   for (const isbn of normalized) {
     const result = payload?.books?.[isbn]?.[systemId] ?? null;
