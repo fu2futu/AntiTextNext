@@ -56,19 +56,6 @@ npm install
 
 ### 2. 環境変数
 
-`.env.example` をコピーして `.env.local` を作成し、実値を入れます。
-
-```bash
-cp .env.example .env.local
-```
-
-重要:
-
-- `.env.local` は Git 管理しません。
-- `NEXT_PUBLIC_*` はブラウザに公開されます。
-- `SUPABASE_SERVICE_ROLE_KEY`, `R2_SECRET_ACCESS_KEY`, `STRIPE_SECRET_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, `GOOGLE_BOOKS_API_KEY`, `CALIL_APP_KEY` などはサーバー専用です。
-- 実キーを `.env.example` や README に書かないでください。
-
 主な環境変数:
 
 ```txt
@@ -102,8 +89,6 @@ WEB_PUSH_CONTACT
 ```bash
 npm run dev
 ```
-
-ブラウザで `http://localhost:3000` を開きます。
 
 ### 4. ビルド
 
@@ -192,23 +177,9 @@ DB定義、RLS、RPC は `supabase/migrations/` にあります。
 - サーバー側Push送信: `lib/web-push.ts`
 - 購読API: `app/api/push/subscription/route.ts`
 
-ブラウザ版PWAのPushと、CapacitorネイティブアプリのPushは仕組みが異なります。ネイティブPushを本格対応する場合は Capacitor Push Notifications 側の実装が別途必要です。
-
 ## Capacitor アプリ
 
-Capacitor関連の詳細は [CAPACITOR_APP.md](CAPACITOR_APP.md) を参照してください。
-
-主なコマンド:
-
-```bash
-npm run cap:sync
-npm run cap:ios
-npm run cap:android
-npm run cap:ios:dev
-npm run cap:ios:prod
-```
-
-通常のWeb機能追加は Vercel へ反映すればアプリ側にも反映されます。ただし、アイコン、スプラッシュ、ネイティブ権限、ネイティブPush、Capacitorプラグイン追加は再ビルド・再提出が必要です。
+アプリ化取組中（6/11現在）。Capacitor関連の詳細は [CAPACITOR_APP.md](CAPACITOR_APP.md) を参照してください。
 
 ## ドキュメント
 
@@ -220,18 +191,3 @@ npm run cap:ios:prod
   - Supabase セットアップ関連
 - [SECURITY_CHECKLIST_STRIPE.md](SECURITY_CHECKLIST_STRIPE.md)
   - Stripe セキュリティ確認
-
-## 開発時の注意
-
-- 実シークレットを `.env.example`、README、Issue、PR本文に書かないでください。
-- `.env.local` と Vercel の Environment Variables に実値を置いてください。
-- `NEXT_PUBLIC_*` は公開値として扱ってください。
-- DB変更は `supabase/migrations/` に追加してください。
-- RLSとRPCの権限確認を忘れないでください。
-- 管理者向けAPIは `requireAdmin` またはDB側の管理者チェックを通してください。
-- 通常画面には `is_demo = false` のみを出す方針です。
-- 削除済み・BAN済み・取引中商品の表示条件は、通常画面と管理画面で意図的に分けています。
-
-## ライセンス
-
-Private - 学内利用限定
