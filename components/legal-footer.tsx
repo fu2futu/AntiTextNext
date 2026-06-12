@@ -3,59 +3,9 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { PRIVACY_POLICY_TEXT, TERMS_TEXT } from "@/lib/legal";
+import { renderLegalText } from "@/components/legal-text-renderer";
 
 type LegalKind = "terms" | "privacy";
-
-function renderLegalText(text: string) {
-  return text.split("\n").map((line, index) => {
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      return <div key={index} className="h-4" />;
-    }
-
-    if (index === 0) {
-      return (
-        <h3 key={index} className="mb-5 text-xl font-black text-gray-900">
-          {trimmed}
-        </h3>
-      );
-    }
-
-    if (/^第\d+条/.test(trimmed) || trimmed === "附則") {
-      return (
-        <h4
-          key={index}
-          className="sticky top-0 z-10 mt-6 mb-3 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow-sm"
-        >
-          {trimmed}
-        </h4>
-      );
-    }
-
-    if (/^\d+\./.test(trimmed)) {
-      return (
-        <p key={index} className="mt-4 font-bold text-gray-900">
-          {trimmed}
-        </p>
-      );
-    }
-
-    if (/^\(\d+\)/.test(trimmed)) {
-      return (
-        <p key={index} className="ml-4 text-sm leading-7 text-gray-700">
-          {trimmed}
-        </p>
-      );
-    }
-
-    return (
-      <p key={index} className="text-sm leading-7 text-gray-700">
-        {trimmed}
-      </p>
-    );
-  });
-}
 
 export function LegalLinksPanel() {
   const [active, setActive] = useState<LegalKind | null>(null);
