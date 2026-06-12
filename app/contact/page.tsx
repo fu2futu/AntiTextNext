@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
 import {
@@ -32,8 +31,7 @@ const CATEGORIES = [
 type Step = "input" | "confirm" | "done" | "error";
 
 export default function ContactPage() {
-    const router = useRouter();
-    const { user, loading: authLoading } = useAuth();
+    const { user } = useAuth();
     const [step, setStep] = useState<Step>("input");
     const [sending, setSending] = useState(false);
 
@@ -69,17 +67,18 @@ export default function ContactPage() {
         fetchProfile();
     }, [user]);
 
-    useEffect(() => {
-        if (!authLoading && !user) {
-            router.push("/auth/login");
-        }
-    }, [user, authLoading, router]);
+    const returnHref = user ? "/profile" : "/";
 
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
+        const trimmedEmail = email.trim();
         if (!username.trim()) newErrors.username = "ユーザー名を入力してください";
         if (username.trim().length > INPUT_LIMITS.contactUsernameMax) newErrors.username = `ユーザー名は${INPUT_LIMITS.contactUsernameMax}文字以内で入力してください`;
-        if (!email.trim()) newErrors.email = "メールアドレスを入力してください";
+        if (!trimmedEmail) {
+            newErrors.email = "メールアドレスを入力してください";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+            newErrors.email = "有効なメールアドレスを入力してください";
+        }
         if (!category) newErrors.category = "お問い合わせ概要を選択してください";
         if (!content.trim()) newErrors.content = "お問い合わせ内容を入力してください";
         if (content.trim().length < INPUT_LIMITS.contactContentMin) newErrors.content = `お問い合わせ内容は${INPUT_LIMITS.contactContentMin}文字以上で入力してください`;
@@ -136,21 +135,13 @@ export default function ContactPage() {
 
     const categoryInfo = CATEGORIES.find(c => c.value === category);
 
-    if (authLoading) {
-        return (
-            <div className="min-h-screen bg-white flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
-        );
-    }
-
     // ===== 送信完了 =====
     if (step === "done") {
         return (
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/profile">
+                        <Link href={returnHref}>
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -174,11 +165,11 @@ export default function ContactPage() {
                             しばらくお待ちください。
                         </p>
                         <Link
-                            href="/profile"
+                            href={returnHref}
                             className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-all shadow-md animate-slide-in-left"
                             style={{ animationDelay: '200ms' }}
                         >
-                            マイページに戻る
+                            {user ? "マイページに戻る" : "トップに戻る"}
                         </Link>
                     </div>
                 </div>
@@ -192,7 +183,7 @@ export default function ContactPage() {
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/profile">
+                        <Link href={returnHref}>
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -368,7 +359,7 @@ export default function ContactPage() {
         <div className="min-h-screen bg-white">
             <header className="bg-white px-6 pt-8 pb-6 border-b">
                 <div className="flex items-center gap-4">
-                    <Link href="/profile">
+                    <Link href={returnHref}>
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
                     <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -411,6 +402,11 @@ export default function ContactPage() {
                                     取引相手とのトラブルや不審な行為があった場合は、こちらからお問い合わせください。運営側で取引内容やチャット履歴等を確認し、必要に応じて相手ユーザーへの確認、警告、利用制限、アカウント停止等の対応を行います。なお、運営から相手ユーザーのメールアドレス等の個人情報を開示することはありません。
                                 </p>
                             </div>
+                            {!user && (
+                                <div className="rounded-2xl border border-amber-100 bg-amber-50/80 p-4 text-sm leading-relaxed text-amber-900 animate-slide-in-left">
+                                    未ログインでも送信できます。返信が必要な場合があるため、連絡可能なメールアドレスを入力してください。
+                                </div>
+                            )}
 
                             {/* ユーザー名 */}
                             <div className="animate-slide-in-left">

@@ -1,12 +1,25 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase-server';
 import { INPUT_LIMITS } from '@/lib/input-limits';
+
+const createServiceClient = () => {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!serviceKey || !supabaseUrl) return null;
+    return createClient(supabaseUrl, serviceKey, {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false,
+        },
+    });
+};
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const username = String(body.username || '').trim();
-        const email = String(body.email || '').trim();
+        const email = String(body.email || '').trim().toLowerCase();
         const category = String(body.category || '').trim();
         const categoryLabel = String(body.categoryLabel || '').trim();
         const content = String(body.content || '').trim();
@@ -15,6 +28,13 @@ export async function POST(request: NextRequest) {
         if (!username || !email || !category || !content) {
             return NextResponse.json(
                 { success: false, error: '必須項目が入力されていません' },
+                { status: 400 }
+            );
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return NextResponse.json(
+                { success: false, error: '有効なメールアドレスを入力してください' },
                 { status: 400 }
             );
         }
@@ -44,27 +64,30 @@ export async function POST(request: NextRequest) {
         const supabase = createSupabaseServerClient();
         const { data: { user } } = await supabase.auth.getUser();
 
-        if (!user) {
-            return NextResponse.json(
-                { success: false, error: 'ログインが必要です' },
-                { status: 401 }
-            );
-        }
+        const storageClient = user ? supabase : createServiceClient();
+        let inquiryError: any = storageClient
+            ? null
+            : { message: 'SUPABASE_SERVICE_ROLE_KEY is not set for guest contact submission' };
+        let inquiry: { id?: string } | null = null;
 
-        const { data: inquiry, error: inquiryError } = await (supabase as any).from('inquiries').insert({
-            sender_user_id: user.id,
-            sender_name: username,
-            email,
-            category,
-            content,
-            status: 'open',
-            has_unread_user_message: true,
-            last_user_message_at: new Date().toISOString(),
-        }).select('id').single();
+        if (storageClient) {
+            const result = await (storageClient as any).from('inquiries').insert({
+                sender_user_id: user?.id ?? null,
+                sender_name: username,
+                email,
+                category,
+                content,
+                status: 'open',
+                has_unread_user_message: true,
+                last_user_message_at: new Date().toISOString(),
+            }).select('id').single();
+            inquiry = result.data;
+            inquiryError = result.error;
+        }
 
         if (inquiryError) {
             console.error('Inquiry insert error:', inquiryError);
-        } else if (inquiry?.id) {
+        } else if (user && inquiry?.id) {
             const { error: messageError } = await (supabase as any).from('inquiry_messages').insert({
                 inquiry_id: inquiry.id,
                 sender_user_id: user.id,
@@ -95,6 +118,8 @@ export async function POST(request: NextRequest) {
                 category,
                 categoryLabel,
                 content,
+                userId: user?.id ?? null,
+                isGuest: !user,
                 timestamp: new Date().toISOString(),
             }),
         });
