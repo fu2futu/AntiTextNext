@@ -90,24 +90,12 @@ export async function POST(request: NextRequest) {
 
     let storageDeleteTargets: string[] = [];
     let storageDeleteFailed = 0;
+    let storageDeleteErrors: string[] = [];
 
     if (item.image_storage_provider === "r2") {
       storageDeleteTargets = safeR2Paths(itemId, item);
-      const results = await Promise.allSettled(storageDeleteTargets.map((path) => deleteR2Object(path)));
-      storageDeleteFailed = results.filter((result) => result.status === "rejected").length;
     } else {
       storageDeleteTargets = safeSupabasePaths(item);
-      if (storageDeleteTargets.length > 0) {
-        const storageClient = createServiceClient() ?? supabase;
-        const { error } = await storageClient.storage.from("item-images").remove(storageDeleteTargets);
-        if (error) {
-          storageDeleteFailed = storageDeleteTargets.length;
-        }
-      }
-    }
-
-    if (storageDeleteFailed > 0) {
-      return NextResponse.json({ error: "画像削除に失敗したため、出品削除を中止しました" }, { status: 500 });
     }
 
     const { data: purgeResult, error: purgeError } = await (supabase as any).rpc("user_purge_own_untransacted_item", {
@@ -121,9 +109,48 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 500 });
     }
 
+    if (item.image_storage_provider === "r2") {
+      const results = await Promise.allSettled(storageDeleteTargets.map((path) => deleteR2Object(path)));
+      storageDeleteFailed = results.filter((result) => result.status === "rejected").length;
+      storageDeleteErrors = results
+        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+        .map((result) => result.reason?.message || String(result.reason || "unknown error"));
+    } else if (storageDeleteTargets.length > 0) {
+      const storageClient = createServiceClient() ?? supabase;
+      const { error } = await storageClient.storage.from("item-images").remove(storageDeleteTargets);
+      if (error) {
+        storageDeleteFailed = storageDeleteTargets.length;
+        storageDeleteErrors = [error.message];
+      }
+    }
+
+    if (storageDeleteFailed > 0) {
+      console.error("Item purged but image deletion failed", {
+        itemId,
+        storageProvider: item.image_storage_provider,
+        failed: storageDeleteFailed,
+        errors: storageDeleteErrors,
+      });
+
+      await (supabase as any).from("listing_image_error_logs").insert({
+        user_id: session.user.id,
+        item_id: itemId,
+        stage: "purge_owned_storage_delete",
+        side: "unknown",
+        message: "出品DB削除後の画像削除に失敗しました",
+        metadata: {
+          storageProvider: item.image_storage_provider,
+          targets: storageDeleteTargets,
+          errors: storageDeleteErrors,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       storageDeleted: storageDeleteTargets.length,
+      storageDeleteFailed,
+      warning: storageDeleteFailed > 0 ? "storage_delete_failed" : undefined,
       purgeResult,
     });
   } catch (err: any) {

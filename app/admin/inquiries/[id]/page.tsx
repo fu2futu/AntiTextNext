@@ -63,7 +63,20 @@ export default async function AdminInquiryDetailPage({ params }: { params: { id:
               <Field label="状態" value={<StatusBadge value={inquiry.status} />} />
               <Field label="送信者" value={inquiry.sender_name || "-"} />
               <Field label="送信者ユーザー" value={<AdminUserLink id={inquiry.sender_user_id} name={(senderProfile as any)?.nickname || inquiry.sender_name} />} />
-              <Field label="メールアドレス" value={maskEmail(inquiry.email)} />
+              <Field
+                label={inquiry.sender_user_id ? "メールアドレス" : "返信先メールアドレス"}
+                value={
+                  inquiry.sender_user_id ? (
+                    maskEmail(inquiry.email)
+                  ) : inquiry.email ? (
+                    <a className="text-primary hover:underline" href={`mailto:${inquiry.email}`}>
+                      {inquiry.email}
+                    </a>
+                  ) : (
+                    "-"
+                  )
+                }
+              />
               <Field label="種別" value={inquiry.category} />
               <Field label="担当者" value={inquiry.assignee_id || "-"} />
               <Field label="作成/更新" value={`${formatAdminDate(inquiry.created_at)} / ${formatAdminDate(inquiry.updated_at)}`} />
