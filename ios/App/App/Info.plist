@@ -24,6 +24,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>出品画像の撮影、バーコード読み取り、教材画像の登録にカメラを使用します。</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>出品する教材画像を写真ライブラリから選択するために使用します。</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>撮影した画像を端末に保存する場合に使用します。</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

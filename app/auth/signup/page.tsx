@@ -6,7 +6,6 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Mail, Lock, CheckCircle, X } from "lucide-react";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, PRIVACY_POLICY_TEXT, TERMS_TEXT } from "@/lib/legal";
-import { isAllowedAdminEmail, isRegisteredEmail } from "@/lib/admin";
 
 type LegalKind = "terms" | "privacy";
 
@@ -124,20 +123,15 @@ export default function SignupPage() {
             return;
         }
 
-        // Validate email domain
-        const isCampusEmail = normalizedEmail.endsWith("@m.isct.ac.jp");
-        const isRegisteredAdminEmail = isCampusEmail
-            ? false
-            : await isAllowedAdminEmail(supabase as any, normalizedEmail);
-        const alreadyRegistered = await isRegisteredEmail(supabase as any, normalizedEmail);
+        const eligibilityRes = await fetch("/api/auth/signup-eligibility", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: normalizedEmail }),
+        });
+        const eligibility = await eligibilityRes.json().catch(() => ({}));
 
-        if (alreadyRegistered) {
-            showError("このアドレスはすでに登録されています");
-            return;
-        }
-
-        if (!isCampusEmail && !isRegisteredAdminEmail) {
-            showError("学内メールアドレス（@m.isct.ac.jp）または登録済みの管理者メールアドレスを使用してください");
+        if (!eligibilityRes.ok || !eligibility.allowed) {
+            showError(eligibility.error || "このメールアドレスでは登録できません");
             return;
         }
 

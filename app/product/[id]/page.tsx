@@ -27,6 +27,7 @@ export default async function ProductDetailPage({
       .from("items")
       .select(`${itemFields}, profiles!items_seller_id_fkey_profiles(nickname, avatar_url, department, major, degree, grade, created_at)`)
       .eq("id", id)
+      .eq("is_demo", false)
       .single();
 
     if (itemError || !itemData) {
@@ -48,8 +49,8 @@ export default async function ProductDetailPage({
       { data: sellerBadges },
       { data: sellerRewardOverride },
     ] = await Promise.all([
-      supabase.from("ratings").select("score").eq("rated_id", sellerId),
-      supabase.from("items").select("*", { count: "exact", head: true }).eq("seller_id", sellerId).neq("status", "deleted"),
+      supabase.from("ratings").select("score").eq("rated_id", sellerId).eq("is_demo", false),
+      supabase.from("items").select("*", { count: "exact", head: true }).eq("seller_id", sellerId).neq("status", "deleted").eq("is_demo", false),
       supabase.from("transactions").select("*", { count: "exact", head: true }).eq("seller_id", sellerId).eq("status", "completed"),
       (supabase as any).from("reward_settings").select("*").eq("id", "early_registration").single(),
       (supabase as any).from("user_badges").select("id,badge_type,badge_color,label,note").eq("user_id", sellerId).is("revoked_at", null).order("created_at", { ascending: false }),

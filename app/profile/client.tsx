@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
-    Settings,
     Star,
     History,
     BookOpen,
@@ -13,7 +12,7 @@ import {
     Inbox,
     ChevronRight,
     ArrowRight,
-    MoreHorizontal,
+    Settings,
     Shield,
     HelpCircle
 } from "lucide-react";
@@ -270,11 +269,11 @@ export default function MypageClient({
         );
     };
 
-    const renderFavoriteCard = (item: Item) => (
+    const renderFavoriteCard = (item: Item, compact = false) => (
         <div
             key={item.id}
             onClick={() => router.push(`/product/${item.id}`)}
-            className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer group"
+            className={`bg-white ${compact ? "rounded-xl" : "rounded-2xl"} overflow-hidden shadow-sm border border-gray-100 transition-all hover:shadow-md hover:scale-[1.02] cursor-pointer group`}
         >
             <div className={`aspect-square relative flex items-center justify-center bg-gray-50 overflow-hidden ${item.status !== "available" ? "opacity-70" : ""}`}>
                 {getItemImageUrl(item, "front", "thumbnail") ? (
@@ -283,26 +282,26 @@ export default function MypageClient({
                         alt={item.title}
                         fill
                         className="object-cover group-hover:scale-110 transition-transform duration-500"
-                        sizes="50vw"
+                        sizes={compact ? "33vw" : "50vw"}
                         quality={55}
                     />
                 ) : (
-                    <BookOpen className="w-8 h-8 text-gray-200" />
+                    <BookOpen className={`${compact ? "h-6 w-6" : "h-8 w-8"} text-gray-200`} />
                 )}
                 {(item.status === "trading" || item.status === "transaction_pending") && (
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                        <span className="bg-gray-700 text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg tracking-wider">
+                        <span className={`bg-gray-700 text-white font-black rounded-full shadow-lg tracking-wider ${compact ? "px-2 py-1 text-[10px]" : "px-4 py-1.5 text-xs"}`}>
                             取引中
                         </span>
                     </div>
                 )}
-                <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-sm">
-                    <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+                <div className={`absolute bg-white/90 backdrop-blur-sm rounded-full shadow-sm ${compact ? "right-1.5 top-1.5 p-1" : "right-2 top-2 p-1.5"}`}>
+                    <Heart className={`${compact ? "h-3.5 w-3.5" : "h-4 w-4"} text-red-500 fill-red-500`} />
                 </div>
             </div>
-            <div className="p-3 space-y-1">
-                <h4 className={`text-sm font-bold truncate group-hover:text-primary transition-colors ${item.status !== "available" ? "text-gray-400" : "text-gray-900"}`}>{item.title}</h4>
-                <p className={`text-sm font-extrabold ${item.status !== "available" ? "text-gray-400 line-through" : "gradient-text-price"}`}>¥{item.selling_price.toLocaleString()}</p>
+            <div className={`${compact ? "space-y-0.5 p-2" : "space-y-1 p-3"}`}>
+                <h4 className={`${compact ? "text-xs" : "text-sm"} font-bold truncate group-hover:text-primary transition-colors ${item.status !== "available" ? "text-gray-400" : "text-gray-900"}`}>{item.title}</h4>
+                <p className={`${compact ? "text-xs" : "text-sm"} font-extrabold ${item.status !== "available" ? "text-gray-400 line-through" : "gradient-text-price"}`}>¥{item.selling_price.toLocaleString()}</p>
             </div>
         </div>
     );
@@ -335,14 +334,15 @@ export default function MypageClient({
             {/* 左カラム: プロフィール＋各種ボタン＋規約 */}
             <div className="space-y-8 lg:space-y-6 lg:w-80 lg:flex-shrink-0">
                 {/* Profile Section */}
-                <Link
-                    href={`/seller/${user.id}`}
+                <div
+                    onClick={() => router.push(`/seller/${user.id}?from=profile`)}
                     className="group relative bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-md border border-white/50 flex items-center gap-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 cursor-pointer"
                 >
                     {isAdmin && (
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 router.push("/admin");
                             }}
                             className="absolute right-4 top-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-slate-900 text-white shadow-sm transition hover:bg-slate-800 z-10"
@@ -359,8 +359,8 @@ export default function MypageClient({
                         earlyRegistration={earlyRegistrationEligible}
                         adminFrame={isAdmin}
                     />
-                    <div className="flex-1 pr-10">
-                        <h2 className="text-xl font-bold text-gray-900 truncate">
+                    <div className="flex-1 pr-24">
+                        <h2 className="truncate text-xl font-bold text-gray-900">
                             {initialProfile?.nickname || "読み込み中..."}
                         </h2>
                         <RewardBadges badges={badges} />
@@ -377,22 +377,25 @@ export default function MypageClient({
                                 ({averageRating.toFixed(1)})
                             </span>
                         </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                            <div className="rounded-2xl bg-primary/5 px-3 py-2 text-center">
-                                <p className="text-[10px] font-black text-primary/70">出品数</p>
-                                <p className="text-lg font-black text-primary">{listingCount}件</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-left">
+                            <div className="rounded-xl bg-primary/5 px-2.5 py-1.5">
+                                <p className="text-[9px] font-black leading-none text-primary/60">出品数</p>
+                                <p className="mt-0.5 text-sm font-black leading-none text-primary">{listingCount}件</p>
                             </div>
-                            <div className="rounded-2xl bg-gray-50 px-3 py-2 text-center">
-                                <p className="text-[10px] font-black text-gray-500">取引数</p>
-                                <p className="text-lg font-black text-gray-900">{transactionCount}件</p>
+                            <div className="rounded-xl bg-gray-50 px-2.5 py-1.5">
+                                <p className="text-[9px] font-black leading-none text-gray-500">取引数</p>
+                                <p className="mt-0.5 text-sm font-black leading-none text-gray-900">{transactionCount}件</p>
                             </div>
                         </div>
                     </div>
                     {/* 右端の矢印アイコン */}
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 transition-transform group-hover:translate-x-1 group-hover:text-primary/60">
+                    <div className="absolute bottom-5 right-11 text-[10px] font-black text-gray-400 transition-colors group-hover:text-primary/70">
+                        詳細・編集
+                    </div>
+                    <div className="absolute bottom-4 right-4 text-gray-300 transition-transform group-hover:translate-x-1 group-hover:text-primary/60">
                         <ChevronRight className="w-6 h-6" />
                     </div>
-                </Link>
+                </div>
 
                 {/* PC専用: 右パネル切替メニュー */}
                 <nav className="hidden lg:flex lg:flex-col gap-2">
@@ -417,49 +420,58 @@ export default function MypageClient({
                     })}
                 </nav>
 
-                {/* Profile Edit Button */}
-                <button
-                    onClick={() => router.push("/profile/edit?from=mypage")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center transition-colors group-hover:bg-primary/10">
-                            <Settings className="w-5 h-5 text-primary" />
-                        </div>
-                        <span className="font-bold text-gray-700">{t('profile.edit_profile')}</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
-                </button>
-
-                <button
-                    onClick={() => router.push("/profile/inquiries")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-100">
-                            <Inbox className="w-5 h-5 text-primary" />
-                        </div>
-                        <span className="font-bold text-gray-700">お問い合わせ履歴</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
-                </button>
-
-                {/* その他設定ボタン */}
+                {/* 設定ボタン */}
                 <button
                     onClick={() => router.push("/settings")}
                     className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                 >
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center transition-colors group-hover:bg-gray-200">
-                            <MoreHorizontal className="w-5 h-5 text-gray-500" />
+                            <Settings className="w-5 h-5 text-gray-500" />
                         </div>
-                        <span className="font-bold text-gray-700">{t('profile.settings')}</span>
+                        <span className="font-bold text-gray-700">設定</span>
                     </div>
                     <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                 </button>
 
                 <section className="space-y-3">
-                    <h3 className="px-1 text-sm font-black text-gray-500">規約・ポリシー</h3>
+                    <h3 className="flex items-center gap-3 px-1 text-sm font-black text-gray-500">
+                        <span>お問い合わせ</span>
+                        <span className="h-px flex-1 bg-gray-200" />
+                    </h3>
+                    <div className="space-y-2">
+                        <button
+                            onClick={() => router.push("/contact")}
+                            className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center transition-colors group-hover:bg-primary/15">
+                                    <ArrowRight className="w-5 h-5 text-primary" />
+                                </div>
+                                <span className="font-bold text-gray-700">お問い合わせはこちらから</span>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
+                        </button>
+                        <button
+                            onClick={() => router.push("/profile/inquiries")}
+                            className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-100">
+                                    <Inbox className="w-5 h-5 text-primary" />
+                                </div>
+                                <span className="font-bold text-gray-700">お問い合わせ履歴</span>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
+                        </button>
+                    </div>
+                </section>
+
+                <section className="space-y-3">
+                    <h3 className="flex items-center gap-3 px-1 text-sm font-black text-gray-500">
+                        <span>規約・ポリシー</span>
+                        <span className="h-px flex-1 bg-gray-200" />
+                    </h3>
                     <LegalLinksPanel />
                 </section>
 
@@ -477,7 +489,7 @@ export default function MypageClient({
                             <span className="text-sm font-bold text-red-500">{favoriteItems.length}件</span>
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                            {favoriteItems.map(renderFavoriteCard)}
+                            {favoriteItems.map((item) => renderFavoriteCard(item))}
                             {favoriteItems.length === 0 && (
                                 <div className="col-span-2 lg:col-span-3 py-12 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
                                     <Heart className="w-10 h-10 text-gray-200 mx-auto mb-2" />
@@ -512,28 +524,28 @@ export default function MypageClient({
                         <History className="w-5 h-5 text-primary" />
                         {t('profile.history')}
                     </h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                         <button
                             onClick={() => setActiveTab(activeTab === "past" ? null : "past")}
-                            className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${activeTab === "past"
-                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/30 scale-105"
+                            className={`rounded-xl border-2 p-3 transition-all flex flex-col items-center gap-1.5 ${activeTab === "past"
+                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/30 scale-[1.02]"
                                     : "bg-white text-gray-700 border-gray-100 shadow-sm hover:border-primary/20"
                                 }`}
                         >
-                            <History className={`w-6 h-6 ${activeTab === "past" ? "text-white" : "text-primary"}`} />
-                            <span className="text-sm font-bold">{t('profile.past_transactions')}</span>
-                            <span className={`text-lg font-extrabold ${activeTab === "past" ? "text-white/90" : "text-primary"}`}>{initialPastItems.length}</span>
+                            <History className={`h-5 w-5 ${activeTab === "past" ? "text-white" : "text-primary"}`} />
+                            <span className="text-xs font-bold">{t('profile.past_transactions')}</span>
+                            <span className={`text-base font-extrabold leading-none ${activeTab === "past" ? "text-white/90" : "text-primary"}`}>{initialPastItems.length}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab(activeTab === "listing" ? null : "listing")}
-                            className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${activeTab === "listing"
-                                    ? "bg-red-500 text-white border-red-500 shadow-lg shadow-red-200 scale-105"
+                            className={`rounded-xl border-2 p-3 transition-all flex flex-col items-center gap-1.5 ${activeTab === "listing"
+                                    ? "bg-red-500 text-white border-red-500 shadow-lg shadow-red-200 scale-[1.02]"
                                     : "bg-white text-gray-700 border-gray-100 shadow-sm hover:border-red-500/20"
                                 }`}
                         >
-                            <BookOpen className={`w-6 h-6 ${activeTab === "listing" ? "text-white" : "text-red-500"}`} />
-                            <span className="text-sm font-bold">{t('profile.listing_items')}</span>
-                            <span className={`text-lg font-extrabold ${activeTab === "listing" ? "text-white/90" : "text-red-500"}`}>{initialListingItems.length}</span>
+                            <BookOpen className={`h-5 w-5 ${activeTab === "listing" ? "text-white" : "text-red-500"}`} />
+                            <span className="text-xs font-bold">{t('profile.listing_items')}</span>
+                            <span className={`text-base font-extrabold leading-none ${activeTab === "listing" ? "text-white/90" : "text-red-500"}`}>{initialListingItems.length}</span>
                         </button>
                     </div>
 
@@ -572,10 +584,10 @@ export default function MypageClient({
                         </h3>
                         <span className="text-sm font-bold text-red-500">{favoriteItems.length}件</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        {favoriteItems.map(renderFavoriteCard)}
+                    <div className="grid grid-cols-3 gap-2.5">
+                        {favoriteItems.map((item) => renderFavoriteCard(item, true))}
                         {favoriteItems.length === 0 && (
-                            <div className="col-span-2 py-12 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
+                            <div className="col-span-3 py-12 text-center bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
                                 <Heart className="w-10 h-10 text-gray-200 mx-auto mb-2" />
                                 <p className="text-sm text-gray-400">お気に入りのアイテムはありません</p>
                             </div>

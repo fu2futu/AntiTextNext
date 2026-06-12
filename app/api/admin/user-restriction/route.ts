@@ -1,8 +1,26 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { createHash } from "crypto";
+import { createClient } from "@supabase/supabase-js";
 import { adminLog, requireAdmin } from "@/lib/admin-utils";
 import { sendAdminNoticeEmail } from "@/lib/email";
 
 const allowedRestrictionTypes = new Set(["warning", "temporary_suspend", "permanent_ban"]);
+
+const createServiceClient = () => {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) return null;
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+};
+
+const hashEmail = (email: string) =>
+  createHash("sha256")
+    .update(`${email.trim().toLowerCase()}:${process.env.ACCOUNT_DELETION_HASH_PEPPER || ""}`)
+    .digest("hex");
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,6 +56,45 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    let targetEmail: string | null = null;
+    if (restrictionType === "permanent_ban") {
+      const { data: email, error: emailError } = await (supabase as any).rpc("admin_get_user_email", {
+        target_user_id: userId,
+        reason: `永久BANに伴う再登録ブロックのため`,
+      });
+
+      if (emailError) {
+        return NextResponse.json({ error: emailError.message }, { status: 500 });
+      }
+
+      targetEmail = email || null;
+      if (targetEmail) {
+        const serviceClient = createServiceClient();
+        if (!serviceClient) {
+          return NextResponse.json({ error: "BANリスト登録の設定が不足しています" }, { status: 500 });
+        }
+
+        const emailHash = hashEmail(targetEmail);
+        const { error: banError } = await (serviceClient as any)
+          .from("account_email_bans")
+          .upsert(
+            {
+              email_hash: emailHash,
+              reason: String(reason).trim(),
+              created_by: user.id,
+              lifted_at: null,
+              lifted_by: null,
+              admin_note: adminNote || null,
+            },
+            { onConflict: "email_hash" }
+          );
+
+        if (banError) {
+          return NextResponse.json({ error: banError.message }, { status: 500 });
+        }
+      }
     }
 
     if (userNotice && String(userNotice).trim()) {
@@ -91,6 +148,7 @@ export async function POST(request: NextRequest) {
       restrictionId: data?.id,
       restrictionType,
       endsAt: restrictionType === "temporary_suspend" ? endsAt || null : null,
+      emailBanSynced: restrictionType === "permanent_ban" && Boolean(targetEmail),
     });
 
     return NextResponse.json({ success: true, restrictionId: data?.id });
@@ -108,7 +166,12 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "対象ユーザーと解除理由が必要です" }, { status: 400 });
     }
 
-    const { supabase } = await requireAdmin();
+    const { supabase, user } = await requireAdmin();
+    const { data: email } = await (supabase as any).rpc("admin_get_user_email", {
+      target_user_id: userId,
+      reason: `BAN/制限解除に伴う再登録ブロック解除のため`,
+    });
+
     const { error } = await (supabase as any)
       .from("user_restrictions")
       .update({ lifted_at: new Date().toISOString() })
@@ -117,6 +180,27 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (email) {
+      const serviceClient = createServiceClient();
+      if (!serviceClient) {
+        return NextResponse.json({ error: "BANリスト解除の設定が不足しています" }, { status: 500 });
+      }
+
+      const { error: liftBanError } = await (serviceClient as any)
+        .from("account_email_bans")
+        .update({
+          lifted_at: new Date().toISOString(),
+          lifted_by: user.id,
+          admin_note: String(reason).trim(),
+        })
+        .eq("email_hash", hashEmail(email))
+        .is("lifted_at", null);
+
+      if (liftBanError) {
+        return NextResponse.json({ error: liftBanError.message }, { status: 500 });
+      }
     }
 
     await adminLog(supabase, "user_restrictions_lifted", "user", userId, String(reason).trim());

@@ -34,11 +34,16 @@
     --app-top-offset: 0px;
     --product-detail-top-gap: 3.5rem;
     --product-detail-desktop-top-gap: 2rem;
+    --chat-top-inset: 0px;
+    --chat-header-height: 4rem;
+    --chat-subbar-height: 3.25rem;
   }
 
   html.capacitor-native {
     --product-detail-top-gap: 4.25rem;
     --product-detail-desktop-top-gap: 2.75rem;
+    --chat-top-inset: max(env(safe-area-inset-top), 1.25rem);
+    --chat-header-height: calc(4rem + var(--chat-top-inset));
   }
 }
 

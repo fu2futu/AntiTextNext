@@ -594,23 +594,19 @@ function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
     const [activeRole, setActiveRole] = useState<"seller" | "buyer">("seller");
 
     const sellerFlow = [
-        "購入リクエストが届くと、その商品は相談中になり、他の人からは触れない状態になります。",
-        "購入者とのチャットで、受け渡し日時や場所を相談します。",
-        "日時と場所が決まったら、チャット内で予定を登録します。",
-        "予定で決めた日時・場所で受け渡しを行います。",
-        "受け渡し後、取引終了と評価を行います。",
-        "条件が合わない場合は、理由を記入して「別の人を選ぶ」から商品を再公開できます。",
-        "理由は相手に伝わり、不当だと感じた場合はお問い合わせできます。",
+        { title: "購入リクエストを承認", description: "購入者とのチャットが作成されます。" },
+        { title: "チャットで日程調整", description: "受け渡し日時・場所を決めます。" },
+        { title: "当日受け渡し", description: "待ち合わせ場所で教科書を手渡しします。" },
+        { title: "QRコードを表示", description: "購入者に読み取ってもらいます。" },
+        { title: "評価して取引完了", description: "お互いに評価すると取引が終了します。" },
     ];
 
     const buyerFlow = [
-        "商品詳細から購入リクエストを送ると、出品者とのチャットが作られます。",
-        "その時点で商品は相談中になり、他の人からは触れない状態になります。",
-        "出品者とメッセージで、受け渡し日時や場所を相談します。",
-        "予定が登録されると、今後の予定に表示されます。",
-        "予定で決めた日時・場所で受け渡しを行います。",
-        "受け渡し後、取引終了と評価を行います。",
-        "条件が合わず相談が終了した場合、理由はチャットに表示されます。",
+        { title: "購入リクエストを送信", description: "出品者とのチャットが作成されます。" },
+        { title: "チャットで日程調整", description: "受け渡し日時・場所を決めます。" },
+        { title: "当日受け渡し", description: "待ち合わせ場所で教科書を受け取ります。" },
+        { title: "QRコードを読み取り", description: "そのまま評価画面へ進みます。" },
+        { title: "評価して取引完了", description: "お互いの評価が完了すると取引終了です。" },
     ];
 
     return (
@@ -684,7 +680,7 @@ function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
     );
 }
 
-function FlowCard({ title, tone, items }: { title: string; tone: "seller" | "buyer"; items: string[] }) {
+function FlowCard({ title, tone, items }: { title: string; tone: "seller" | "buyer"; items: { title: string; description: string }[] }) {
     const toneClass = tone === "seller"
         ? "border-red-100 bg-red-50/60 text-red-600"
         : "border-blue-100 bg-blue-50/60 text-blue-600";
@@ -694,11 +690,14 @@ function FlowCard({ title, tone, items }: { title: string; tone: "seller" | "buy
             <h3 className="mb-4 text-lg font-black text-gray-900">{title}</h3>
             <ol className="space-y-3">
                 {items.map((item, index) => (
-                    <li key={item} className="flex gap-3">
+                    <li key={item.title} className="flex gap-3">
                         <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black ${toneClass}`}>
                             {index + 1}
                         </span>
-                        <p className="text-sm font-bold leading-relaxed text-gray-600">{item}</p>
+                        <div className="min-w-0">
+                            <p className="text-sm font-black leading-relaxed text-gray-800">{item.title}</p>
+                            <p className="mt-0.5 text-xs font-bold leading-relaxed text-gray-500">{item.description}</p>
+                        </div>
                     </li>
                 ))}
             </ol>

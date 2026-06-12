@@ -21,6 +21,18 @@ const statusLabels: Record<string, string> = {
   no_action: "対応不要",
 };
 
+const formatInquiryDate = (value?: string | null) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+};
+
 export default async function ProfileInquiriesPage() {
   const supabase = createSupabaseServerClient();
   const {
@@ -71,7 +83,7 @@ export default async function ProfileInquiriesPage() {
                   {String(inquiry.content || "").length > 8 ? "..." : ""}
                 </p>
                 <p className="mt-1 text-xs font-bold text-gray-400">
-                  更新: {new Date(inquiry.updated_at || inquiry.created_at).toLocaleString("ja-JP")}
+                  更新: {formatInquiryDate(inquiry.updated_at || inquiry.created_at)}
                 </p>
               </div>
               <ChevronRight className="h-5 w-5 text-gray-300" />

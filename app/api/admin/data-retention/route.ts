@@ -34,12 +34,27 @@ export async function POST(request: NextRequest) {
       const { data, error } = await (supabase as any).rpc("admin_run_data_retention", {
         dry_run: dryRun !== false,
       });
+      const { data: deletedAccountData, error: deletedAccountError } = await (supabase as any).rpc(
+        "admin_run_deleted_account_retention",
+        {
+          dry_run: dryRun !== false,
+        }
+      );
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+      if (deletedAccountError) {
+        return NextResponse.json({ error: deletedAccountError.message }, { status: 500 });
+      }
 
-      return NextResponse.json({ success: true, result: data });
+      return NextResponse.json({
+        success: true,
+        result: {
+          ...(data ?? {}),
+          deletedAccountRetention: deletedAccountData,
+        },
+      });
     }
 
     return NextResponse.json({ error: "不明な操作です" }, { status: 400 });

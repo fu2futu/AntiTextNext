@@ -6,7 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
-import { ArrowLeft, User, GraduationCap, LogOut, Camera, CheckCircle, XCircle, Loader2, Lock } from "lucide-react";
+import { ArrowLeft, User, GraduationCap, Camera, CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { ProfileSkeleton } from "./skeleton";
 import { ALLOWED_IMAGE_ACCEPT, ALLOWED_IMAGE_MIME_TYPES } from "@/lib/image-storage";
 import { INPUT_LIMITS } from "@/lib/input-limits";
@@ -29,7 +29,8 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
     const router = useRouter();
     const searchParams = useSearchParams();
     const fromParam = searchParams.get('from');
-    const { user, loading: authLoading, signOut, refreshAvatar } = useAuth();
+    const returnToParam = searchParams.get('returnTo');
+    const { user, loading: authLoading, refreshAvatar } = useAuth();
     const [nickname, setNickname] = useState(initialProfile?.nickname || "");
     const [department, setDepartment] = useState(initialProfile?.department || "");
     const [degree, setDegree] = useState(initialProfile?.degree || "学士");
@@ -40,15 +41,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
     const [uploadingAvatar, setUploadingAvatar] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
-    const [showPasswordForm, setShowPasswordForm] = useState(false);
-    const [currentPassword, setCurrentPassword] = useState("");
-    const [passwordVerified, setPasswordVerified] = useState(false);
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [verifyingPassword, setVerifyingPassword] = useState(false);
-    const [changingPassword, setChangingPassword] = useState(false);
-    const [passwordError, setPasswordError] = useState("");
-    const [passwordSuccess, setPasswordSuccess] = useState("");
     const [initialCheckDone, setInitialCheckDone] = useState(serverSession);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -240,9 +232,9 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
             // 保存成功後、元のページに戻る
             setTimeout(() => {
                 if (fromParam === 'seller' && user) {
-                    router.push(`/seller/${user.id}`);
+                    router.replace(returnToParam === 'profile' ? `/seller/${user.id}?from=profile` : `/seller/${user.id}`);
                 } else {
-                    router.push('/profile');
+                    router.replace('/profile');
                 }
                 router.refresh();
             }, 800);
@@ -251,96 +243,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
         } finally {
             setSaving(false);
         }
-    };
-
-    const resetPasswordForm = () => {
-        setCurrentPassword("");
-        setNewPassword("");
-        setConfirmPassword("");
-        setPasswordVerified(false);
-        setVerifyingPassword(false);
-        setChangingPassword(false);
-        setPasswordError("");
-        setPasswordSuccess("");
-    };
-
-    const handleCurrentPasswordVerify = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user?.email) return;
-
-        setPasswordError("");
-        setPasswordSuccess("");
-
-        if (!currentPassword) {
-            setPasswordError("現在のパスワードを入力してください");
-            return;
-        }
-
-        setVerifyingPassword(true);
-        try {
-            const { error: verifyError } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: currentPassword,
-            });
-
-            if (verifyError) throw verifyError;
-
-            setPasswordVerified(true);
-            setPasswordError("");
-        } catch {
-            setPasswordError("現在のパスワードが正しくありません。確認して再度入力してください。");
-        } finally {
-            setVerifyingPassword(false);
-        }
-    };
-
-    const handlePasswordChange = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!user || !passwordVerified) return;
-
-        setPasswordError("");
-        setPasswordSuccess("");
-
-        if (newPassword.length < 8) {
-            setPasswordError("パスワードは8文字以上で入力してください");
-            return;
-        }
-
-        if (newPassword !== confirmPassword) {
-            setPasswordError("確認用パスワードが一致しません");
-            return;
-        }
-
-        setChangingPassword(true);
-        try {
-            const { error: updateError } = await supabase.auth.updateUser({
-                password: newPassword,
-            });
-
-            if (updateError) throw updateError;
-
-            setCurrentPassword("");
-            setNewPassword("");
-            setConfirmPassword("");
-            setPasswordVerified(false);
-            setPasswordSuccess("パスワードを更新しました。次回ログインから新しいパスワードを使えます。");
-            setShowPasswordForm(false);
-        } catch (err: any) {
-            const message = String(err?.message || "").toLowerCase();
-            if (message.includes("weak") || message.includes("password")) {
-                setPasswordError("パスワード条件を満たしていません。8文字以上で、推測されにくいパスワードを入力してください。");
-            } else {
-                setPasswordError("パスワードの更新に失敗しました。時間を置いて再度お試しください。");
-            }
-        } finally {
-            setChangingPassword(false);
-        }
-    };
-
-    const handleSignOut = async () => {
-        await signOut();
-        router.replace("/auth/login");
-        router.refresh();
     };
 
     if (!initialCheckDone || authLoading) {
@@ -361,15 +263,15 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
                 <div className="flex items-center gap-4 mb-6">
                     <button onClick={() => {
                         if (fromParam === 'seller' && user) {
-                            router.push(`/seller/${user.id}`);
+                            router.replace(returnToParam === 'profile' ? `/seller/${user.id}?from=profile` : `/seller/${user.id}`);
                         } else {
-                            router.push('/profile');
+                            router.replace('/profile');
                         }
                     }}>
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </button>
                     <h1 className="text-3xl font-bold text-primary">
-                        プロフィール
+                        プロフィール編集
                     </h1>
                 </div>
             </header>
@@ -423,140 +325,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
                                 アカウント情報
                             </h2>
                             <p className="text-sm text-gray-600">{user?.email}</p>
-                        </div>
-
-                        <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                                        <Lock className="w-4 h-4 text-primary" />
-                                        パスワード
-                                    </h3>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        ログイン中のアカウントのパスワードを変更できます。
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowPasswordForm((current) => {
-                                            if (current) {
-                                                resetPasswordForm();
-                                            } else {
-                                                setPasswordError("");
-                                                setPasswordSuccess("");
-                                            }
-                                            return !current;
-                                        });
-                                    }}
-                                    className="shrink-0 rounded-xl border border-primary/20 bg-white px-3 py-2 text-xs font-bold text-primary shadow-sm transition-colors hover:bg-primary/5"
-                                >
-                                    {showPasswordForm ? "閉じる" : "変更"}
-                                </button>
-                            </div>
-
-                            {passwordSuccess && (
-                                <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                                    {passwordSuccess}
-                                </div>
-                            )}
-
-                            {showPasswordForm && (
-                                <div className="mt-4 space-y-4">
-                                    {passwordError && (
-                                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-                                            {passwordError}
-                                        </div>
-                                    )}
-
-                                    {!passwordVerified ? (
-                                        <form onSubmit={handleCurrentPasswordVerify} className="space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    現在のパスワード
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={currentPassword}
-                                                    onChange={(e) => setCurrentPassword(e.target.value)}
-                                                    placeholder="現在のパスワードを入力"
-                                                    autoComplete="current-password"
-                                                    required
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                                />
-                                            </div>
-
-                                            <button
-                                                type="submit"
-                                                disabled={verifyingPassword}
-                                                className="w-full py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                                            >
-                                                {verifyingPassword ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        確認中...
-                                                    </>
-                                                ) : (
-                                                    "現在のパスワードを確認"
-                                                )}
-                                            </button>
-                                        </form>
-                                    ) : (
-                                        <form onSubmit={handlePasswordChange} className="space-y-4">
-                                            <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                                                現在のパスワードを確認しました。新しいパスワードを入力してください。
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    新しいパスワード
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={newPassword}
-                                                    onChange={(e) => setNewPassword(e.target.value)}
-                                                    placeholder="8文字以上"
-                                                    autoComplete="new-password"
-                                                    minLength={8}
-                                                    required
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    新しいパスワード確認
-                                                </label>
-                                                <input
-                                                    type="password"
-                                                    value={confirmPassword}
-                                                    onChange={(e) => setConfirmPassword(e.target.value)}
-                                                    placeholder="もう一度入力"
-                                                    autoComplete="new-password"
-                                                    minLength={8}
-                                                    required
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                                                />
-                                            </div>
-
-                                            <button
-                                                type="submit"
-                                                disabled={changingPassword}
-                                                className="w-full py-3 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                                            >
-                                                {changingPassword ? (
-                                                    <>
-                                                        <Loader2 className="w-4 h-4 animate-spin" />
-                                                        更新中...
-                                                    </>
-                                                ) : (
-                                                    "パスワードを更新"
-                                                )}
-                                            </button>
-                                        </form>
-                                    )}
-                                </div>
-                            )}
                         </div>
 
                         {error && (
@@ -725,15 +493,6 @@ export default function ProfileClient({ initialProfile, serverSession = true }: 
                             </button>
                         </form>
 
-                        <div className="mt-6 pt-6 border-t">
-                            <button
-                                onClick={handleSignOut}
-                                className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
-                            >
-                                <LogOut className="w-5 h-5" />
-                                ログアウト
-                            </button>
-                        </div>
                     </div>
                 </div>
             </div>

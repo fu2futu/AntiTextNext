@@ -150,7 +150,7 @@ export default function ContactPage() {
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/settings">
+                        <Link href="/profile">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -192,7 +192,7 @@ export default function ContactPage() {
             <div className="min-h-screen bg-white">
                 <header className="bg-white px-6 pt-8 pb-6 border-b">
                     <div className="flex items-center gap-4">
-                        <Link href="/settings">
+                        <Link href="/profile">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
                         <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -368,7 +368,7 @@ export default function ContactPage() {
         <div className="min-h-screen bg-white">
             <header className="bg-white px-6 pt-8 pb-6 border-b">
                 <div className="flex items-center gap-4">
-                    <Link href="/settings">
+                    <Link href="/profile">
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
                     <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
@@ -405,6 +405,13 @@ export default function ContactPage() {
 
                     <div className="bg-white rounded-2xl shadow-lg border p-6">
                         <div className="space-y-5">
+                            <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm leading-relaxed text-sky-900 animate-slide-in-left">
+                                <p className="font-bold text-sky-950">取引相手とのトラブルについて</p>
+                                <p className="mt-2">
+                                    取引相手とのトラブルや不審な行為があった場合は、こちらからお問い合わせください。運営側で取引内容やチャット履歴等を確認し、必要に応じて相手ユーザーへの確認、警告、利用制限、アカウント停止等の対応を行います。なお、運営から相手ユーザーのメールアドレス等の個人情報を開示することはありません。
+                                </p>
+                            </div>
+
                             {/* ユーザー名 */}
                             <div className="animate-slide-in-left">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -1,116 +1,193 @@
-# TextNext - 学内教科書フリマアプリ
+# TextNext
 
-TextNextは、大学内で教科書を循環させるC2Cフリマアプリケーションです。学生同士が不要になった教材を安全に売買できるプラットフォームを提供します。
+TextNext は、学内で教科書・教材を安全に循環させる C2C フリマサービスです。Web 版を Next.js / Vercel / Supabase で運用し、iOS / Android 版は Capacitor の WebView ラッパーとして同じ Web サービスを表示する構成です。
 
 ## 主な機能
 
-### 1. 認証・信頼性
 - 大学メールアドレスによる認証
-- 取引後の相互評価システム（星評価とコメント）
-
-### 2. 出品機能
-- 教科書名と定価（税抜き）の入力
-- **自動価格計算**: 定価の30%が自動で出品価格として設定
-- 表紙・裏表紙の画像アップロード必須
-
-### 3. 検索・マッチング
-- キーワード検索
-- 学部・系および学年による絞り込み
-- おすすめ教材の表示
-
-### 4. 取引・コミュニケーション
-- 購入ボタンから自動開始される取引チャット
-- 学内での手渡し場所・日時の調整
-- 取引完了ボタンと評価システム
+- 出品、画像アップロード、バーコード/ISBN検索
+- 商品検索、分野フィルタ、大学図書館の蔵書・貸出状況表示
+- お気に入り、入荷通知キーワード
+- 購入リクエスト、相談中ロック、取引チャット
+- 日程・場所調整、QRコードによる受け渡し確認
+- 取引完了後の相互評価
+- お知らせ、Web Push / PWA通知
+- マイページ、プロフィール編集、お問い合わせ履歴
+- 管理者画面
+  - ユーザー、出品、取引、問い合わせ、通報、BAN/制限、特典、アクセス分析、保存期間、削除済みアカウント、デモ出品管理
+- App Store / Google Play 向け Capacitor アプリ構成
 
 ## 技術スタック
 
-- **Next.js 14** - React フレームワーク (App Router)
-- **TypeScript** - 型安全性
-- **Tailwind CSS** - スタイリング
-- **Lucide React** - アイコン
+- Next.js 14 App Router
+- React 18
+- TypeScript
+- Tailwind CSS
+- Supabase Auth / Database / RLS / RPC
+- Cloudflare R2
+- Stripe
+- Web Push
+- Google Books API / NDL Search / Calil API
+- Capacitor iOS / Android
 
-## プロジェクト構造
+## 主要ディレクトリ
 
-```
-TextNext11_15/
-├── app/
-│   ├── layout.tsx           # ルートレイアウト
-│   ├── page.tsx             # ホームページ（おすすめ教材）
-│   ├── globals.css          # グローバルスタイル
-│   ├── search/
-│   │   └── page.tsx         # 検索ページ（フィルター付き）
-│   ├── listing/
-│   │   └── page.tsx         # 出品ページ（3ステップ）
-│   ├── product/
-│   │   └── [id]/
-│   │       └── page.tsx     # 商品詳細ページ
-│   ├── chat/
-│   │   ├── page.tsx         # チャット一覧
-│   │   └── [id]/
-│   │       └── page.tsx     # 取引チャット
-│   └── rating/
-│       └── [id]/
-│           └── page.tsx     # 評価ページ
-├── components/
-│   └── bottom-nav.tsx       # 下部ナビゲーション
-└── lib/
-    └── utils.ts             # ユーティリティ関数
+```txt
+app/                    Next.js App Router のページ・API Route
+components/             共通UI、Provider、ナビ、購入モーダル、商品カードなど
+lib/                    Supabase、画像処理、R2、メール、Push、管理者処理など
+supabase/migrations/    DBスキーマ、RLS、RPC、インデックス
+public/                 PWAアイコン、Service Worker、静的ファイル
+ios/                    Capacitor iOS プロジェクト
+android/                Capacitor Android プロジェクト
+locales/                i18n文言
+docs/                   設計・構造ドキュメント
 ```
 
-## セットアップ・実行方法
+より詳しい構造は [docs/project-structure.md](docs/project-structure.md) を参照してください。
 
-### 1. 依存関係のインストール
+## セットアップ
+
+### 1. 依存関係
 
 ```bash
 npm install
 ```
 
-### 2. 開発サーバーの起動
+### 2. 環境変数
+
+主な環境変数:
+
+```txt
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+NEXT_PUBLIC_APP_URL
+SUPABASE_SERVICE_ROLE_KEY
+ACCOUNT_DELETION_HASH_PEPPER
+
+CLOUDFLARE_ACCOUNT_ID
+R2_ACCESS_KEY_ID
+R2_SECRET_ACCESS_KEY
+R2_BUCKET_NAME
+R2_PUBLIC_BASE_URL
+NEXT_PUBLIC_R2_PUBLIC_BASE_URL
+
+GOOGLE_BOOKS_API_KEY
+CALIL_APP_KEY
+CALIL_SYSTEM_ID
+
+STRIPE_SECRET_KEY
+STRIPE_WEBHOOK_SECRET
+
+NEXT_PUBLIC_WEB_PUSH_VAPID_PUBLIC_KEY
+WEB_PUSH_VAPID_PRIVATE_KEY
+WEB_PUSH_CONTACT
+```
+
+### 3. 開発サーバー
 
 ```bash
 npm run dev
 ```
 
-ブラウザで [http://localhost:3000](http://localhost:3000) を開いてアプリケーションを確認できます。
-
-### 3. ビルド
+### 4. ビルド
 
 ```bash
 npm run build
 npm start
 ```
 
-## 画面遷移フロー
+## Supabase
 
-### 出品フロー
-1. ホーム画面 → 下部中央の「出品」ボタンをタップ
-2. 出品フォーム → 教科書名、写真、定価を入力
-3. 確認画面 → 入力内容を確認
-4. 完了画面 → 「出品を正常に受け付けました」
+DB定義、RLS、RPC は `supabase/migrations/` にあります。
 
-### 購入・取引フロー
-1. ホーム/検索 → 商品を検索
-2. 商品詳細 → 「購入へ」ボタンをタップ
-3. 取引チャット → 手渡し場所・日時を調整
-4. 「取引完了」ボタン → 評価画面
-5. 星評価とコメント入力 → 取引終了
+主なテーブル・機能:
 
-## 特徴
+- `profiles`
+- `items`
+- `favorites`
+- `transactions`
+- `messages`
+- `notifications`
+- `ratings`
+- `inquiries`
+- `reports`
+- `user_restrictions`
+- `account_email_bans`
+- `deleted_accounts`
+- `web_push_subscriptions`
+- `site_access_hourly_visitors`
+- `listing_image_error_logs`
 
-- **送料・手数料ゼロ**: 学内手渡しにより、送料や手数料が不要
-- **信頼性**: 大学メール認証と相互評価システム
-- **簡単な価格設定**: 定価の30%に自動計算
-- **シンプルなUI**: 直感的な操作が可能なモバイルフレンドリーなデザイン
+アプリ側の主要な接続入口:
 
-## 今後の拡張予定
+- `lib/supabase.ts`: ブラウザ用 Supabase クライアント
+- `lib/supabase-server.ts`: サーバー用 Supabase クライアント
+- `middleware.ts`: セッション確認、管理者画面保護、アクセス計測
+- `app/api/**/route.ts`: サーバーAPI
 
-- バックエンドAPI実装（認証、データベース連携）
-- プッシュ通知機能
-- リクエスト機能（欲しい教科書の投稿）
-- ユーザープロフィール管理
-- 評価履歴の表示
+## 画像アップロード
 
-## ライセンス
+商品画像は Cloudflare R2 を前提にしています。
 
-Private - 学内利用限定
+- クライアント側の形式チェック、decode、圧縮: `lib/image-storage.ts`
+- サーバー側R2処理: `lib/r2-server.ts`
+- アップロードAPI: `app/api/item-images/upload/route.ts`
+- 削除API: `app/api/item-images/delete/route.ts`
+- 画像エラーログ: `app/api/listing/image-error-log/route.ts`
+
+## 取引フロー
+
+1. 出品者が `app/listing/page.tsx` から商品を出品
+2. 購入者が `app/product/[id]/page.tsx` で商品詳細を開く
+3. 購入リクエスト時に商品を一時ロック
+4. `components/PurchaseModal.tsx` で支払い方法、候補日時、候補場所を入力
+5. DB RPC `submit_purchase_request` で取引・チャット・通知を作成
+6. `app/chat/[id]/page.tsx` で日程調整
+7. QRコードで受け渡し確認
+8. 双方が評価して取引終了
+
+## 管理者画面
+
+管理者画面は `/admin` 配下です。
+
+- `middleware.ts` で保護
+- `lib/admin.ts`, `lib/admin-utils.ts` で管理者判定
+- `app/admin/_components/admin-shell.tsx` が管理画面の共通ナビ
+
+主な管理機能:
+
+- ユーザー管理
+- 出品管理
+- 取引管理
+- 問い合わせ管理
+- 通報管理
+- BAN・利用制限管理
+- 特典・バッジ付与
+- アクセス分析
+- データ保存期間管理
+- 削除済みアカウント確認
+- App Store スクショ用デモ出品・デモホーム
+
+## Web Push / PWA
+
+- Service Worker: `public/sw.js`
+- 登録処理: `components/service-worker-register.tsx`
+- クライアント側Push購読: `lib/web-push-client.ts`
+- サーバー側Push送信: `lib/web-push.ts`
+- 購読API: `app/api/push/subscription/route.ts`
+
+## Capacitor アプリ
+
+アプリ化取組中（6/11現在）。Capacitor関連の詳細は [CAPACITOR_APP.md](CAPACITOR_APP.md) を参照してください。
+
+## ドキュメント
+
+- [docs/project-structure.md](docs/project-structure.md)
+  - プロジェクト構造、ページ/API、主要処理フロー
+- [CAPACITOR_APP.md](CAPACITOR_APP.md)
+  - iOS / Android アプリ化方針、アイコン、スプラッシュ、Xcode手順
+- [SUPABASE_SETUP.md](SUPABASE_SETUP.md)
+  - Supabase セットアップ関連
+- [SECURITY_CHECKLIST_STRIPE.md](SECURITY_CHECKLIST_STRIPE.md)
+  - Stripe セキュリティ確認

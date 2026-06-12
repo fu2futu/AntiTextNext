@@ -73,7 +73,9 @@ export default function RestrictionActions({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black">BAN・制限操作</h2>
-          <p className="mt-1 text-xs font-bold text-slate-500">操作はサーバー側で管理者確認し、操作ログに残します。</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">
+            操作はサーバー側で管理者確認し、操作ログに残します。永久BANはメールハッシュBANにも登録し、ログイン・再登録を制限します。
+          </p>
         </div>
         <p className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
           現在: {activeRestriction || "none"}

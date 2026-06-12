@@ -31,6 +31,7 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
     .from("items")
     .select(itemSelect, { count: "exact" })
     .in("status", ["available", "trading"])
+    .eq("is_demo", false)
     .eq("profiles.department", department);
 
   if (major) recommendedQuery = recommendedQuery.eq("profiles.major", major);
@@ -39,7 +40,8 @@ export default async function AdminHomePreviewPage({ searchParams }: { searchPar
   let popularQuery = (supabase as any)
     .from("items")
     .select(itemSelect, { count: "exact" })
-    .in("status", ["available", "trading"]);
+    .in("status", ["available", "trading"])
+    .eq("is_demo", false);
 
   if (excludedSellerId) popularQuery = popularQuery.neq("seller_id", excludedSellerId);
 

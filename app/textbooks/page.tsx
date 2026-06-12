@@ -34,7 +34,8 @@ function TextbooksContent() {
           .from("items")
           .select("isbn")
           .in("isbn", isbns)
-          .in("status", ["available", "trading"]);
+          .in("status", ["available", "trading"])
+          .eq("is_demo", false);
 
         const counts = new Map<string, number>();
         if (!error && data) {

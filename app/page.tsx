@@ -14,6 +14,7 @@ export default async function HomePage() {
     .from("items")
     .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
     .in("status", ["available", "trading"])
+    .eq("is_demo", false)
     .order("created_at", { ascending: false })
     .range(0, HOME_ITEM_PAGE_SIZE - 1);
 
@@ -21,7 +22,8 @@ export default async function HomePage() {
   const { count: totalCount } = await supabase
     .from("items")
     .select("*", { count: "exact", head: true })
-    .in("status", ["available", "trading"]);
+    .in("status", ["available", "trading"])
+    .eq("is_demo", false);
 
   if (popularError) {
     console.error("Error loading popular items:", popularError);

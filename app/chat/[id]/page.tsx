@@ -16,6 +16,7 @@ import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetti
 
 type Message = {
   id: string;
+  transaction_id?: string | null;
   sender_id: string;
   receiver_id: string;
   message: string;
@@ -54,6 +55,7 @@ type Transaction = {
   buyer_completed: boolean;
   seller_completed: boolean;
   cancellation_reason: string | null;
+  is_demo?: boolean;
   decline_reason?: string | null;
   declined_at?: string | null;
   schedule_change_requested_by: string | null;
@@ -70,6 +72,13 @@ type UserProfile = {
   created_at?: string | null;
   listing_count?: number;
   early_registration?: boolean;
+  admin_frame?: boolean;
+};
+
+type ChatSenderProfile = {
+  nickname: string;
+  roleLabel?: string;
+  avatar: React.ReactNode;
 };
 
 const TIME_SLOT_LABELS: Record<string, string> = {
@@ -117,6 +126,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const [otherUserId, setOtherUserId] = useState<string | null>(null);
   const [otherUserProfile, setOtherUserProfile] = useState<UserProfile | null>(null);
   const [ownAvatarReward, setOwnAvatarReward] = useState({ listingCount: 0, earlyRegistration: false });
+  const [ownAdminFrame, setOwnAdminFrame] = useState(false);
+  const [participantProfiles, setParticipantProfiles] = useState<Record<string, UserProfile>>({});
   const [accessDenied, setAccessDenied] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -177,20 +188,31 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (!user || !params.id) return;
 
     try {
-      const { error: messagesError } = await (supabase.from("messages") as any)
+      let messagesReadQuery = (supabase.from("messages") as any)
         .update({ is_read: true })
         .eq("item_id", params.id)
         .eq("receiver_id", user.id)
         .eq("is_read", false);
 
+      if (targetTransactionId) {
+        messagesReadQuery = messagesReadQuery.or(`transaction_id.eq.${targetTransactionId},transaction_id.is.null`);
+      }
+
+      const { error: messagesError } = await messagesReadQuery;
+
       if (messagesError) throw messagesError;
 
-      const { error: notificationsError } = await (supabase.from("notifications") as any)
+      let notificationsReadQuery = (supabase.from("notifications") as any)
         .update({ is_read: true })
         .eq("user_id", user.id)
         .eq("link_type", "chat")
-        .eq("link_id", params.id)
         .eq("is_read", false);
+
+      notificationsReadQuery = targetTransactionId
+        ? notificationsReadQuery.in("link_id", [params.id, `${params.id}?tx=${targetTransactionId}`])
+        : notificationsReadQuery.eq("link_id", params.id);
+
+      const { error: notificationsError } = await notificationsReadQuery;
 
       if (notificationsError) {
         console.error("Error marking chat notifications as read:", notificationsError);
@@ -204,7 +226,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     } catch (err) {
       console.error("Error marking messages as read:", err);
     }
-  }, [params.id, user]);
+  }, [params.id, targetTransactionId, user]);
 
   // メッセージ取得関数
   const fetchMessages = useCallback(async () => {
@@ -220,6 +242,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       if (!error && data) {
         const realMessages = (data as Message[]).filter((message) => {
           if (!otherUserId) return false;
+          if (targetTransactionId && message.transaction_id && message.transaction_id !== targetTransactionId) return false;
           return (
             (message.sender_id === user.id && message.receiver_id === otherUserId) ||
             (message.sender_id === otherUserId && message.receiver_id === user.id)
@@ -260,7 +283,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     } catch (err) {
       console.error("Error fetching messages:", err);
     }
-  }, [params.id, user, otherUserId, markMessagesAsRead]);
+  }, [params.id, targetTransactionId, user, otherUserId, markMessagesAsRead]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -291,6 +314,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         (payload) => {
           if (payload.eventType === "INSERT") {
             const newMsg = payload.new as Message;
+            if (targetTransactionId && newMsg.transaction_id && newMsg.transaction_id !== targetTransactionId) {
+              return;
+            }
             setMessages((current) => {
               if (current.some(m => m.id === newMsg.id)) return current;
               const filtered = current.filter(m =>
@@ -305,6 +331,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             }
           } else if (payload.eventType === "UPDATE") {
             const updatedMsg = payload.new as Message;
+            if (targetTransactionId && updatedMsg.transaction_id && updatedMsg.transaction_id !== targetTransactionId) {
+              return;
+            }
             setMessages(current => {
               let changed = false;
               const nextMessages = current.map((message) => {
@@ -333,7 +362,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           filter: `item_id=eq.${params.id}`,
         },
         (payload) => {
-          setTransaction(payload.new as Transaction);
+          const nextTransaction = payload.new as Transaction;
+          if (targetTransactionId && nextTransaction.id !== targetTransactionId) return;
+          setTransaction(nextTransaction);
         }
       )
       .subscribe();
@@ -350,7 +381,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         clearInterval(pollingRef.current);
       }
     };
-  }, [params.id, user, otherUserId, fetchMessages, markMessagesAsRead, isUserTyping]);
+  }, [params.id, targetTransactionId, user, otherUserId, fetchMessages, markMessagesAsRead, isUserTyping]);
 
   useEffect(() => {
     // 新しいメッセージが追加された場合のみスクロール
@@ -484,6 +515,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             { data: otherRewardOverride },
             { count: ownListingCount },
             { data: ownRewardOverride },
+            { data: ownAdminCheck },
           ] = await Promise.all([
             supabase
               .from("profiles")
@@ -515,9 +547,12 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               .select("early_registration_override")
               .eq("user_id", user.id)
               .maybeSingle(),
+            (supabase as any).rpc("is_current_user_admin"),
           ]);
 
           const setting = rewardSetting as RewardSetting | null;
+          const isCurrentAdmin = Boolean(ownAdminCheck);
+          setOwnAdminFrame(isCurrentAdmin);
 
           if (profileData) {
             const profile = profileData as UserProfile;
@@ -530,14 +565,21 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 early_registration: false,
               });
             } else {
+              let resolvedAvatarUrl = profile.avatar_url;
+              if (resolvedAvatarUrl && !resolvedAvatarUrl.startsWith("http") && !resolvedAvatarUrl.startsWith("/")) {
+                const { data } = supabase.storage.from("avatars").getPublicUrl(resolvedAvatarUrl);
+                resolvedAvatarUrl = data.publicUrl;
+              }
               setOtherUserProfile({
                 ...profile,
+                avatar_url: resolvedAvatarUrl,
                 listing_count: otherListingCount ?? 0,
                 early_registration: resolveEarlyRegistrationEligible(
                   profile.created_at,
                   setting,
                   otherRewardOverride as RewardOverride | null
                 ),
+                admin_frame: transactionResult.data?.is_demo === true && other === transactionResult.data?.seller_id,
               });
             }
           }
@@ -550,6 +592,50 @@ export default function ChatPage({ params }: { params: { id: string } }) {
               ownRewardOverride as RewardOverride | null
             ),
           });
+
+          if (transactionResult.data) {
+            const tx = transactionResult.data as Transaction;
+            const ids = Array.from(new Set([tx.buyer_id, tx.seller_id].filter(Boolean)));
+            const { data: participantProfileRows } = await supabase
+              .from("profiles")
+              .select("user_id, avatar_url, nickname, is_deactivated, created_at")
+              .in("user_id", ids);
+
+            const counts = await Promise.all(
+              ids.map(async (id) => {
+                const { count } = await supabase
+                  .from("items")
+                  .select("*", { count: "exact", head: true })
+                  .eq("seller_id", id)
+                  .neq("status", "deleted");
+                return [id, count ?? 0] as const;
+              })
+            );
+            const countMap = new Map(counts);
+            const nextProfiles: Record<string, UserProfile> = {};
+
+            for (const row of (participantProfileRows ?? []) as any[]) {
+              let resolvedAvatarUrl = row.avatar_url as string | null;
+              if (resolvedAvatarUrl && !resolvedAvatarUrl.startsWith("http") && !resolvedAvatarUrl.startsWith("/")) {
+                const { data } = supabase.storage.from("avatars").getPublicUrl(resolvedAvatarUrl);
+                resolvedAvatarUrl = data.publicUrl;
+              }
+              nextProfiles[row.user_id] = {
+                avatar_url: resolvedAvatarUrl,
+                nickname: row.is_deactivated ? "退会済みユーザー" : row.nickname,
+                is_deactivated: row.is_deactivated,
+                created_at: row.created_at,
+                listing_count: countMap.get(row.user_id) ?? 0,
+                early_registration: resolveEarlyRegistrationEligible(
+                  row.created_at,
+                  setting,
+                  row.user_id === other ? otherRewardOverride as RewardOverride | null : ownRewardOverride as RewardOverride | null
+                ),
+                admin_frame: tx.is_demo === true && row.user_id === tx.seller_id,
+              };
+            }
+            setParticipantProfiles(nextProfiles);
+          }
         }
       }
 
@@ -559,6 +645,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         const otherId = tx ? (user.id === tx.buyer_id ? tx.seller_id : tx.buyer_id) : otherUserId;
         setMessages((messagesResult.data as Message[]).filter((message) => {
           if (!otherId) return false;
+          if (targetTransactionId && message.transaction_id && message.transaction_id !== targetTransactionId) return false;
           return (
             (message.sender_id === user.id && message.receiver_id === otherId) ||
             (message.sender_id === otherId && message.receiver_id === user.id)
@@ -608,6 +695,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     try {
       const { error } = await (supabase.from("messages") as any).insert({
         item_id: item.id,
+        transaction_id: transaction?.id ?? null,
         sender_id: user.id,
         receiver_id: otherUserId,
         message: messageText,
@@ -892,8 +980,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       size={40}
       listingCount={ownAvatarReward.listingCount}
       earlyRegistration={ownAvatarReward.earlyRegistration}
+      adminFrame={ownAdminFrame}
     />
-  ), [avatarUrl, ownAvatarReward.earlyRegistration, ownAvatarReward.listingCount]);
+  ), [avatarUrl, ownAdminFrame, ownAvatarReward.earlyRegistration, ownAvatarReward.listingCount]);
 
   const otherChatAvatar = useMemo(() => {
     const avatar = (
@@ -903,6 +992,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
         size={40}
         listingCount={otherUserProfile?.listing_count ?? 0}
         earlyRegistration={otherUserProfile?.early_registration}
+        adminFrame={otherUserProfile?.admin_frame}
       />
     );
 
@@ -923,8 +1013,84 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     otherUserId,
     otherUserProfile?.avatar_url,
     otherUserProfile?.early_registration,
+    otherUserProfile?.admin_frame,
     otherUserProfile?.is_deactivated,
     otherUserProfile?.listing_count,
+  ]);
+
+  const senderProfiles = useMemo(() => {
+    const result: Record<string, ChatSenderProfile> = {};
+    Object.entries(participantProfiles).forEach(([userId, profile]) => {
+      const avatar = (
+        <RewardAvatar
+          src={profile.avatar_url || null}
+          alt={profile.nickname || "avatar"}
+          size={40}
+          listingCount={profile.listing_count ?? 0}
+          earlyRegistration={profile.early_registration}
+          adminFrame={profile.admin_frame}
+        />
+      );
+
+      const wrappedAvatar = profile.is_deactivated ? avatar : (
+        <Link
+          href={`/seller/${userId}`}
+          className="block rounded-full transition-transform active:scale-95"
+          aria-label={`${profile.nickname || "相手"}の情報を見る`}
+        >
+          {avatar}
+        </Link>
+      );
+
+      result[userId] = {
+        nickname: transaction?.is_demo ? "" : profile.nickname || "ユーザー",
+        roleLabel: transaction
+          ? userId === transaction.seller_id
+            ? "出品者"
+            : userId === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: wrappedAvatar,
+      };
+    });
+
+    if (user?.id && !result[user.id]) {
+      result[user.id] = {
+        nickname: transaction?.is_demo ? "" : "自分",
+        roleLabel: transaction
+          ? user.id === transaction.seller_id
+            ? "出品者"
+            : user.id === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: ownChatAvatar,
+      };
+    }
+    if (otherUserId && !result[otherUserId]) {
+      result[otherUserId] = {
+        nickname: transaction?.is_demo ? "" : otherUserProfile?.nickname || "相手",
+        roleLabel: transaction
+          ? otherUserId === transaction.seller_id
+            ? "出品者"
+            : otherUserId === transaction.buyer_id
+              ? "購入者"
+              : undefined
+          : undefined,
+        avatar: otherChatAvatar,
+      };
+    }
+
+    return result;
+  }, [
+    otherChatAvatar,
+    otherUserId,
+    otherUserProfile?.nickname,
+    ownChatAvatar,
+    participantProfiles,
+    transaction,
+    user?.id,
   ]);
 
   if (authLoading || loading) {
@@ -998,6 +1164,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const showRatingBanner = isAwaitingRating && !!transaction;
   const showActionBar = canUseTradeActions && !isDeclined && !isCancelled;
   const needsTopNoticeSpace = showClosedNotice || showRatingBanner || showActionBar;
+  const isDemoTransaction = transaction?.is_demo === true;
   const itemThumbnailUrl = item
     ? getItemImageUrl(item, "front", "thumbnail") || getItemImageUrl(item, "back", "thumbnail")
     : null;
@@ -1057,7 +1224,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       onTouchEnd={handleTouchEnd}
     >
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center gap-3 z-50 border-b border-gray-100 h-16">
+      <header className="fixed left-0 right-0 top-0 z-50 flex h-[var(--chat-header-height)] items-center gap-3 border-b border-gray-100 bg-white/95 px-4 pb-3 pt-[calc(var(--chat-top-inset)+0.75rem)] backdrop-blur-md">
         <Link href={backHref} className="p-1">
           <ArrowLeft className="w-6 h-6 text-black" />
         </Link>
@@ -1084,15 +1251,20 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           <h1 className="text-black font-bold truncate">
             {item.title}
           </h1>
-          <p className="text-gray-500 text-xs">
-            {otherUserProfile?.is_deactivated ? "相手は退会済みです" : statusLabel}
+          <p className="flex items-center gap-1.5 text-gray-500 text-xs">
+            {isDemoTransaction && (
+              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-black text-blue-700 ring-1 ring-blue-100">
+                デモ取引
+              </span>
+            )}
+            <span>{otherUserProfile?.is_deactivated ? "相手は退会済みです" : statusLabel}</span>
           </p>
         </div>
       </header>
 
       {/* Declined Banner */}
       {isDeclined && (
-        <div className="fixed top-16 left-0 right-0 bg-red-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-red-200">
+        <div className="fixed left-0 right-0 top-[var(--chat-header-height)] z-40 border-b border-red-200 bg-red-50/95 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-2">
             <XCircle className="w-4 h-4 text-red-500" />
             <span className="text-xs font-bold text-red-600">このリクエストは辞退されました</span>
@@ -1105,7 +1277,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       {/* Cancelled Banner */}
       {isCancelled && (
-        <div className="fixed top-16 left-0 right-0 bg-red-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-red-200">
+        <div className="fixed left-0 right-0 top-[var(--chat-header-height)] z-40 border-b border-red-200 bg-red-50/95 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-2">
             <XCircle className="w-4 h-4 text-red-500" />
             <span className="text-xs font-bold text-red-600">この取引はキャンセルされました</span>
@@ -1118,7 +1290,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       {/* Rating Banner */}
       {showRatingBanner && (
-        <div className="fixed top-16 left-0 right-0 bg-purple-50/95 backdrop-blur-md px-4 py-3 z-40 border-b border-purple-200">
+        <div className="fixed left-0 right-0 top-[var(--chat-header-height)] z-40 border-b border-purple-200 bg-purple-50/95 px-4 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-purple-500 text-white shadow-sm">
               <Star className="h-5 w-5 fill-white" />
@@ -1139,7 +1311,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
 
       {/* Action Bar (Below Header) */}
       {showActionBar && (
-      <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-md px-3 py-2 z-40 flex gap-1.5 border-b border-gray-100">
+      <div className="fixed left-0 right-0 top-[var(--chat-header-height)] z-40 flex gap-1.5 border-b border-gray-100 bg-white/95 px-3 py-2 backdrop-blur-md">
         <button
           onClick={() => setIsScheduleModalOpen(true)}
           disabled={transaction?.status === 'awaiting_rating' || transaction?.status === 'completed'}
@@ -1173,7 +1345,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
       </div>
       )}
 
-      <div className={`flex-1 overflow-hidden ${needsTopNoticeSpace ? "pt-[116px]" : "pt-[72px]"} flex flex-col`}>
+      <div className={`flex flex-1 flex-col overflow-hidden ${needsTopNoticeSpace ? "pt-[calc(var(--chat-header-height)+var(--chat-subbar-height))]" : "pt-[calc(var(--chat-header-height)+0.5rem)]"}`}>
         {!isClosedTransaction && transaction?.final_meetup_time && (
           <div className="flex-shrink-0 bg-white/95 px-4 pb-3 pt-2 backdrop-blur-md">
             <div className="flex items-center gap-3 rounded-2xl border-2 border-green-500/20 bg-green-500/10 p-3 shadow-sm">
@@ -1209,8 +1381,8 @@ export default function ChatPage({ params }: { params: { id: string } }) {
                 <ChevronRight className={`h-5 w-5 flex-shrink-0 text-gray-400 transition-transform ${isScheduleCandidatesOpen ? "rotate-90" : ""}`} />
               </button>
 
-              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/10 transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[440px] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
-                <div className="px-4 pb-4 pt-3">
+              <div className={`absolute left-0 right-0 top-full mt-2 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl shadow-black/10 transition-[max-height,opacity,transform] duration-150 ease-out ${isScheduleCandidatesOpen ? "max-h-[min(440px,calc(100dvh-var(--chat-header-height)-8rem))] translate-y-0 opacity-100" : "pointer-events-none max-h-0 -translate-y-1 opacity-0"}`}>
+                <div className="max-h-[min(420px,calc(100dvh-var(--chat-header-height)-9rem))] overflow-y-auto overscroll-contain px-4 pb-4 pt-3 [-webkit-overflow-scrolling:touch]">
                   <p className="mb-3 text-xs font-bold leading-relaxed text-gray-600">
                     日程が決まり、こちらに記録していただくと予定管理に反映されます。
                   </p>
@@ -1278,7 +1450,9 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             currentUserId={user?.id}
             ownAvatar={ownChatAvatar}
             otherAvatar={otherChatAvatar}
+            senderProfiles={senderProfiles}
             messagesEndRef={messagesEndRef}
+            showAllAvatars={isDemoTransaction}
           />
         </div>
 
@@ -1560,13 +1734,17 @@ const MessageList = memo(function MessageList({
   currentUserId,
   ownAvatar,
   otherAvatar,
+  senderProfiles,
   messagesEndRef,
+  showAllAvatars = false,
 }: {
   messages: Message[];
   currentUserId?: string;
   ownAvatar: React.ReactNode;
   otherAvatar: React.ReactNode;
+  senderProfiles?: Record<string, ChatSenderProfile>;
   messagesEndRef: React.RefObject<HTMLDivElement>;
+  showAllAvatars?: boolean;
 }) {
   if (messages.length === 0) {
     return (
@@ -1582,8 +1760,12 @@ const MessageList = memo(function MessageList({
     <div className="space-y-4">
       {messages.map((msg, index) => {
         const prevMsg = messages[index - 1];
-        const isOwnMessage = msg.sender_id === currentUserId;
-        const showAvatar = !prevMsg || prevMsg.sender_id !== msg.sender_id;
+        const senderId = String(msg.sender_id || "");
+        const viewerId = String(currentUserId || "");
+        const isOwnMessage = !!viewerId && senderId === viewerId;
+        const showAvatar = showAllAvatars || !prevMsg || prevMsg.sender_id !== msg.sender_id;
+        const senderProfile = senderProfiles?.[senderId];
+        const senderAvatar = senderProfile?.avatar ?? (isOwnMessage ? ownAvatar : otherAvatar);
 
         return (
           <MessageRow
@@ -1591,7 +1773,10 @@ const MessageList = memo(function MessageList({
             message={msg}
             isOwnMessage={isOwnMessage}
             showAvatar={showAvatar}
-            avatar={isOwnMessage ? ownAvatar : otherAvatar}
+            avatar={senderAvatar}
+            senderName={senderProfile?.nickname}
+            senderRoleLabel={senderProfile?.roleLabel}
+            showSenderLabel={showAllAvatars || showAvatar}
           />
         );
       })}
@@ -1830,29 +2015,60 @@ const MessageRow = memo(function MessageRow({
   isOwnMessage,
   showAvatar,
   avatar,
+  senderName,
+  senderRoleLabel,
+  showSenderLabel = false,
 }: {
   message: Message;
   isOwnMessage: boolean;
   showAvatar: boolean;
   avatar: React.ReactNode;
+  senderName?: string;
+  senderRoleLabel?: string;
+  showSenderLabel?: boolean;
 }) {
   const autoMessage = !message.image_url ? parseAutoMessage(message.message, isOwnMessage) : null;
+  const senderLabel = [senderRoleLabel, senderName].filter(Boolean).join(" / ");
 
   if (autoMessage) {
     return (
-      <div className="flex justify-center">
-        <AutoMessageCard data={autoMessage} />
+      <div className={`flex w-full items-start gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+        {!isOwnMessage && (
+          <div className="flex-shrink-0 pt-1" style={{ width: 40 }}>
+            {showAvatar && avatar}
+          </div>
+        )}
+        <div className={`flex max-w-[88%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+          {showSenderLabel && senderLabel && (
+            <p className={`mb-1 max-w-full truncate px-1 text-[10px] font-black text-gray-400 ${isOwnMessage ? "text-right" : "text-left"}`}>
+              {senderLabel}
+            </p>
+          )}
+          <AutoMessageCard data={autoMessage} />
+        </div>
+        {isOwnMessage && (
+          <div className="flex-shrink-0 pt-1" style={{ width: 40 }}>
+            {showAvatar && avatar}
+          </div>
+        )}
       </div>
     );
   }
 
   return (
-    <div className={`flex items-end gap-2 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-      <div className="flex-shrink-0" style={{ width: 40 }}>
-        {showAvatar && avatar}
-      </div>
+    <div className={`flex w-full items-end gap-2 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+      {!isOwnMessage && (
+        <div className="flex-shrink-0" style={{ width: 40 }}>
+          {showAvatar && avatar}
+        </div>
+      )}
 
       <div className={`flex max-w-[55%] flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+        {showSenderLabel && senderLabel && (
+          <p className={`mb-1 max-w-full truncate px-1 text-[10px] font-black text-gray-400 ${isOwnMessage ? "text-right" : "text-left"}`}>
+            {senderLabel}
+          </p>
+        )}
         <div
           className={`w-fit min-w-[50px] px-4 py-2.5 rounded-2xl shadow-sm border ${isOwnMessage
             ? "rounded-br-sm bg-sky-50 border-sky-200"
@@ -1892,6 +2108,11 @@ const MessageRow = memo(function MessageRow({
           </div>
         )}
       </div>
+      {isOwnMessage && (
+        <div className="flex-shrink-0" style={{ width: 40 }}>
+          {showAvatar && avatar}
+        </div>
+      )}
     </div>
   );
 });

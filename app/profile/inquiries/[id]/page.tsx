@@ -22,6 +22,18 @@ const statusLabels: Record<string, string> = {
   no_action: "対応不要",
 };
 
+const formatInquiryDate = (value?: string | null) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+};
+
 export default async function ProfileInquiryDetailPage({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient();
   const {
@@ -81,10 +93,10 @@ export default async function ProfileInquiryDetailPage({ params }: { params: { i
                 </span>
               </div>
               <p className="text-xs font-bold text-gray-400">
-                送信: {new Date(inquiry.created_at).toLocaleString("ja-JP")}
+                送信: {formatInquiryDate(inquiry.created_at)}
               </p>
               <p className="mt-1 text-xs font-bold text-gray-400">
-                更新: {new Date(inquiry.updated_at || inquiry.created_at).toLocaleString("ja-JP")}
+                更新: {formatInquiryDate(inquiry.updated_at || inquiry.created_at)}
               </p>
             </div>
           </div>
@@ -99,7 +111,7 @@ export default async function ProfileInquiryDetailPage({ params }: { params: { i
                 <div key={message.id} className={`flex ${isAdmin ? "justify-start" : "justify-end"}`}>
                   <div className={`max-w-[86%] rounded-2xl px-4 py-3 ${isAdmin ? "bg-blue-50 text-blue-950" : "bg-gray-100 text-gray-900"}`}>
                     <p className="mb-1 text-[11px] font-black opacity-70">
-                      {isAdmin ? "運営" : "あなた"} / {new Date(message.created_at).toLocaleString("ja-JP")}
+                      {isAdmin ? "運営" : "あなた"} / {formatInquiryDate(message.created_at)}
                     </p>
                     <p className="whitespace-pre-wrap break-words text-sm font-bold leading-6">{message.message}</p>
                   </div>

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
-import { useI18n, Locale } from "@/lib/i18n";
+import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
 import {
     ArrowLeft,
@@ -14,6 +14,7 @@ import {
     AlertTriangle,
     Loader2,
     Lock,
+    LogOut,
     Eye,
     EyeOff,
     XCircle,
@@ -31,7 +32,7 @@ export default function SettingsPage() {
     const { user, loading: authLoading, signOut } = useAuth();
     const { locale, setLocale, t } = useI18n();
 
-    // アカウント停止関連
+    // アカウント削除関連
     const [deactivateStep, setDeactivateStep] = useState<DeactivateStep>("idle");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -40,6 +41,7 @@ export default function SettingsPage() {
     const [activeTransactionCount, setActiveTransactionCount] = useState(0);
     const [listingCount, setListingCount] = useState(0);
     const [checkingTransactions, setCheckingTransactions] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -68,7 +70,8 @@ export default function SettingsPage() {
                 .from("items") as any)
                 .select("id")
                 .eq("seller_id", user.id)
-                .eq("status", "available");
+                .eq("status", "available")
+                .eq("is_demo", false);
 
             setListingCount(listings?.length || 0);
         } catch {
@@ -89,6 +92,12 @@ export default function SettingsPage() {
         setDeactivateStep("password");
         setPassword("");
         setDeactivateError("");
+    };
+
+    const handleSignOut = async () => {
+        await signOut();
+        router.replace("/auth/login");
+        router.refresh();
     };
 
     const handleDeactivateSubmit = async () => {
@@ -113,24 +122,24 @@ export default function SettingsPage() {
                 return;
             }
 
-            // アカウント停止APIを呼ぶ
-            const res = await fetch("/api/deactivate-account", {
+            // アカウント削除APIを呼ぶ
+            const res = await fetch("/api/delete-account", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId: user.id }),
+                body: JSON.stringify({ reason: "user_request" }),
             });
 
             const data = await res.json();
 
             if (data.success) {
                 setDeactivateStep("done");
-                // 3秒後にサインアウトしてログイン画面へ
+                // 3秒後にログイン画面へ
                 setTimeout(async () => {
                     await signOut();
                     router.push("/auth/login");
                 }, 3000);
             } else {
-                setDeactivateError(data.error || "アカウント停止に失敗しました");
+                setDeactivateError(data.error || "アカウント削除に失敗しました");
                 setDeactivateStep("error");
             }
         } catch {
@@ -155,7 +164,7 @@ export default function SettingsPage() {
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
                     <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
-                        その他設定
+                        設定
                     </h1>
                 </div>
             </header>
@@ -202,8 +211,9 @@ export default function SettingsPage() {
 
                     {/* 言語設定 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '25ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            {t("settings.language")}
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">{t("settings.language")}</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
                         <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
                             <div className="px-5 py-4">
@@ -241,8 +251,9 @@ export default function SettingsPage() {
 
                     {/* 探している教科書 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '50ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            通知設定
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">通知設定</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
                         <Link
                             href="/settings/watch-keywords"
@@ -278,9 +289,40 @@ export default function SettingsPage() {
 
                     {/* アカウント管理 */}
                     <section className="animate-slide-in-left" style={{ animationDelay: '100ms' }}>
-                        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 px-1">
-                            アカウント管理
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">アカウント管理</span>
+                            <span className="h-px flex-1 bg-gray-200" />
                         </h2>
+                        <Link
+                            href="/settings/password"
+                            className="mb-3 flex items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-primary/30 group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5">
+                                    <Lock className="h-5 w-5 text-primary" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">パスワード変更</span>
+                                    <p className="mt-0.5 text-xs text-gray-400">別ページで安全に変更します</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1 group-hover:text-primary" />
+                        </Link>
+                        <button
+                            onClick={() => setShowLogoutConfirm(true)}
+                            className="mb-3 flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-gray-300 group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 group-hover:bg-gray-200 transition-colors">
+                                    <LogOut className="h-5 w-5 text-gray-600" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">ログアウト</span>
+                                    <p className="mt-0.5 text-xs text-gray-400">この端末からログアウトします</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1" />
+                        </button>
                         <button
                             onClick={handleStartDeactivate}
                             className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-red-200 transition-all group"
@@ -290,8 +332,8 @@ export default function SettingsPage() {
                                     <UserX className="w-5 h-5 text-red-500" />
                                 </div>
                                 <div className="text-left">
-                                    <span className="font-bold text-gray-700 group-hover:text-red-600 transition-colors">アカウントを停止する</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">アカウントの利用を一時停止します</p>
+                                    <span className="font-bold text-gray-700 group-hover:text-red-600 transition-colors">アカウントを削除する</span>
+                                    <p className="text-xs text-gray-400 mt-0.5">ログインできない状態にし、プロフィール等を匿名化します</p>
                                 </div>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-all" />
@@ -301,7 +343,38 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            {/* === アカウント停止モーダル群 === */}
+            {/* === アカウント削除モーダル群 === */}
+
+            {showLogoutConfirm && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 animate-in fade-in duration-200">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLogoutConfirm(false)} />
+                    <div className="relative w-full max-w-sm overflow-hidden rounded-[28px] bg-white p-6 shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-5 duration-200">
+                        <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100">
+                            <LogOut className="h-8 w-8 text-gray-600" />
+                        </div>
+                        <h2 className="mb-2 text-center text-xl font-black text-gray-900">
+                            ログアウトしますか？
+                        </h2>
+                        <p className="mb-6 text-center text-sm leading-6 text-gray-500">
+                            この端末からログアウトします。再度利用するにはログインが必要です。
+                        </p>
+                        <div className="space-y-2">
+                            <button
+                                onClick={handleSignOut}
+                                className="w-full rounded-2xl bg-gray-900 py-3.5 font-black text-white shadow-lg shadow-gray-900/10 transition-all hover:bg-gray-800 active:scale-[0.98]"
+                            >
+                                ログアウトする
+                            </button>
+                            <button
+                                onClick={() => setShowLogoutConfirm(false)}
+                                className="w-full rounded-2xl bg-gray-100 py-3.5 font-bold text-gray-600 transition-all hover:bg-gray-200"
+                            >
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Step 1: 確認画面 */}
             {deactivateStep === "confirm" && (
@@ -313,10 +386,10 @@ export default function SettingsPage() {
                                 <ShieldAlert className="w-8 h-8 text-red-500" />
                             </div>
                             <h2 className="text-xl font-black text-gray-900 text-center mb-2">
-                                アカウントを停止しますか？
+                                アカウントを削除しますか？
                             </h2>
-                            <p className="text-gray-500 text-sm text-center mb-6">
-                                以下の内容をご確認ください
+                            <p className="text-gray-500 text-sm text-left leading-relaxed mb-6">
+                                アカウントを削除すると、プロフィールや出品情報は表示されなくなり、ログインできなくなります。この操作は原則として取り消せません。ただし、不正防止・トラブル対応・サービス運営上必要な範囲で、取引履歴や問い合わせ対応記録を一定期間保持する場合があります。
                             </p>
 
                             {checkingTransactions ? (
@@ -340,7 +413,7 @@ export default function SettingsPage() {
                                             {hasActiveTransactions ? (
                                                 <p className="text-xs text-red-600 mt-1">
                                                     {activeTransactionCount}件の進行中取引があります。<br />
-                                                    取引が全て完了するまでアカウントを停止できません。
+                                                    取引が全て完了するまでアカウントを削除できません。
                                                 </p>
                                             ) : (
                                                 <p className="text-xs text-green-600 mt-1">
@@ -357,7 +430,7 @@ export default function SettingsPage() {
                                             <p className="text-sm font-bold text-yellow-700">出品中の商品</p>
                                             <p className="text-xs text-yellow-600 mt-1">
                                                 {listingCount > 0 ? (
-                                                    <>出品中の{listingCount}件の商品は<span className="font-bold">すべて非公開</span>になります。</>
+                                                    <>出品中の{listingCount}件の商品は<span className="font-bold">削除・非表示</span>になり、画像も削除対象になります。</>
                                                 ) : (
                                                     <>出品中の商品はありません。</>
                                                 )}
@@ -365,13 +438,13 @@ export default function SettingsPage() {
                                         </div>
                                     </div>
 
-                                    {/* 復旧について */}
-                                    <div className="flex items-start gap-3 bg-blue-50 border-2 border-blue-200 p-3 rounded-xl">
-                                        <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                    {/* 削除後について */}
+                                    <div className="flex items-start gap-3 bg-slate-50 border-2 border-slate-200 p-3 rounded-xl">
+                                        <AlertTriangle className="w-5 h-5 text-slate-500 mt-0.5 flex-shrink-0" />
                                         <div>
-                                            <p className="text-sm font-bold text-blue-700">アカウント復旧</p>
-                                            <p className="text-xs text-blue-600 mt-1">
-                                                停止後も再度ログインすることで復旧できます。データは保持されます。
+                                            <p className="text-sm font-bold text-slate-700">削除後の扱い</p>
+                                            <p className="text-xs text-slate-600 mt-1">
+                                                通常画面では退会済みユーザーとして扱われます。相手ユーザーにメールアドレス等の個人情報は開示されません。
                                             </p>
                                         </div>
                                     </div>
@@ -384,7 +457,7 @@ export default function SettingsPage() {
                                     disabled={hasActiveTransactions || checkingTransactions}
                                     className="w-full bg-red-500 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    停止手続きを進める
+                                    削除手続きを進める
                                 </button>
                                 <button
                                     onClick={() => setDeactivateStep("idle")}
@@ -411,7 +484,7 @@ export default function SettingsPage() {
                                 本人確認
                             </h2>
                             <p className="text-gray-500 text-sm text-center mb-6">
-                                アカウント停止を確定するため、パスワードを入力してください
+                                アカウント削除を確定するため、パスワードを入力してください
                             </p>
 
                             {deactivateError && (
@@ -451,7 +524,7 @@ export default function SettingsPage() {
                                     disabled={!password.trim()}
                                     className="w-full bg-red-500 text-white py-3.5 rounded-2xl font-black shadow-lg shadow-red-500/20 hover:bg-red-600 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    アカウントを停止する
+                                    アカウントを削除する
                                 </button>
                                 <button
                                     onClick={() => setDeactivateStep("confirm")}
@@ -471,7 +544,7 @@ export default function SettingsPage() {
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
                     <div className="relative bg-white w-full max-w-sm rounded-[28px] overflow-hidden shadow-2xl p-8 text-center">
                         <Loader2 className="w-12 h-12 animate-spin text-red-500 mx-auto mb-4" />
-                        <p className="text-gray-600 font-medium">アカウントを停止しています...</p>
+                        <p className="text-gray-600 font-medium">アカウントを削除しています...</p>
                     </div>
                 </div>
             )}
@@ -485,11 +558,11 @@ export default function SettingsPage() {
                             <CheckCircle className="w-8 h-8 text-gray-500" />
                         </div>
                         <h2 className="text-xl font-black text-gray-900 mb-2">
-                            アカウントを停止しました
+                            アカウントを削除しました
                         </h2>
                         <p className="text-gray-500 text-sm mb-4">
                             ご利用ありがとうございました。<br />
-                            再度ログインすることで復旧できます。
+                            このアカウントではログインできなくなります。
                         </p>
                         <p className="text-xs text-gray-400">
                             自動的にログアウトします...

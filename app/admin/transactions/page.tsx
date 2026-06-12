@@ -5,6 +5,8 @@ import { formatAdminDate, getStringParam, requireAdmin, type AdminSearchParams }
 
 export const dynamic = "force-dynamic";
 
+const ACTIVE_TRANSACTION_STATUSES = ["requested", "accepted", "scheduling", "scheduled", "awaiting_rating"];
+
 export default async function AdminTransactionsPage({ searchParams }: { searchParams: AdminSearchParams }) {
   const { supabase } = await requireAdmin();
   const status = getStringParam(searchParams, "status");
@@ -14,7 +16,7 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (status === "active") query = query.in("status", ["accepted", "scheduling", "scheduled", "awaiting_rating"]);
+  if (status === "active") query = query.in("status", ACTIVE_TRANSACTION_STATUSES);
   if (status === "completed") query = query.eq("status", "completed");
   if (status === "cancelled") query = query.eq("status", "cancelled");
 
