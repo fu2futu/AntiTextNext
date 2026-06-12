@@ -149,6 +149,27 @@
     padding-bottom: max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom));
   }
 
+  .app-main {
+    min-height: 100dvh;
+    padding-top: var(--app-top-offset);
+    padding-bottom: calc(var(--bottom-nav-height) + max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)));
+  }
+
+  .app-main > .min-h-screen {
+    min-height: calc(100dvh - var(--app-top-offset) - var(--bottom-nav-height) - max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)));
+  }
+
+  @media (min-width: 1024px) {
+    .app-main {
+      padding-top: calc(var(--app-top-offset) + 5rem);
+      padding-bottom: 0;
+    }
+
+    .app-main > .min-h-screen {
+      min-height: calc(100dvh - var(--app-top-offset) - 5rem);
+    }
+  }
+
   .animate-fade-in {
     animation: fadeIn 0.3s ease-out forwards;
     opacity: 0;

@@ -81,7 +81,7 @@ export default function RootLayout({
             <RouteScrollReset />
             <ServiceWorkerRegister />
             <CapacitorEnvironment />
-            <main className="min-h-screen pt-[var(--app-top-offset)] pb-[calc(var(--bottom-nav-height)+var(--bottom-nav-safe-padding-min)+env(safe-area-inset-bottom))] lg:pt-[calc(var(--app-top-offset)+5rem)] lg:pb-0">{children}</main>
+            <main className="app-main">{children}</main>
             <AppNav />
           </AuthProvider>
         </Providers>
