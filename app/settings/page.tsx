@@ -21,6 +21,7 @@ import {
     ShieldAlert,
     Bell,
     Globe,
+    BookHeart,
 } from "lucide-react";
 
 type DeactivateStep = "idle" | "confirm" | "password" | "processing" | "done" | "error";
@@ -169,7 +170,7 @@ export default function SettingsPage() {
                         </h2>
                         <Link
                             href="/contact"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
+                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group mb-3"
                         >
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
@@ -178,6 +179,21 @@ export default function SettingsPage() {
                                 <div>
                                     <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">お問い合わせ</span>
                                     <p className="text-xs text-gray-400 mt-0.5">不具合報告・通報・要望など</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                        </Link>
+                        <Link
+                            href="/book-requests"
+                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center group-hover:bg-pink-100 transition-colors">
+                                    <BookHeart className="w-5 h-5 text-pink-500" />
+                                </div>
+                                <div>
+                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">欲しい本をリクエスト</span>
+                                    <p className="text-xs text-gray-400 mt-0.5">まだ無い本を運営に伝える</p>
                                 </div>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />

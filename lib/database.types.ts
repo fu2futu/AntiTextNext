@@ -105,29 +105,6 @@ export interface Database {
                     created_at?: string
                 }
             }
-            book_subjects: {
-                Row: {
-                    isbn: string
-                    school: string
-                    dept: string
-                    dept_label: string
-                    synced_at: string
-                }
-                Insert: {
-                    isbn: string
-                    school: string
-                    dept: string
-                    dept_label: string
-                    synced_at?: string
-                }
-                Update: {
-                    isbn?: string
-                    school?: string
-                    dept?: string
-                    dept_label?: string
-                    synced_at?: string
-                }
-            }
             search_histories: {
                 Row: {
                     id: string
@@ -260,6 +237,47 @@ export interface Database {
                     user_id?: string
                     keyword?: string
                     created_at?: string
+                }
+            }
+            book_requests: {
+                Row: {
+                    id: string
+                    requester_id: string | null
+                    requester_name: string | null
+                    book_title: string
+                    author: string | null
+                    course_name: string | null
+                    status: string
+                    admin_note: string | null
+                    assignee_id: string | null
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    requester_id?: string | null
+                    requester_name?: string | null
+                    book_title: string
+                    author?: string | null
+                    course_name?: string | null
+                    status?: string
+                    admin_note?: string | null
+                    assignee_id?: string | null
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    requester_id?: string | null
+                    requester_name?: string | null
+                    book_title?: string
+                    author?: string | null
+                    course_name?: string | null
+                    status?: string
+                    admin_note?: string | null
+                    assignee_id?: string | null
+                    created_at?: string
+                    updated_at?: string
                 }
             }
         }

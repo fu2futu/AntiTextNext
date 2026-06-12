@@ -47,6 +47,21 @@ export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderP
         </div>
       </Link>
 
+      {/* 分野から探す */}
+      <Link
+        href="/subjects"
+        prefetch={true}
+        className={cn(
+          "flex flex-shrink-0 items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all",
+          pathname?.startsWith("/subjects")
+            ? "text-primary bg-sky-50"
+            : "text-gray-500 hover:text-primary hover:bg-sky-50/60"
+        )}
+      >
+        <BookOpen className="w-5 h-5" strokeWidth={pathname?.startsWith("/subjects") ? 2.5 : 2} />
+        <span>分野</span>
+      </Link>
+
       {/* ナビゲーション（ヘッダー右側の空白に配置） */}
       <nav className="flex items-center gap-1 ml-auto">
         {navItems.map((item) => {

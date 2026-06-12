@@ -947,6 +947,16 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             />
           </div>
         </Link>
+
+        {/* 分野から探す */}
+        <Link
+          href="/subjects"
+          className="mt-3 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 transition-all hover:border-primary/40 hover:bg-primary/10 active:scale-[0.99]"
+        >
+          <BookOpen className="h-5 w-5 flex-shrink-0 text-primary" />
+          <span className="flex-1 text-sm font-bold text-gray-800">分野から探す</span>
+          <span className="text-xs font-medium text-primary">学院・系で絞り込み ›</span>
+        </Link>
       </header>
 
       {/* おすすめの教材 */}

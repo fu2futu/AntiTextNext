@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, Inbox, MessageCircle, Star, XCircle, CheckCircle2, Loader2, ShoppingBag, CheckCheck, RefreshCw } from "lucide-react";
+import { Bell, Inbox, MessageCircle, Star, XCircle, CheckCircle2, Loader2, ShoppingBag, CheckCheck, RefreshCw, BookHeart } from "lucide-react";
 import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -174,6 +174,8 @@ export default function NotificationsPage() {
             router.push(`/profile`);
         } else if (notification.link_type === "search" && notification.link_id) {
             router.push(`/search?q=${encodeURIComponent(notification.link_id)}`);
+        } else if (notification.link_type === "product" && notification.link_id) {
+            router.push(`/product/${notification.link_id}`);
         }
     };
 
@@ -191,6 +193,8 @@ export default function NotificationsPage() {
                 return <XCircle className="w-5 h-5 text-red-500" />;
             case "watch_match":
                 return <Bell className="w-5 h-5 text-primary" />;
+            case "book_request_match":
+                return <BookHeart className="w-5 h-5 text-pink-500" />;
             case "admin_inquiry_reply":
                 return <Inbox className="w-5 h-5 text-primary" />;
             case "admin_restriction_notice":
