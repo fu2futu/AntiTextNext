@@ -14,7 +14,7 @@ import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components
 type Item = HomeItem;
 
 const HOME_ITEM_PAGE_SIZE = 7;
-const PC_ITEM_PAGE_SIZE = 9;
+const PC_ITEM_PAGE_SIZE = 16;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
   "accepted",
@@ -29,7 +29,7 @@ const ACTIVE_TRANSACTION_STATUSES = [
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
     ? "max-h-[70vh]"
-    : "h-[29rem] max-h-[70vh]";
+    : "h-[29rem] max-h-[70vh] xl:h-[36rem] xl:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -911,7 +911,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
               <div className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
-                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
+                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {visibleRecommendedItems.map((item, index) => {
@@ -980,7 +980,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
               <div className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
-                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-3 ${
+                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {
