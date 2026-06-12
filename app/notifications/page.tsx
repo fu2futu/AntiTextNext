@@ -20,7 +20,7 @@ type Notification = {
 
 export default function NotificationsPage() {
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
     const { t } = useI18n();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
@@ -33,6 +33,8 @@ export default function NotificationsPage() {
     const PULL_THRESHOLD = 80;
 
     useEffect(() => {
+        if (authLoading) return;
+
         if (!user) {
             router.push("/auth/login");
             return;
@@ -60,7 +62,7 @@ export default function NotificationsPage() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, router]);
+    }, [user, authLoading, router]);
 
     const loadNotifications = async () => {
         if (!user) return;
@@ -70,7 +72,8 @@ export default function NotificationsPage() {
                 .from("notifications")
                 .select("*")
                 .eq("user_id", user.id)
-                .order("created_at", { ascending: false });
+                .order("created_at", { ascending: false })
+                .limit(50);
 
             if (!error && data) {
                 setNotifications(data as Notification[]);
@@ -220,10 +223,31 @@ export default function NotificationsPage() {
         return `${date.getMonth() + 1}/${date.getDate()}`;
     };
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
-            <div className="min-h-screen bg-white pb-24 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <div className="min-h-screen bg-white pb-24 lg:pb-12">
+                <div className="lg:max-w-3xl lg:mx-auto lg:px-6">
+                    <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
+                        <div className="flex items-center justify-between">
+                            <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
+                                {t("notifications.title")}
+                            </h1>
+                            <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                        </div>
+                    </header>
+                    <div className="divide-y divide-gray-100">
+                        {Array.from({ length: 6 }).map((_, index) => (
+                            <div key={index} className="px-6 py-4 flex items-start gap-4">
+                                <div className="mt-1 h-5 w-5 rounded-full bg-gray-100 animate-pulse" />
+                                <div className="min-w-0 flex-1">
+                                    <div className="mb-2 h-4 w-2/3 rounded bg-gray-100 animate-pulse" />
+                                    <div className="h-3 w-full rounded bg-gray-100 animate-pulse" />
+                                    <div className="mt-2 h-3 w-1/2 rounded bg-gray-100 animate-pulse" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
         );
     }

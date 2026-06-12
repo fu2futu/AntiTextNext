@@ -473,7 +473,7 @@ export default function TransactionsClient({
         <div className="min-h-screen bg-gray-50 pb-24 font-gentle lg:pb-12">
             <div className="lg:mx-auto lg:max-w-5xl lg:px-6">
             <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[40px] lg:pt-6 lg:pb-5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                         <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">{t('transactions.title')}</h1>
                         {totalUnreadCount > 0 && (
@@ -485,10 +485,10 @@ export default function TransactionsClient({
                     <button
                         type="button"
                         onClick={() => setShowFlowHelp(true)}
-                        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-gray-500 shadow-sm transition-all active:scale-95"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-100 bg-gray-50 text-gray-500 shadow-sm transition-all active:scale-95"
                         aria-label="取引の流れを表示"
                     >
-                        <HelpCircle className="h-5 w-5" />
+                        <HelpCircle className="h-[18px] w-[18px]" />
                     </button>
                 </div>
 
@@ -610,14 +610,14 @@ function TransactionFlowHelp({ onClose }: { onClose: () => void }) {
     ];
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-slate-900/35 px-4 pb-4 backdrop-blur-sm sm:items-center sm:pb-0">
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-slate-900/35 px-4 pb-4 pt-[calc(env(safe-area-inset-top)+5rem)] backdrop-blur-sm sm:items-center sm:pb-0 sm:pt-0">
             <button
                 type="button"
                 className="absolute inset-0 cursor-default"
                 onClick={onClose}
                 aria-label="閉じる"
             />
-            <div className="relative max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-5 shadow-2xl sm:p-6">
+            <div className="relative max-h-[calc(100dvh-env(safe-area-inset-top)-6rem)] w-full max-w-2xl overflow-y-auto rounded-[32px] bg-white p-5 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-6">
                 <div className="mb-5 flex items-start justify-between gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-primary/60">Transaction Flow</p>

@@ -17,7 +17,16 @@ const cards = [
   { key: "errors", label: "エラー件数", href: "/admin/errors", icon: Activity, tone: "border-slate-200 bg-slate-100 text-slate-700" },
 ];
 
-const ACTIVE_TRANSACTION_STATUSES = ["requested", "accepted", "scheduling", "scheduled", "awaiting_rating"];
+const ACTIVE_TRANSACTION_STATUSES = [
+  "requested",
+  "accepted",
+  "scheduling",
+  "scheduled",
+  "awaiting_rating",
+  "pending_approval",
+  "pending",
+  "confirmed",
+];
 
 export default async function AdminDashboardPage() {
   const { supabase } = await requireAdmin();

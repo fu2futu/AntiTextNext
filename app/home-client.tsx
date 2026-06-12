@@ -111,14 +111,15 @@ type HomeClientProps = {
 };
 
 export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false }: HomeClientProps) {
-  const { user, avatarUrl, loading } = useAuth();
+  const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("list");
   const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("list");
   const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
-  const itemDemoFilter = appReviewDemo;
+  const itemDemoFilter = demoPreview ? true : (appReviewDemo || isAppReviewDemo);
+  const homeDataReady = demoPreview || (!loading && profileReady);
   
   // 各アイテムの状態管理（サーバーのキャッシュを上書きできるようにState化）
   const [recommendedItems, setRecommendedItems] = useState<Item[]>(initialRecommendedItems);
@@ -142,7 +143,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [hasMore, setHasMore] = useState(initialPopularItems.length < totalPopularCount);
   // ログインユーザー向けのクライアント側再取得中フラグ。
   // サーバー描画 → クライアント再取得への差し替えで「取引中/相談中」などがちらつくのを防ぐ。
-  const [loadingPopular, setLoadingPopular] = useState(false);
+  const [loadingPopular, setLoadingPopular] = useState(!demoPreview && initialPopularItems.length === 0);
   const requestIdRef = useRef(0);
 
   // PC(lg以上)判定。リスト表示の件数を PC=9 / モバイル=7 に出し分けるために使う。
@@ -236,6 +237,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     let cancelled = false;
 
     const fetchData = async () => {
+      if (!homeDataReady) {
+        setLoadingPopular(true);
+        return;
+      }
+
       if (demoPreview) {
         setFavorites([]);
         setRecommendedItems(initialRecommendedItems);
@@ -261,12 +267,38 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setRecommendedItems([]);
         setHasMoreRecommended(false);
         setTotalRecommendedCount(0);
-        setPopularItems(initialPopularItems);
-        setTotalVisiblePopularCount(totalPopularCount);
-        setHasMore(initialPopularItems.length < totalPopularCount);
         setHiddenTransactionItemIds(new Set());
         setLoadingRecommended(false);
+
+        setLoadingPopular(true);
+        const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
+        const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await supabase
+          .from("items")
+          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
+          .in("status", ["available", "trading"])
+          .eq("is_demo", itemDemoFilter)
+          .order("created_at", { ascending: false })
+          .range(0, initialVisiblePopularCount - 1);
+
+        if (cancelled || requestId !== requestIdRef.current) return;
+
+        if (!visiblePopularError && visiblePopular) {
+          const mapped = (visiblePopular as any[]).map(item => ({
+            ...item,
+            favorite_count: item.favorites?.[0]?.count || 0,
+            favorites: undefined,
+          })) as Item[];
+          setPopularItems(mapped);
+          setTotalVisiblePopularCount(visiblePopularCount || 0);
+          setHasMore(mapped.length < (visiblePopularCount || 0));
+        } else {
+          setPopularItems([]);
+          setTotalVisiblePopularCount(0);
+          setHasMore(false);
+        }
+
         setLoadingPopular(false);
+        return;
       }
 
       // 1. お気に入り状態のロード & 最新カウントの取得
@@ -435,7 +467,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     return () => {
       cancelled = true;
     };
-  }, [user, initialRecommendedItems, initialPopularItems, totalPopularCount, isOfficialAdminHomeView, demoPreview]); // userが変わった時（ログイン/ログアウト）に再実行
+  }, [
+    user,
+    homeDataReady,
+    itemDemoFilter,
+    initialRecommendedItems,
+    initialPopularItems,
+    totalPopularCount,
+    isOfficialAdminHomeView,
+    demoPreview,
+    popularMobileLayout,
+  ]); // userが変わった時（ログイン/ログアウト）に再実行
 
   const favoriteStateRef = useRef<Set<string>>(new Set(favorites));
   const favoriteSyncTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -920,7 +962,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       )}
 
       {/* みんなの出品 */}
-      {(displayedPopularItems.length > 0 || hasMore) && (
+      {(displayedPopularItems.length > 0 || hasMore || loading || loadingPopular || !homeDataReady) && (
         <div className="px-6 py-8 bg-gray-50 snap-start">
           <div className="flex items-center gap-2 mb-6">
             <Users className="w-6 h-6 text-primary" />
@@ -929,7 +971,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </h2>
           </div>
 
-          {(loading || loadingPopular) ? (
+          {(loading || loadingPopular || !homeDataReady) ? (
             <div className="text-center py-12">
               <div className="w-6 h-6 border-2 border-gray-200 border-t-primary rounded-full animate-spin mx-auto mb-3" />
               <p className="text-gray-500">出品を読み込み中...</p>
