@@ -72,7 +72,6 @@ export default function ContactPage() {
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
         const trimmedEmail = email.trim();
-        if (!username.trim()) newErrors.username = "ユーザー名を入力してください";
         if (username.trim().length > INPUT_LIMITS.contactUsernameMax) newErrors.username = `ユーザー名は${INPUT_LIMITS.contactUsernameMax}文字以内で入力してください`;
         if (!trimmedEmail) {
             newErrors.email = "メールアドレスを入力してください";
@@ -108,7 +107,7 @@ export default function ContactPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    username: username.trim(),
+                    username: username.trim() || "未入力",
                     email: email.trim(),
                     category,
                     categoryLabel: CATEGORIES.find(c => c.value === category)?.label || category,
@@ -265,6 +264,7 @@ export default function ContactPage() {
                                 <div>
                                     <label className="text-xs font-medium text-gray-400 uppercase tracking-wide">
                                         ユーザー名
+                                        <span className="ml-1 text-xs font-normal text-gray-400">任意</span>
                                     </label>
                                     <p className="text-gray-900 font-medium mt-1">{username}</p>
                                 </div>
@@ -418,7 +418,7 @@ export default function ContactPage() {
                                     type="text"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    placeholder="ユーザー名"
+                                    placeholder="未入力でも送信できます"
                                     className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all bg-gray-50 ${
                                         errors.username ? "border-red-400" : "border-gray-300"
                                     }`}

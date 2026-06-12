@@ -18,14 +18,14 @@ const createServiceClient = () => {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const username = String(body.username || '').trim();
+        const username = String(body.username || '').trim() || '未入力';
         const email = String(body.email || '').trim().toLowerCase();
         const category = String(body.category || '').trim();
         const categoryLabel = String(body.categoryLabel || '').trim();
         const content = String(body.content || '').trim();
 
         // バリデーション
-        if (!username || !email || !category || !content) {
+        if (!email || !category || !content) {
             return NextResponse.json(
                 { success: false, error: '必須項目が入力されていません' },
                 { status: 400 }
