@@ -187,6 +187,8 @@ DB定義、RLS、RPC は `supabase/migrations/` にあります。
   - プロジェクト構造、ページ/API、主要処理フロー
 - [CAPACITOR_APP.md](CAPACITOR_APP.md)
   - iOS / Android アプリ化方針、アイコン、スプラッシュ、Xcode手順
+- [docs/app-review-demo-account.md](docs/app-review-demo-account.md)
+  - App Store審査用デモアカウントの作成・運用手順
 - [SUPABASE_SETUP.md](SUPABASE_SETUP.md)
   - Supabase セットアップ関連
 - [SECURITY_CHECKLIST_STRIPE.md](SECURITY_CHECKLIST_STRIPE.md)

@@ -107,9 +107,10 @@ type HomeClientProps = {
   totalPopularCount: number;
   demoPreview?: boolean;
   demoItemHrefPrefix?: string;
+  appReviewDemo?: boolean;
 };
 
-export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix }: HomeClientProps) {
+export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false }: HomeClientProps) {
   const { user, avatarUrl, loading } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -117,6 +118,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("list");
   const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
+  const itemDemoFilter = appReviewDemo;
   
   // 各アイテムの状態管理（サーバーのキャッシュを上書きできるようにState化）
   const [recommendedItems, setRecommendedItems] = useState<Item[]>(initialRecommendedItems);
@@ -284,7 +286,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             .select("id, favorites(count)")
             .in("id", itemIds)
             .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
-            .eq("is_demo", false)
+            .eq("is_demo", itemDemoFilter)
         );
       }
 
@@ -360,9 +362,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
-          .eq("is_demo", false)
-          .neq("seller_id", user.id)
+          .eq("is_demo", itemDemoFilter)
           .order("created_at", { ascending: false });
+        if (!appReviewDemo) {
+          popularQuery = popularQuery.neq("seller_id", user.id);
+        }
 
         const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
         const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await popularQuery.range(0, initialVisiblePopularCount - 1);
@@ -393,9 +397,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
             .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)", { count: 'exact' })
           .in("status", ["available", "trading"])
-          .eq("is_demo", false)
-          .neq("seller_id", user.id)
+          .eq("is_demo", itemDemoFilter)
           .eq("profiles.department", department);
+        if (!appReviewDemo) {
+          query = query.neq("seller_id", user.id);
+        }
         
         if (major) {
           query = query.eq("profiles.major", major);
@@ -544,9 +550,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, favorites(count), profiles!inner(department, major)")
           .in("status", ["available", "trading"])
-          .eq("is_demo", false)
-          .neq("seller_id", user.id)
+          .eq("is_demo", itemDemoFilter)
           .eq("profiles.department", (profile as any).department);
+        if (!appReviewDemo) {
+          query = query.neq("seller_id", user.id);
+        }
         
         if ((profile as any).major) {
           query = query.eq("profiles.major", (profile as any).major);
@@ -584,10 +592,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         .from("items")
         .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)")
         .in("status", ["available", "trading"])
-        .eq("is_demo", false)
+        .eq("is_demo", itemDemoFilter)
         .order("created_at", { ascending: false });
 
-      if (user) {
+      if (user && !appReviewDemo) {
         query = query.neq("seller_id", user.id);
       }
 
@@ -675,10 +683,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .from("items")
           .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
           .in("status", ["available", "trading"])
-          .eq("is_demo", false)
+          .eq("is_demo", itemDemoFilter)
           .order("created_at", { ascending: false });
 
-        if (user) {
+        if (user && !appReviewDemo) {
           popularQuery = popularQuery.neq("seller_id", user.id);
         }
 

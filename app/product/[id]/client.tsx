@@ -36,9 +36,13 @@ export type Item = {
   seller_id: string;
   seller_nickname?: string;
   seller_avatar_url?: string;
+  is_demo?: boolean;
 };
 
-export default function ProductDetailClient({ item }: { item: Item }) {
+const APP_REVIEW_REAL_ITEM_BLOCK_MESSAGE =
+  "このアカウントはApp Store審査用アカウントです。実際の出品への購入リクエストは送信できません。デモ出品で購入フローを確認してください。";
+
+export default function ProductDetailClient({ item, isAppReviewDemo = false }: { item: Item; isAppReviewDemo?: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetTransactionId = searchParams.get("tx");
@@ -193,6 +197,11 @@ export default function ProductDetailClient({ item }: { item: Item }) {
       return;
     }
 
+    if (isAppReviewDemo && !item.is_demo) {
+      alert(APP_REVIEW_REAL_ITEM_BLOCK_MESSAGE);
+      return;
+    }
+
     const tenMinutesLater = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     
     setIsAcquiringLock(true);
@@ -261,6 +270,10 @@ export default function ProductDetailClient({ item }: { item: Item }) {
           alert("この商品はすでに相談中です。");
         } else if (eligibility.reason === 'seller_cannot_buy_own_item') {
           alert("自分の商品にはリクエストできません。");
+        } else if (eligibility.reason === 'app_review_real_item_blocked') {
+          alert(APP_REVIEW_REAL_ITEM_BLOCK_MESSAGE);
+        } else if (eligibility.reason === 'demo_item_only') {
+          alert("この商品はデモ確認用です。通常アカウントでは購入リクエストを送信できません。");
         }
         setIsSubmitting(false);
         return;
@@ -308,6 +321,7 @@ export default function ProductDetailClient({ item }: { item: Item }) {
   const isPending = currentStatus === "transaction_pending" || currentStatus === "trading";
   const isReserved = currentStatus === "reserved";
   const isAvailable = currentStatus === "available";
+  const isRealItemBlockedForAppReview = isAppReviewDemo && item.is_demo !== true;
 
   // 購入手続き中の一時ロックだけはブロックする。相談中の商品は詳細閲覧のみ許可する。
   const isReservedByOther = isReserved && !isOwnItem;
@@ -732,6 +746,15 @@ export default function ProductDetailClient({ item }: { item: Item }) {
                 <MessageCircle className="w-5 h-5" />
                 チャットを見る
               </Link>
+            ) : isOwnItem && isRealItemBlockedForAppReview ? (
+              <button
+                type="button"
+                disabled
+                className="flex-1 py-3 md:py-4 bg-gray-100 text-gray-500 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+              >
+                <AlertTriangle className="w-5 h-5" />
+                審査用アカウントでは実出品を操作できません
+              </button>
             ) : isOwnItem && !hasCheckedActionState ? (
               <button
                 type="button"

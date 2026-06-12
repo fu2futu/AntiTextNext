@@ -8,7 +8,9 @@ import type { User } from '@supabase/supabase-js';
 type AuthContextType = {
     user: User | null;
     loading: boolean;
+    profileReady: boolean;
     avatarUrl: string | null;
+    isAppReviewDemo: boolean;
     signOut: () => Promise<void>;
     refreshAvatar: () => Promise<void>;
 };
@@ -16,7 +18,9 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType>({
     user: null,
     loading: true,
+    profileReady: false,
     avatarUrl: null,
+    isAppReviewDemo: false,
     signOut: async () => { },
     refreshAvatar: async () => { },
 });
@@ -26,23 +30,34 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [profileReady, setProfileReady] = useState(false);
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+    const [isAppReviewDemo, setIsAppReviewDemo] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
 
     const fetchAvatarUrl = useCallback(async (userId: string) => {
+        setProfileReady(false);
         try {
             const { data } = await supabase
                 .from("profiles")
-                .select("avatar_url")
+                .select("avatar_url, is_app_review_demo")
                 .eq("user_id", userId)
                 .single();
             
             if (data) {
                 setAvatarUrl((data as any).avatar_url || null);
+                setIsAppReviewDemo(Boolean((data as any).is_app_review_demo));
+            } else {
+                setAvatarUrl(null);
+                setIsAppReviewDemo(false);
             }
         } catch (err) {
             console.error("Error fetching avatar:", err);
+            setAvatarUrl(null);
+            setIsAppReviewDemo(false);
+        } finally {
+            setProfileReady(true);
         }
     }, []);
 
@@ -116,12 +131,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     await runPostAuthChecks(currentUser);
                 } else {
                     setAvatarUrl(null);
+                    setIsAppReviewDemo(false);
+                    setProfileReady(true);
                 }
             } catch (err) {
                 console.error("Error initializing auth:", err);
                 if (isMounted) {
                     setUser(null);
                     setAvatarUrl(null);
+                    setIsAppReviewDemo(false);
+                    setProfileReady(true);
                 }
             } finally {
                 if (isMounted) {
@@ -149,6 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }, 0);
             } else {
                 setAvatarUrl(null);
+                setIsAppReviewDemo(false);
+                setProfileReady(true);
             }
 
             setLoading(false);
@@ -164,6 +185,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         await supabase.auth.signOut();
         setAvatarUrl(null);
+        setIsAppReviewDemo(false);
+        setProfileReady(true);
     }, []);
 
     const refreshAvatar = useCallback(async () => {
@@ -175,10 +198,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const value = useMemo(() => ({
         user,
         loading,
+        profileReady,
         avatarUrl,
+        isAppReviewDemo,
         signOut,
         refreshAvatar
-    }), [user, loading, avatarUrl, signOut, refreshAvatar]);
+    }), [user, loading, profileReady, avatarUrl, isAppReviewDemo, signOut, refreshAvatar]);
 
     return (
         <AuthContext.Provider value={value}>

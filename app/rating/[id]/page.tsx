@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth-provider";
 
 export default function RatingPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAppReviewDemo } = useAuth();
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [comment, setComment] = useState("");
@@ -32,7 +32,7 @@ export default function RatingPage({ params }: { params: { id: string } }) {
         if (txError) throw txError;
         const typedTx = tx as any;
         const isParticipant = typedTx.buyer_id === user.id || typedTx.seller_id === user.id;
-        if (!isParticipant || typedTx.status !== "awaiting_rating") {
+        if (!isParticipant || typedTx.status !== "awaiting_rating" || (isAppReviewDemo && typedTx.is_demo !== true)) {
           router.push("/transactions");
           return;
         }
@@ -68,13 +68,13 @@ export default function RatingPage({ params }: { params: { id: string } }) {
       }
     }
     loadData();
-  }, [user, params.id]);
+  }, [user, params.id, isAppReviewDemo, router]);
 
   const handleSubmit = async () => {
     if (submitting || alreadyRated || !user || !transaction || !ratedUser || rating === 0) return;
     const isParticipant = transaction.buyer_id === user.id || transaction.seller_id === user.id;
     const expectedRatedUserId = transaction.buyer_id === user.id ? transaction.seller_id : transaction.buyer_id;
-    if (!isParticipant || transaction.status !== "awaiting_rating" || ratedUser.user_id !== expectedRatedUserId) {
+    if (!isParticipant || transaction.status !== "awaiting_rating" || ratedUser.user_id !== expectedRatedUserId || (isAppReviewDemo && transaction.is_demo !== true)) {
       return;
     }
 

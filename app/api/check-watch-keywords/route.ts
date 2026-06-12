@@ -32,6 +32,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: '未認証' }, { status: 401 });
         }
 
+        const { data: targetItem } = await (supabase.from("items") as any)
+            .select("is_demo")
+            .eq("id", itemId)
+            .maybeSingle();
+
+        if (targetItem?.is_demo) {
+            return NextResponse.json({ matched: 0, skipped: "demo_item" });
+        }
+
         const { data, error } = await (supabase as any).rpc("notify_watch_keyword_matches", {
             target_item_id: itemId,
         });

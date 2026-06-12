@@ -8,6 +8,7 @@ import RestrictionActions from "./restriction-actions";
 import BadgeActions from "./badge-actions";
 import EarlyRewardActions from "./early-reward-actions";
 import { RevokeBadgeButton } from "./revoke-badge-button";
+import AppReviewDemoActions from "./app-review-demo-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +75,10 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
                 <p className="mb-1 text-xs font-black text-slate-500">BAN/制限状態</p>
                 <StatusBadge value={userSummary?.restriction_status} />
               </div>
+              <div>
+                <p className="mb-1 text-xs font-black text-slate-500">App Store審査用</p>
+                <StatusBadge value={profile?.is_app_review_demo ? "app_review_demo" : "none"} />
+              </div>
             </div>
           </div>
         </section>
@@ -116,6 +121,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
         </section>
 
         <RestrictionActions userId={userId} activeRestriction={activeRestriction?.restriction_type ?? userSummary?.restriction_status} />
+        <AppReviewDemoActions userId={userId} enabled={Boolean(profile?.is_app_review_demo)} />
         <EarlyRewardActions
           userId={userId}
           initialOverride={(rewardOverrideResult.data as any)?.early_registration_override}

@@ -35,6 +35,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "未認証" }, { status: 401 });
         }
 
+        const { data: actorProfile } = await (supabase.from("profiles") as any)
+            .select("is_app_review_demo")
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+        const actorIsAppReviewDemo = Boolean(actorProfile?.is_app_review_demo);
+
         // 受信者の通知設定を取得
         const { data: profile } = await supabase
             .from("profiles")
@@ -52,11 +58,43 @@ export async function POST(request: NextRequest) {
         // 商品情報の取得
         const { data: item } = await supabase
             .from("items")
-            .select("title")
+            .select("title, is_demo")
             .eq("id", itemId)
             .single();
 
         const itemTitle = item?.title || "商品";
+        const itemIsDemo = Boolean((item as any)?.is_demo);
+
+        if (actorIsAppReviewDemo && !itemIsDemo) {
+            console.warn("Blocked app review notification for real item", {
+                actorId: session.user.id,
+                receiverId,
+                itemId,
+                action,
+            });
+
+            if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+                const supabaseAdmin = createClient(
+                    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+                    process.env.SUPABASE_SERVICE_ROLE_KEY!
+                );
+                await (supabaseAdmin as any).from("admin_action_logs").insert({
+                    admin_user_id: null,
+                    action_type: "app_review_real_notification_blocked",
+                    target_type: "item",
+                    target_id: String(itemId),
+                    reason: "App Review demo account attempted notification for a real item",
+                    metadata: {
+                        actorId: session.user.id,
+                        receiverId,
+                        action,
+                    },
+                });
+            }
+
+            return NextResponse.json({ success: true, blocked: true });
+        }
+
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://textnext.jp";
         const actionUrl = extraData?.transactionId
             ? `${baseUrl}/chat/${itemId}?tx=${extraData.transactionId}`
@@ -64,8 +102,8 @@ export async function POST(request: NextRequest) {
 
         if (action === "message") {
             await sendWebPushToUser(receiverId, {
-                title: "新しいチャットメッセージ",
-                body: extraData?.preview ? String(extraData.preview).slice(0, 80) : `「${itemTitle}」に新しいメッセージがあります。`,
+                title: itemIsDemo ? "[デモ] 新しいチャットメッセージ" : "新しいチャットメッセージ",
+                body: extraData?.preview ? `${itemIsDemo ? "[デモ] " : ""}${String(extraData.preview).slice(0, 80)}` : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」に新しいメッセージがあります。`,
                 url: actionUrl,
             });
             return NextResponse.json({ success: true, skippedEmail: true });
@@ -76,8 +114,8 @@ export async function POST(request: NextRequest) {
                 return {
                     title: locale === "en" ? "Purchase Request Received" : "購入相談が届きました",
                     body: locale === "en"
-                        ? `You have received a purchase request for "${itemTitle}".`
-                        : `「${itemTitle}」に購入リクエストが届きました。チャットで確認してください。`,
+                        ? `${itemIsDemo ? "[Demo] " : ""}You have received a purchase request for "${itemTitle}".`
+                        : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」に購入リクエストが届きました。チャットで確認してください。`,
                     url: actionUrl,
                 };
             }
@@ -85,8 +123,8 @@ export async function POST(request: NextRequest) {
                 return {
                     title: locale === "en" ? "Purchase Request Approved" : "購入リクエストが承認されました",
                     body: locale === "en"
-                        ? `Your purchase request for "${itemTitle}" has been approved.`
-                        : `「${itemTitle}」の購入リクエストが承認されました。`,
+                        ? `${itemIsDemo ? "[Demo] " : ""}Your purchase request for "${itemTitle}" has been approved.`
+                        : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」の購入リクエストが承認されました。`,
                     url: actionUrl,
                 };
             }
@@ -94,8 +132,8 @@ export async function POST(request: NextRequest) {
                 return {
                     title: locale === "en" ? "Purchase Request Declined" : "購入リクエストが見送られました",
                     body: locale === "en"
-                        ? `Your purchase request for "${itemTitle}" was declined.`
-                        : `「${itemTitle}」の購入リクエストは見送られました。`,
+                        ? `${itemIsDemo ? "[Demo] " : ""}Your purchase request for "${itemTitle}" was declined.`
+                        : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」の購入リクエストは見送られました。`,
                     url: actionUrl,
                 };
             }
@@ -103,8 +141,8 @@ export async function POST(request: NextRequest) {
                 return {
                     title: locale === "en" ? "Please Rate Your Transaction" : "取引相手からの評価が完了しました",
                     body: locale === "en"
-                        ? `Please submit your rating for "${itemTitle}".`
-                        : `「${itemTitle}」の評価を完了してください。`,
+                        ? `${itemIsDemo ? "[Demo] " : ""}Please submit your rating for "${itemTitle}".`
+                        : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」の評価を完了してください。`,
                     url: `${baseUrl}/rating/${extraData?.transactionId}`,
                 };
             }
@@ -142,28 +180,28 @@ export async function POST(request: NextRequest) {
         const email = targetUser.email;
 
         if (action === "request") {
-            const title = locale === "en" ? "Purchase Request Received" : "購入リクエストを受信しました";
+            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Purchase Request Received` : `${itemIsDemo ? "[デモ] " : ""}購入リクエストを受信しました`;
             const content = locale === "en"
-                ? `You have received a purchase request for your item "${itemTitle}". Please review it in the chat.`
-                : `出品した商品「${itemTitle}」に購入リクエストが届きました。チャットから内容を確認して、承認または辞退を行ってください。`;
+                ? `${itemIsDemo ? "[Demo] " : ""}You have received a purchase request for your item "${itemTitle}". Please review it in the chat.`
+                : `${itemIsDemo ? "[デモ] " : ""}出品した商品「${itemTitle}」に購入リクエストが届きました。チャットから内容を確認して、承認または辞退を行ってください。`;
             await sendTransactionProgressEmail(email, title, content, actionUrl, locale);
         } else if (action === "approve") {
-            const title = locale === "en" ? "Purchase Request Approved" : "購入リクエストが承認されました";
+            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Purchase Request Approved` : `${itemIsDemo ? "[デモ] " : ""}購入リクエストが承認されました`;
             const content = locale === "en"
-                ? `Your purchase request for "${itemTitle}" has been approved! The transaction has started.`
-                : `商品「${itemTitle}」の購入リクエストが承認されました！取引が開始されました。チャットで引き続き連絡を取り合ってください。`;
+                ? `${itemIsDemo ? "[Demo] " : ""}Your purchase request for "${itemTitle}" has been approved! The transaction has started.`
+                : `${itemIsDemo ? "[デモ] " : ""}商品「${itemTitle}」の購入リクエストが承認されました！取引が開始されました。チャットで引き続き連絡を取り合ってください。`;
             await sendTransactionProgressEmail(email, title, content, actionUrl, locale);
         } else if (action === "decline") {
-            const title = locale === "en" ? "Purchase Request Declined" : "購入リクエストが見送られました";
+            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Purchase Request Declined` : `${itemIsDemo ? "[デモ] " : ""}購入リクエストが見送られました`;
             const content = locale === "en"
-                ? `Unfortunately, your purchase request for "${itemTitle}" was declined by the seller.`
-                : `残念ながら、商品「${itemTitle}」の購入リクエストは見送られました。`;
+                ? `${itemIsDemo ? "[Demo] " : ""}Unfortunately, your purchase request for "${itemTitle}" was declined by the seller.`
+                : `${itemIsDemo ? "[デモ] " : ""}残念ながら、商品「${itemTitle}」の購入リクエストは見送られました。`;
             await sendTransactionProgressEmail(email, title, content, actionUrl, locale);
         } else if (action === "rating_remind") {
-            const title = locale === "en" ? "Please Rate Your Transaction" : "取引相手からの評価が完了しました";
+            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Please Rate Your Transaction` : `${itemIsDemo ? "[デモ] " : ""}取引相手からの評価が完了しました`;
             const content = locale === "en"
-                ? `The other party has submitted their rating for "${itemTitle}". Please submit your rating to complete the transaction.`
-                : `取引相手が商品「${itemTitle}」の評価を完了しました。評価が完了していなければ評価をお願いします。評価が完了し次第取引は終了となります。`;
+                ? `${itemIsDemo ? "[Demo] " : ""}The other party has submitted their rating for "${itemTitle}". Please submit your rating to complete the transaction.`
+                : `${itemIsDemo ? "[デモ] " : ""}取引相手が商品「${itemTitle}」の評価を完了しました。評価が完了していなければ評価をお願いします。評価が完了し次第取引は終了となります。`;
             const ratingUrl = `${baseUrl}/rating/${extraData?.transactionId}`;
             await sendTransactionProgressEmail(email, title, content, ratingUrl, locale);
         }

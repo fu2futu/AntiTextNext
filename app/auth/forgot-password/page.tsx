@@ -6,6 +6,8 @@ import { AlertTriangle, ArrowLeft, CheckCircle, Loader2, Mail } from "lucide-rea
 import { supabase } from "@/lib/supabase";
 
 const RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
+const APP_REVIEW_RESET_MESSAGE =
+  "このアカウントはApp Store審査用アカウントです。パスワード再設定は不要です。App Review情報に記載されたパスワードでログインしてください。";
 
 const formatRemainingTime = (seconds: number) => {
   if (seconds >= 60) {
@@ -19,6 +21,7 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
@@ -45,6 +48,7 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    setInfoMessage("");
     if (cooldownUntil && Date.now() < cooldownUntil) {
       const remainingSeconds = Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000));
       setError(`現在メール送信の上限に達しています。${formatRemainingTime(remainingSeconds)}に再度お試しください。`);
@@ -53,6 +57,17 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
+      const checkResponse = await fetch("/api/auth/password-reset-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      const checkPayload = await checkResponse.json().catch(() => ({}));
+      if (checkPayload?.isAppReviewDemo) {
+        setInfoMessage(APP_REVIEW_RESET_MESSAGE);
+        return;
+      }
+
       const appOrigin = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
       const redirectTo = `${appOrigin.replace(/\/$/, "")}/auth/callback?next=/auth/update-password`;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
@@ -140,6 +155,12 @@ export default function ForgotPasswordPage() {
                 {error && (
                   <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                     {error}
+                  </div>
+                )}
+
+                {infoMessage && (
+                  <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-sm leading-6">
+                    {infoMessage}
                   </div>
                 )}
 

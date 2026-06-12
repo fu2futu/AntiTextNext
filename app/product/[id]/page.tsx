@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { createSupabaseServerClient } from "@/lib/supabase-server";
 import ProductDetailClient, { Item } from "./client";
 import { resolveEarlyRegistrationEligible } from "@/lib/rewards";
 
-// Phase 2: 適切なキャッシュ戦略
-// 30秒ごとに再検証することで、削除されたアイテムが長時間表示されるのを防ぐ
-// ISRの60秒から30秒に短縮し、削除反映を早める
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 export default async function ProductDetailPage({
   params,
@@ -16,19 +13,36 @@ export default async function ProductDetailPage({
   const { id } = params;
 
   try {
+    const supabase = createSupabaseServerClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    let isAppReviewDemo = false;
+    if (session?.user) {
+      const { data: viewerProfile } = await (supabase.from("profiles") as any)
+        .select("is_app_review_demo")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+      isAppReviewDemo = Boolean(viewerProfile?.is_app_review_demo);
+    }
+
     // 2. Fetch profile
     // Attempt to join first (Optimized path)
     let fullItem: Item | null = null;
     
-    const itemFields = "id, title, description, selling_price, original_price, status, front_image_url, back_image_url, front_thumbnail_url, back_thumbnail_url, front_image_storage_path, back_image_storage_path, front_thumbnail_storage_path, back_thumbnail_storage_path, image_storage_provider, created_at, seller_id";
+    const itemFields = "id, title, description, selling_price, original_price, status, front_image_url, back_image_url, front_thumbnail_url, back_thumbnail_url, front_image_storage_path, back_image_storage_path, front_thumbnail_storage_path, back_thumbnail_storage_path, image_storage_provider, created_at, seller_id, is_demo";
 
     // 1. Fetch item and profile
-    const { data: itemData, error: itemError } = await supabase
+    let itemQuery = supabase
       .from("items")
       .select(`${itemFields}, profiles!items_seller_id_fkey_profiles(nickname, avatar_url, department, major, degree, grade, created_at)`)
-      .eq("id", id)
-      .eq("is_demo", false)
-      .single();
+      .eq("id", id);
+
+    if (!isAppReviewDemo) {
+      itemQuery = itemQuery.eq("is_demo", false);
+    }
+
+    const { data: itemData, error: itemError } = await itemQuery.single();
 
     if (itemError || !itemData) {
       console.error("Error loading item:", itemError);
@@ -82,7 +96,7 @@ export default async function ProductDetailPage({
       seller_badges: sellerBadges ?? []
     };
 
-    return <ProductDetailClient item={fullItem as any} />;
+    return <ProductDetailClient item={fullItem as any} isAppReviewDemo={isAppReviewDemo} />;
 
   } catch (err) {
     console.error("Error in ProductDetailPage:", err);

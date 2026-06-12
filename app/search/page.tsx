@@ -119,7 +119,7 @@ const formatLibraryFetchedAt = (value?: string) => {
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
 
   const initialQuery = searchParams.get("q") || "";
@@ -183,6 +183,10 @@ function SearchContent() {
   // キーワード（任意）＋分野フィルタ（任意）を組み合わせて検索する。
   // 分野が選択されている場合、book_subjects から対象ISBNを引き、items を絞り込む。
   const runSearch = async (query: string, school: string | null, dept: string | null) => {
+    if (authLoading || !profileReady) {
+      return;
+    }
+
     const trimmed = query.trim();
     const hasQuery = trimmed.length > 0;
     const hasSubject = !!school;
@@ -226,7 +230,7 @@ function SearchContent() {
               .from("items")
               .select(ITEM_SELECT)
               .in("status", ["available", "trading"])
-              .eq("is_demo", false)
+              .eq("is_demo", isAppReviewDemo)
               .ilike("title", `%${searchTerm}%`);
             if (isbnFilter) q = q.in("isbn", isbnFilter);
             const { data, error } = await q.order("created_at", { ascending: false }).limit(20);
@@ -244,7 +248,7 @@ function SearchContent() {
           .from("items")
           .select(ITEM_SELECT)
           .in("status", ["available", "trading"])
-          .eq("is_demo", false)
+          .eq("is_demo", isAppReviewDemo)
           .in("isbn", isbnFilter!)
           .order("created_at", { ascending: false })
           .limit(50);
@@ -306,14 +310,22 @@ function SearchContent() {
 
   // URLパラメータからの初期検索
   useEffect(() => {
+    if (authLoading || !profileReady) return;
+
     if (initialQuery) {
       setSearchQuery(initialQuery);
       executeSearch(initialQuery);
     }
-  }, []);
+  }, [authLoading, profileReady, initialQuery]);
 
   // サジェスト取�?
   useEffect(() => {
+    if (authLoading || !profileReady) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
     if (searchQuery.length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -332,7 +344,7 @@ function SearchContent() {
               .from("items")
               .select("id, title, isbn, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider")
               .in("status", ["available", "trading"])
-              .eq("is_demo", false)
+              .eq("is_demo", isAppReviewDemo)
               .ilike("title", `%${searchTerm}%`)
               .limit(5);
 
@@ -367,7 +379,7 @@ function SearchContent() {
 
     const debounceTimer = setTimeout(fetchSuggestions, 200);
     return () => clearTimeout(debounceTimer);
-  }, [searchQuery]);
+  }, [authLoading, profileReady, searchQuery, isAppReviewDemo]);
 
   // お気に入り取�?
   useEffect(() => {

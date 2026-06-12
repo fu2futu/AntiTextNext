@@ -66,7 +66,7 @@ const getOriginalPriceValidationMessage = (value: string) => {
 
 export default function ListingPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAppReviewDemo } = useAuth();
   const [step, setStep] = useState<ListingStep>("form");
   const [formData, setFormData] = useState({
     bookName: "",
@@ -396,6 +396,8 @@ export default function ListingPage() {
           back_thumbnail_url: null,
           image_storage_provider: "r2",
           isbn,
+          is_demo: isAppReviewDemo,
+          demo_purpose: isAppReviewDemo ? "app_store_review" : null,
         });
 
         if (draftError) throw draftError;

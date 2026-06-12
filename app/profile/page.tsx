@@ -52,10 +52,10 @@ export default async function Mypage() {
         { data: badges },
         { data: rewardOverride }
     ] = await Promise.all([
-        supabase.from("profiles").select("user_id,nickname,department,avatar_url,created_at").eq("user_id", userId).single(),
+        supabase.from("profiles").select("user_id,nickname,department,avatar_url,created_at,is_app_review_demo").eq("user_id", userId).single(),
         supabase.from("ratings").select("score").eq("rated_id", userId).eq("is_demo", false),
         supabase.from("favorites").select("item_id, items(id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", userId),
-        supabase.from("items").select("id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId).eq("is_demo", false),
+        supabase.from("items").select("id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", userId).eq("is_demo", false),
         supabase.from("transactions").select("id, item_id, status").eq("seller_id", userId),
         supabase
             .from("transactions")
@@ -70,17 +70,28 @@ export default async function Mypage() {
     const scores = (ratingsData || []).map(r => r.score);
     const ratingCount = scores.length;
     const averageRating = ratingCount > 0 ? scores.reduce((a, b) => a + b, 0) / ratingCount : 0;
+    const isAppReviewDemo = Boolean((profile as any)?.is_app_review_demo);
+
+    let effectiveSellerItems = sellerItems || [];
+    if (isAppReviewDemo) {
+        const { data: demoSellerItems } = await supabase
+            .from("items")
+            .select("id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider")
+            .eq("seller_id", userId)
+            .eq("is_demo", true);
+        effectiveSellerItems = demoSellerItems || [];
+    }
 
     // Filter listing items: available status AND no transactions
     const txItemIds = new Set((sellerTransactions || []).map(tx => tx.item_id));
-    const cumulativeListingCount = (sellerItems || []).filter(item => item.status !== 'deleted').length;
-    const listingItems = (sellerItems || []).filter(item => item.status === 'available' && !txItemIds.has(item.id));
+    const cumulativeListingCount = effectiveSellerItems.filter(item => item.status !== 'deleted').length;
+    const listingItems = effectiveSellerItems.filter(item => item.status === 'available' && !txItemIds.has(item.id));
 
     // Filter past items: terminal transaction history. Keep transaction_id so the detail page can open the archived chat.
     const terminalStatuses = new Set(['completed', 'cancelled', 'rejected', 'declined', 'expired', 'auto_closed']);
     const sellerTerminalTransactions = (sellerTransactions || []).filter(tx => terminalStatuses.has(tx.status));
     const sellerTerminalTxByItemId = new Map(sellerTerminalTransactions.map(tx => [tx.item_id, tx]));
-    const sellerPastItems = (sellerItems || [])
+    const sellerPastItems = effectiveSellerItems
         .filter(item => item.status === 'sold' || sellerTerminalTxByItemId.has(item.id))
         .map((item: any) => {
             const tx = sellerTerminalTxByItemId.get(item.id);
