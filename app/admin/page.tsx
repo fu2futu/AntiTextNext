@@ -44,6 +44,7 @@ export default async function AdminDashboardPage() {
     recentUsers,
     recentReports,
     recentInquiries,
+    handoverMethods,
   ] = await Promise.all([
     (supabase as any).rpc("admin_get_today_access_count"),
     supabase.from("profiles").select("*", { count: "exact", head: true }),
@@ -56,6 +57,7 @@ export default async function AdminDashboardPage() {
     supabase.from("profiles").select("user_id, nickname, department, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("reports").select("id, reason, status, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("inquiries").select("id, sender_name, category, status, created_at").order("created_at", { ascending: false }).limit(5),
+    (supabase as any).from("transactions").select("handover_completion_method").not("handover_completion_method", "is", null),
   ]);
 
   const counts: Record<string, number> = {
@@ -69,6 +71,15 @@ export default async function AdminDashboardPage() {
     restrictedUsers: restrictedUsers.count ?? 0,
     errors: 0,
   };
+
+  const handoverMethodCounts = ((handoverMethods.data ?? []) as Array<{ handover_completion_method: string | null }>).reduce(
+    (acc, row) => {
+      if (row.handover_completion_method === "qr") acc.qr += 1;
+      if (row.handover_completion_method === "forget") acc.forget += 1;
+      return acc;
+    },
+    { qr: 0, forget: 0 }
+  );
 
   return (
     <>
@@ -90,6 +101,12 @@ export default async function AdminDashboardPage() {
         </section>
 
         <section className="grid gap-6 xl:grid-cols-3">
+          <Panel title="取引終了法">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-sm font-black text-slate-700">QR: {handoverMethodCounts.qr.toLocaleString()}</p>
+              <p className="mt-2 text-sm font-black text-slate-700">やり忘れ: {handoverMethodCounts.forget.toLocaleString()}</p>
+            </div>
+          </Panel>
           <Panel title="最近登録したユーザー">
             {(recentUsers.data ?? []).map((user: any) => (
               <Row

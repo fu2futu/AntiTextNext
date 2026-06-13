@@ -63,6 +63,10 @@ type Transaction = {
   previous_final_meetup_location: string | null;
   handover_token?: string | null;
   handover_token_expires_at?: string | null;
+  handover_completion_method?: "qr" | "forget" | null;
+  handover_completed_at?: string | null;
+  buyer_completed_at?: string | null;
+  seller_completed_at?: string | null;
 };
 
 type UserProfile = {
@@ -875,38 +879,36 @@ export default function ChatPage({ params }: { params: { id: string } }) {
     if (!['accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction.status)) return;
     setIsFinalizing(true);
     try {
-      const isBuyer = user.id === transaction.buyer_id;
-      const updateField = isBuyer ? 'buyer_completed' : 'seller_completed';
-      const otherField = isBuyer ? 'seller_completed' : 'buyer_completed';
+      const { data, error } = await (supabase as any).rpc("complete_handover_forgotten", {
+        target_transaction_id: transaction.id,
+      });
+      if (error) throw error;
 
-      // Update current user's completion status
-      const { data: updatedTx, error: txError } = await (supabase.from("transactions") as any)
-        .update({ [updateField]: true })
+      const result = data as { bothCompleted?: boolean; notifyUserId?: string | null; itemId?: string | null };
+      const { data: updatedTx } = await (supabase.from("transactions") as any)
+        .select("*")
         .eq("id", transaction.id)
-        .select()
         .single();
+      if (updatedTx) setTransaction(updatedTx as Transaction);
 
-      if (txError) throw txError;
+      setIsCompletionModalOpen(false);
+      setIsHandoverActive(false);
 
-      // Check if both parties have completed
-      const bothCompleted = updatedTx[otherField] === true;
-
-      if (bothCompleted) {
-        // Both completed - mark transaction as awaiting_rating (will be completed after both rate)
-        const { error: statusError } = await (supabase.from("transactions") as any)
-          .update({ status: 'awaiting_rating' })
-          .eq("id", transaction.id);
-        if (statusError) throw statusError;
-      } else {
-        // Only current user completed - mark as awaiting_rating
-        const { error: statusError } = await (supabase.from("transactions") as any)
-          .update({ status: 'awaiting_rating' })
-          .eq("id", transaction.id);
-        if (statusError) throw statusError;
+      if (result?.bothCompleted) {
+        if (result.notifyUserId) {
+          await fetch("/api/notify/transaction", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "rating_remind",
+              itemId: result.itemId || item.id,
+              receiverId: result.notifyUserId,
+              extraData: { transactionId: transaction.id },
+            }),
+          }).catch((notifyError) => console.error(notifyError));
+        }
+        router.push(`/rating/${transaction.id}`);
       }
-
-      // Always redirect to rating page
-      router.push(`/rating/${transaction.id}`);
     } catch (err: any) {
       alert("取引の完了に失敗しました: " + err.message);
     } finally {
@@ -1156,7 +1158,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const isCancelled = transaction?.status === 'cancelled';
   const isAwaitingRating = transaction?.status === 'awaiting_rating';
   const isDeclined = ['rejected', 'declined', 'expired', 'auto_closed'].includes(transaction?.status || '');
-  const isClosedTransaction = isCancelled || isDeclined || transaction?.status === 'completed';
+  const isClosedTransaction = isCancelled || isDeclined || isAwaitingRating || transaction?.status === 'completed';
   const canUseTradeActions = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canAdjustSchedule = ['requested', 'pending_approval', 'accepted', 'scheduling', 'scheduled', 'pending', 'confirmed'].includes(transaction?.status || '');
   const canCancelTransaction = canUseTradeActions && !isDeclined && transaction?.status !== 'completed' && transaction?.status !== 'cancelled';
@@ -1165,6 +1167,10 @@ export default function ChatPage({ params }: { params: { id: string } }) {
   const showActionBar = canUseTradeActions && !isDeclined && !isCancelled;
   const needsTopNoticeSpace = showClosedNotice || showRatingBanner || showActionBar;
   const isDemoTransaction = transaction?.is_demo === true;
+  const currentUserCompletedHandover = !!transaction && !!user && (
+    (user.id === transaction.buyer_id && transaction.buyer_completed) ||
+    (user.id === transaction.seller_id && transaction.seller_completed)
+  );
   const itemThumbnailUrl = item
     ? getItemImageUrl(item, "front", "thumbnail") || getItemImageUrl(item, "back", "thumbnail")
     : null;
@@ -1334,13 +1340,16 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           onClick={() => setIsCompletionModalOpen(true)}
           disabled={
             transaction?.status === 'completed' ||
-            (user?.id === transaction?.buyer_id && transaction?.buyer_completed) ||
-            (user?.id === transaction?.seller_id && transaction?.seller_completed)
+            currentUserCompletedHandover
           }
-          className="flex-1 min-w-0 flex items-center justify-center gap-1.5 bg-primary/80 hover:bg-primary text-white font-bold py-2 rounded-xl transition-all shadow-lg shadow-black/5 text-[11px] whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+          className={`flex-1 min-w-0 flex items-center justify-center gap-1.5 font-bold py-2 rounded-xl transition-all shadow-lg shadow-black/5 text-[11px] whitespace-nowrap disabled:cursor-not-allowed ${
+            currentUserCompletedHandover
+              ? "bg-gray-200 text-gray-500"
+              : "bg-primary/80 hover:bg-primary text-white"
+          }`}
         >
           <CheckCircle2 className="w-4 h-4" />
-          取引終了
+          {currentUserCompletedHandover ? "相手待ち" : "取引終了"}
         </button>
       </div>
       )}
@@ -1639,6 +1648,7 @@ export default function ChatPage({ params }: { params: { id: string } }) {
           setIsCompletionModalOpen(false);
         }}
         onConfirm={handleCompleteTransaction}
+        isSubmitting={isFinalizing}
         isSeller={isSeller}
         transaction={transaction}
         onCompleted={() => {
@@ -1785,7 +1795,7 @@ const MessageList = memo(function MessageList({
   );
 });
 
-type AutoMessageTone = "request" | "cancel" | "schedule" | "rating" | "complete";
+type AutoMessageTone = "request" | "cancel" | "schedule" | "rating" | "complete" | "handover";
 
 type AutoMessageSection = {
   title: string;
@@ -1843,6 +1853,13 @@ const AUTO_MESSAGE_TONES: Record<AutoMessageTone, {
     chip: "bg-white text-sky-700 border-sky-200",
     next: "bg-sky-100/70 text-sky-900",
   },
+  handover: {
+    card: "bg-purple-50/90 border-purple-200",
+    border: "border-l-purple-500",
+    label: "bg-purple-100 text-purple-700",
+    chip: "bg-white text-purple-700 border-purple-200",
+    next: "bg-purple-100/70 text-purple-900",
+  },
 };
 
 const normalizeAutoSectionTitle = (title: string) => {
@@ -1858,6 +1875,7 @@ const normalizeAutoSectionTitle = (title: string) => {
 
 const classifyAutoMessageTone = (title: string, body: string): AutoMessageTone => {
   const text = `${title}\n${body}`;
+  if (title.includes("取引終了確認") || text.includes("取引終了が押されました")) return "handover";
   if (text.includes("双方の評価が完了")) return "complete";
   if (title.includes("購入リクエスト") || title.includes("購入相談")) return "request";
   if (text.includes("評価")) return "rating";
@@ -1882,6 +1900,9 @@ const getAutoMessageNextAction = (tone: AutoMessageTone, title: string, body: st
       return "相手の評価を行ってください。";
     }
     return "評価が完了していなければ評価を完了してください。";
+  }
+  if (tone === "handover") {
+    return "取引が終了していることを確認できたら、同じ手順で取引終了を押してください。";
   }
   if (text.includes("変更提案")) {
     return "提案された日程から受け渡し可能な日時を選択してください。";
@@ -1957,7 +1978,7 @@ const parseAutoMessage = (message: string, isOwnMessage: boolean): AutoMessageDa
 
   return {
     title,
-    label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : tone === "complete" ? "取引完了" : "評価",
+    label: tone === "request" ? "購入リクエスト" : tone === "cancel" ? "相談終了" : tone === "schedule" ? "予定" : tone === "complete" ? "取引完了" : tone === "handover" ? "取引終了確認" : "評価",
     tone,
     sections: sections.length > 0 ? sections : [{ title: "内容", lines: [body], chips: [] }],
     nextAction: getAutoMessageNextAction(tone, title, body, isOwnMessage),
@@ -2389,6 +2410,7 @@ function CompletionConfirmationModal({
   isOpen,
   onClose,
   onConfirm,
+  isSubmitting,
   isSeller,
   transaction,
   onCompleted,
@@ -2397,12 +2419,13 @@ function CompletionConfirmationModal({
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  isSubmitting: boolean;
   isSeller: boolean;
   transaction: Transaction | null;
   onCompleted: () => void;
   onHandoverActiveChange: (active: boolean) => void;
 }) {
-  const [step, setStep] = useState<"confirm" | "handover">("confirm");
+  const [step, setStep] = useState<"confirm" | "handover" | "forgotten_confirm">("confirm");
   const [confirmed, setConfirmed] = useState(false);
 
   // 出品者: QRトークン
@@ -2615,6 +2638,59 @@ function CompletionConfirmationModal({
                 </button>
               </div>
             </>
+          ) : step === "forgotten_confirm" ? (
+            <>
+              <h2 className="text-xl font-black text-gray-900 text-center mb-2">
+                取引終了の確認
+              </h2>
+              <p className="text-gray-500 text-sm text-center mb-6 font-medium">
+                QRコードで正常に取引終了できなかった場合のみ、この画面から取引終了を進めてください。
+              </p>
+
+              <div className="space-y-3 mb-6">
+                <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="w-5 h-5 mt-0.5 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+                  </div>
+                  <p className="text-sm font-bold text-gray-700">
+                    商品の受け渡しと代金のやり取りが完了している
+                  </p>
+                </div>
+                <div className="flex items-start gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="w-5 h-5 mt-0.5 rounded-full bg-purple-500 flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3 h-3 text-white" strokeWidth={4} />
+                  </div>
+                  <p className="text-sm font-bold text-gray-700">
+                    相手にも取引終了の確認を依頼できる状態である
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 mb-6">
+                <p className="text-xs font-bold text-purple-700 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  取引終了は両者が押したときに完全終了します。
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={onConfirm}
+                  disabled={isSubmitting}
+                  className="w-full py-4 rounded-2xl font-black shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-purple-600 text-white shadow-purple-600/20 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  取引を終了する
+                </button>
+                <button
+                  onClick={() => setStep("handover")}
+                  disabled={isSubmitting}
+                  className="w-full bg-gray-100 text-gray-600 py-3 rounded-2xl font-black hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  戻る
+                </button>
+              </div>
+            </>
           ) : isSeller ? (
             /* === 出品者: QR表示 === */
             <>
@@ -2662,6 +2738,12 @@ function CompletionConfirmationModal({
 
               <div className="space-y-3">
                 <button
+                  onClick={() => setStep("forgotten_confirm")}
+                  className="w-full text-xs font-bold text-purple-500 underline underline-offset-2 hover:text-purple-700 transition-colors"
+                >
+                  正常に取引終了できなかった場合はこちら
+                </button>
+                <button
                   onClick={generateToken}
                   disabled={generating}
                   className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
@@ -2673,12 +2755,6 @@ function CompletionConfirmationModal({
                   className="w-full py-3 rounded-2xl font-black text-gray-500 hover:bg-gray-100 transition-all"
                 >
                   チャットに戻る
-                </button>
-                <button
-                  onClick={onConfirm}
-                  className="w-full text-xs font-bold text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
-                >
-                  QRが使えない場合は手動で完了する
                 </button>
               </div>
             </>
@@ -2725,16 +2801,16 @@ function CompletionConfirmationModal({
 
               <div className="space-y-3">
                 <button
+                  onClick={() => setStep("forgotten_confirm")}
+                  className="w-full text-xs font-bold text-purple-500 underline underline-offset-2 hover:text-purple-700 transition-colors"
+                >
+                  正常に取引終了できなかった場合はこちら
+                </button>
+                <button
                   onClick={() => setStep("confirm")}
                   className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98]"
                 >
                   戻る
-                </button>
-                <button
-                  onClick={onConfirm}
-                  className="w-full text-xs font-bold text-gray-400 underline underline-offset-2 hover:text-gray-600 transition-colors"
-                >
-                  QRが使えない場合は手動で完了する
                 </button>
               </div>
             </>

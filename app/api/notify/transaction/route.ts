@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
             }
             if (action === "rating_remind") {
                 return {
-                    title: locale === "en" ? "Please Rate Your Transaction" : "取引相手からの評価が完了しました",
+                    title: locale === "en" ? "Please Rate Your Transaction" : "評価をお願いします",
                     body: locale === "en"
                         ? `${itemIsDemo ? "[Demo] " : ""}Please submit your rating for "${itemTitle}".`
                         : `${itemIsDemo ? "[デモ] " : ""}「${itemTitle}」の評価を完了してください。`,
@@ -198,10 +198,10 @@ export async function POST(request: NextRequest) {
                 : `${itemIsDemo ? "[デモ] " : ""}残念ながら、商品「${itemTitle}」の購入リクエストは見送られました。`;
             await sendTransactionProgressEmail(email, title, content, actionUrl, locale);
         } else if (action === "rating_remind") {
-            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Please Rate Your Transaction` : `${itemIsDemo ? "[デモ] " : ""}取引相手からの評価が完了しました`;
+            const title = locale === "en" ? `${itemIsDemo ? "[Demo] " : ""}Please Rate Your Transaction` : `${itemIsDemo ? "[デモ] " : ""}評価をお願いします`;
             const content = locale === "en"
                 ? `${itemIsDemo ? "[Demo] " : ""}The other party has submitted their rating for "${itemTitle}". Please submit your rating to complete the transaction.`
-                : `${itemIsDemo ? "[デモ] " : ""}取引相手が商品「${itemTitle}」の評価を完了しました。評価が完了していなければ評価をお願いします。評価が完了し次第取引は終了となります。`;
+                : `${itemIsDemo ? "[デモ] " : ""}商品「${itemTitle}」の受け渡し確認が完了しました。評価が完了していなければ評価をお願いします。評価が完了し次第取引は終了となります。`;
             const ratingUrl = `${baseUrl}/rating/${extraData?.transactionId}`;
             await sendTransactionProgressEmail(email, title, content, ratingUrl, locale);
         }
