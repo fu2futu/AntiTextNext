@@ -2631,6 +2631,13 @@ function CompletionConfirmationModal({
                   )}
                 </button>
                 <button
+                  onClick={() => setStep("forgotten_confirm")}
+                  disabled={!confirmed}
+                  className="w-full text-xs font-bold text-purple-500 underline underline-offset-2 transition-colors hover:text-purple-700 disabled:text-gray-300 disabled:no-underline"
+                >
+                  正常に取引終了できなかった場合はこちら
+                </button>
+                <button
                   onClick={onClose}
                   className="w-full bg-gray-200 text-gray-700 py-4 rounded-2xl font-black hover:bg-gray-300 transition-all active:scale-[0.98]"
                 >
@@ -2738,12 +2745,6 @@ function CompletionConfirmationModal({
 
               <div className="space-y-3">
                 <button
-                  onClick={() => setStep("forgotten_confirm")}
-                  className="w-full text-xs font-bold text-purple-500 underline underline-offset-2 hover:text-purple-700 transition-colors"
-                >
-                  正常に取引終了できなかった場合はこちら
-                </button>
-                <button
                   onClick={generateToken}
                   disabled={generating}
                   className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50"
@@ -2800,12 +2801,6 @@ function CompletionConfirmationModal({
               </div>
 
               <div className="space-y-3">
-                <button
-                  onClick={() => setStep("forgotten_confirm")}
-                  className="w-full text-xs font-bold text-purple-500 underline underline-offset-2 hover:text-purple-700 transition-colors"
-                >
-                  正常に取引終了できなかった場合はこちら
-                </button>
                 <button
                   onClick={() => setStep("confirm")}
                   className="w-full py-3 rounded-2xl font-black bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all active:scale-[0.98]"
