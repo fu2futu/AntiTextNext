@@ -59,6 +59,59 @@ type MypageClientProps = {
     isAdmin: boolean;
 };
 
+type ProfileSessionCache = {
+    version: number;
+    savedAt: number;
+    favoriteItems: Item[];
+};
+
+const PROFILE_CACHE_VERSION = 1;
+const PROFILE_CACHE_TTL_MS = 2 * 60 * 1000;
+
+const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null => {
+    if (!cacheKey || typeof window === "undefined") return null;
+
+    try {
+        const raw = window.sessionStorage.getItem(cacheKey);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw) as Partial<ProfileSessionCache>;
+        if (
+            parsed.version !== PROFILE_CACHE_VERSION ||
+            typeof parsed.savedAt !== "number" ||
+            Date.now() - parsed.savedAt > PROFILE_CACHE_TTL_MS ||
+            !Array.isArray(parsed.favoriteItems)
+        ) {
+            window.sessionStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        return {
+            version: PROFILE_CACHE_VERSION,
+            savedAt: parsed.savedAt,
+            favoriteItems: parsed.favoriteItems as Item[],
+        };
+    } catch (err) {
+        console.warn("Failed to read profile cache:", err);
+        window.sessionStorage.removeItem(cacheKey);
+        return null;
+    }
+};
+
+const saveProfileCache = (cacheKey: string, favoriteItems: Item[]) => {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+            version: PROFILE_CACHE_VERSION,
+            savedAt: Date.now(),
+            favoriteItems,
+        } satisfies ProfileSessionCache));
+    } catch (err) {
+        console.warn("Failed to save profile cache:", err);
+    }
+};
+
 export default function MypageClient({
     initialProfile,
     initialListingItems,
@@ -82,14 +135,26 @@ export default function MypageClient({
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
+    const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
 
     const isCancelledPastStatus = useCallback((status?: string | null) => {
         return ["cancelled", "rejected", "declined", "expired", "auto_closed"].includes(status || "");
     }, []);
 
     useEffect(() => {
+        const cached = readProfileCache(cacheKey);
+        if (cached && initialFavoriteItems.length === 0) {
+            setFavoriteItems(cached.favoriteItems);
+            return;
+        }
+
         setFavoriteItems(initialFavoriteItems);
-    }, [initialFavoriteItems]);
+    }, [initialFavoriteItems, cacheKey]);
+
+    useEffect(() => {
+        if (!cacheKey) return;
+        saveProfileCache(cacheKey, favoriteItems);
+    }, [cacheKey, favoriteItems]);
 
     const handleCloseRewardsTutorial = () => {
         setShowRewardsTutorial(false);

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Home, Camera, ClipboardList, Bell, User } from "lucide-react";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -13,6 +14,7 @@ interface BottomNavProps {
 
 export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useI18n();
 
   const navItems = [
@@ -22,6 +24,32 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
     { href: "/profile" , label: t("nav.mypage"), icon: User },
     { href: "/transactions", label: t("nav.schedule"), icon: ClipboardList, dot: hasUnreadMessages },
   ];
+
+  useEffect(() => {
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType || "")) {
+      return;
+    }
+
+    const prefetchRoutes = ["/", "/notifications", "/listing", "/profile", "/transactions"]
+      .filter((href) => href !== pathname);
+
+    const prefetch = () => {
+      prefetchRoutes.forEach((href, index) => {
+        window.setTimeout(() => router.prefetch(href), index * 180);
+      });
+    };
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 1800 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = globalThis.setTimeout(prefetch, 800);
+    return () => globalThis.clearTimeout(timer);
+  }, [pathname, router]);
 
   return (
     <nav className="bottom-nav-shell fixed bottom-0 left-0 right-0 bg-gradient-to-b from-sky-50/95 via-cyan-50/95 to-blue-100/95 backdrop-blur-xl border-t border-sky-100 z-50 shadow-[0_-10px_32px_rgba(14,116,144,0.16)] [.hide-bottom-nav_&]:hidden lg:hidden">

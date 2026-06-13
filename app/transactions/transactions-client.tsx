@@ -49,6 +49,69 @@ type TransactionsClientProps = {
     serverSession?: boolean;
 };
 
+type TransactionsSessionCache = {
+    version: number;
+    savedAt: number;
+    profile: Profile | null;
+    activeItems: TransactionItem[];
+    profileAvatar: {
+        listingCount: number;
+        earlyRegistration: boolean;
+    };
+};
+
+const TRANSACTIONS_CACHE_VERSION = 1;
+const TRANSACTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+
+const readTransactionsCache = (cacheKey: string | null): TransactionsSessionCache | null => {
+    if (!cacheKey || typeof window === "undefined") return null;
+
+    try {
+        const raw = window.sessionStorage.getItem(cacheKey);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw) as Partial<TransactionsSessionCache>;
+        if (
+            parsed.version !== TRANSACTIONS_CACHE_VERSION ||
+            typeof parsed.savedAt !== "number" ||
+            Date.now() - parsed.savedAt > TRANSACTIONS_CACHE_TTL_MS ||
+            !Array.isArray(parsed.activeItems)
+        ) {
+            window.sessionStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        return {
+            version: TRANSACTIONS_CACHE_VERSION,
+            savedAt: parsed.savedAt,
+            profile: parsed.profile ?? null,
+            activeItems: parsed.activeItems as TransactionItem[],
+            profileAvatar: parsed.profileAvatar ?? {
+                listingCount: 0,
+                earlyRegistration: false,
+            },
+        };
+    } catch (err) {
+        console.warn("Failed to read transactions cache:", err);
+        window.sessionStorage.removeItem(cacheKey);
+        return null;
+    }
+};
+
+const saveTransactionsCache = (cacheKey: string, cache: Omit<TransactionsSessionCache, "version" | "savedAt">) => {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+            version: TRANSACTIONS_CACHE_VERSION,
+            savedAt: Date.now(),
+            ...cache,
+        } satisfies TransactionsSessionCache));
+    } catch (err) {
+        console.warn("Failed to save transactions cache:", err);
+    }
+};
+
 export default function TransactionsClient({
     initialActiveItems,
     initialProfile,
@@ -69,6 +132,8 @@ export default function TransactionsClient({
     const [showFlowHelp, setShowFlowHelp] = useState(false);
     const [initialCheckDone, setInitialCheckDone] = useState(serverSession);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    const cacheAppliedRef = useRef(false);
+    const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
 
     // If server didn't find a session, check client-side on mount
     useEffect(() => {
@@ -76,11 +141,18 @@ export default function TransactionsClient({
             if (!user) {
                 router.push("/auth/login");
             } else {
+                const cached = readTransactionsCache(cacheKey);
+                if (cached) {
+                    cacheAppliedRef.current = true;
+                    setProfile(cached.profile);
+                    setActiveItems(cached.activeItems);
+                    setProfileAvatar(cached.profileAvatar);
+                }
                 loadData();
                 setInitialCheckDone(true);
             }
         }
-    }, [user, authLoading, serverSession, router]);
+    }, [user, authLoading, serverSession, router, cacheKey]);
 
     const loadData = useCallback(async () => {
         if (!user) return;
@@ -249,6 +321,28 @@ export default function TransactionsClient({
             console.error("Error loading transactions:", err);
         }
     }, [user]);
+
+    useEffect(() => {
+        if (!user || !initialCheckDone || cacheAppliedRef.current) return;
+        if (initialActiveItems.length > 0) return;
+
+        const cached = readTransactionsCache(cacheKey);
+        if (!cached) return;
+
+        cacheAppliedRef.current = true;
+        setProfile(cached.profile);
+        setActiveItems(cached.activeItems);
+        setProfileAvatar(cached.profileAvatar);
+    }, [user, initialCheckDone, initialActiveItems.length, cacheKey]);
+
+    useEffect(() => {
+        if (!cacheKey || !initialCheckDone) return;
+        saveTransactionsCache(cacheKey, {
+            profile,
+            activeItems,
+            profileAvatar,
+        });
+    }, [cacheKey, initialCheckDone, profile, activeItems, profileAvatar]);
 
     useEffect(() => {
         if (!user || !initialCheckDone) return;

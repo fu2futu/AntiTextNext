@@ -18,12 +18,66 @@ type Notification = {
     created_at: string;
 };
 
+type NotificationsSessionCache = {
+    version: number;
+    savedAt: number;
+    notifications: Notification[];
+};
+
+const NOTIFICATIONS_CACHE_VERSION = 1;
+const NOTIFICATIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+
+const readNotificationsCache = (cacheKey: string | null): NotificationsSessionCache | null => {
+    if (!cacheKey || typeof window === "undefined") return null;
+
+    try {
+        const raw = window.sessionStorage.getItem(cacheKey);
+        if (!raw) return null;
+
+        const parsed = JSON.parse(raw) as Partial<NotificationsSessionCache>;
+        if (
+            parsed.version !== NOTIFICATIONS_CACHE_VERSION ||
+            typeof parsed.savedAt !== "number" ||
+            Date.now() - parsed.savedAt > NOTIFICATIONS_CACHE_TTL_MS ||
+            !Array.isArray(parsed.notifications)
+        ) {
+            window.sessionStorage.removeItem(cacheKey);
+            return null;
+        }
+
+        return {
+            version: NOTIFICATIONS_CACHE_VERSION,
+            savedAt: parsed.savedAt,
+            notifications: parsed.notifications as Notification[],
+        };
+    } catch (err) {
+        console.warn("Failed to read notifications cache:", err);
+        window.sessionStorage.removeItem(cacheKey);
+        return null;
+    }
+};
+
+const saveNotificationsCache = (cacheKey: string, notifications: Notification[]) => {
+    if (typeof window === "undefined") return;
+
+    try {
+        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+            version: NOTIFICATIONS_CACHE_VERSION,
+            savedAt: Date.now(),
+            notifications,
+        } satisfies NotificationsSessionCache));
+    } catch (err) {
+        console.warn("Failed to save notifications cache:", err);
+    }
+};
+
 export default function NotificationsPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
     const { t } = useI18n();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+    const cacheKey = user ? `textnext:notifications:v${NOTIFICATIONS_CACHE_VERSION}:user:${user.id}` : null;
 
     // Pull-to-Refresh
     const [pullDistance, setPullDistance] = useState(0);
@@ -38,6 +92,12 @@ export default function NotificationsPage() {
         if (!user) {
             router.push("/auth/login");
             return;
+        }
+
+        const cached = readNotificationsCache(cacheKey);
+        if (cached) {
+            setNotifications(cached.notifications);
+            setLoading(false);
         }
 
         loadNotifications();
@@ -62,7 +122,12 @@ export default function NotificationsPage() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, authLoading, router]);
+    }, [user, authLoading, router, cacheKey]);
+
+    useEffect(() => {
+        if (!cacheKey || loading) return;
+        saveNotificationsCache(cacheKey, notifications);
+    }, [cacheKey, loading, notifications]);
 
     const loadNotifications = async () => {
         if (!user) return;
