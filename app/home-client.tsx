@@ -307,45 +307,41 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         ...popularItems.map(i => i.id)
       ];
       
-      const promises: any[] = [];
-      
-      if (itemIds.length > 0) {
-        // アイテムの存在確認とカウント取得を同時に行う
-        // 削除されたアイテムはここで除外される
-        promises.push(
-          supabase
-            .from("items")
-            .select("id, favorites(count)")
-            .in("id", itemIds)
-            .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
-            .eq("is_demo", itemDemoFilter)
-        );
-      }
+      const countPromise = itemIds.length > 0
+        ? supabase
+          .from("items")
+          .select("id, favorites(count)")
+          .in("id", itemIds)
+          .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
+          .eq("is_demo", itemDemoFilter)
+        : Promise.resolve(null);
 
-      if (user && !isOfficialAdminHomeView) {
+      const shouldLoadPersonalData = user && !isOfficialAdminHomeView;
+      if (shouldLoadPersonalData) {
         setLoadingRecommended(true);
-        promises.push(
-          supabase
-            .from("favorites")
-            .select("item_id")
-            .eq("user_id", user.id)
-        );
-        // ユーザーの所属情報を取得
-        promises.push(
-          supabase
-            .from("profiles")
-            .select("department, major")
-            .eq("user_id", user.id)
-            .single()
-        );
       }
 
-      const results = await Promise.all(promises);
-      if (cancelled || requestId !== requestIdRef.current) return;
+      const favoritesPromise = shouldLoadPersonalData
+        ? supabase
+          .from("favorites")
+          .select("item_id")
+          .eq("user_id", user.id)
+        : Promise.resolve(null);
 
-      let countRes = itemIds.length > 0 ? results[0] : null;
-      let favRes = user ? results[1] : null;
-      let profileRes = user && !isOfficialAdminHomeView ? results[2] : null;
+      const profilePromise = shouldLoadPersonalData
+        ? supabase
+          .from("profiles")
+          .select("department, major")
+          .eq("user_id", user.id)
+          .single()
+        : Promise.resolve(null);
+
+      const [countRes, favRes, profileRes] = await Promise.all([
+        countPromise,
+        favoritesPromise,
+        profilePromise,
+      ]) as any[];
+      if (cancelled || requestId !== requestIdRef.current) return;
 
       // カウントの反映 & 削除されたアイテムのフィルタリング
       if (countRes?.data) {
@@ -475,6 +471,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     initialPopularItems,
     totalPopularCount,
     isOfficialAdminHomeView,
+    appReviewDemo,
     demoPreview,
     popularMobileLayout,
   ]); // userが変わった時（ログイン/ログアウト）に再実行

@@ -122,6 +122,7 @@ export default function TrialNoticeBanner() {
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'max-h-0 opacity-0' : 'max-h-40 opacity-100 mt-1'}`}>
               <p className="text-xs font-medium leading-relaxed text-amber-800">
                 TextNext は現在、ベータ版として公開しています。表示や動作に不具合が見られた場合、「マイページ」→「お問い合わせ」からご報告いただけますと幸いです。
+                また分野から探す機能も作り途中です。しばしお待ちください。
               </p>
             </div>
           </div>
