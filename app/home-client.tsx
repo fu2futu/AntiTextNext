@@ -15,6 +15,8 @@ type Item = HomeItem;
 
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 16;
+const HOME_SESSION_CACHE_VERSION = 1;
+const HOME_SESSION_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
   "accepted",
@@ -110,6 +112,19 @@ type HomeClientProps = {
   appReviewDemo?: boolean;
 };
 
+type HomeSessionCache = {
+  version: number;
+  savedAt: number;
+  recommendedItems: Item[];
+  popularItems: Item[];
+  favorites: string[];
+  hiddenTransactionItemIds: string[];
+  totalVisiblePopularCount: number;
+  totalRecommendedCount: number;
+  hasMore: boolean;
+  hasMoreRecommended: boolean;
+};
+
 export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false }: HomeClientProps) {
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
@@ -160,6 +175,72 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     if (layout === "square") return 10;
     return isPc ? PC_ITEM_PAGE_SIZE : HOME_ITEM_PAGE_SIZE;
   };
+  const homeCacheKey = useMemo(() => {
+    if (demoPreview) return null;
+    const ownerKey = user?.id ? `user:${user.id}` : "guest";
+    const modeKey = itemDemoFilter ? "demo" : "normal";
+    const viewportKey = isPc ? "pc" : "mobile";
+    return [
+      "textnext:home:v",
+      HOME_SESSION_CACHE_VERSION,
+      ownerKey,
+      modeKey,
+      viewportKey,
+      recommendedMobileLayout,
+      popularMobileLayout,
+    ].join(":");
+  }, [demoPreview, user?.id, itemDemoFilter, isPc, recommendedMobileLayout, popularMobileLayout]);
+
+  const readHomeCache = useCallback((): HomeSessionCache | null => {
+    if (!homeCacheKey || typeof window === "undefined") return null;
+
+    try {
+      const raw = window.sessionStorage.getItem(homeCacheKey);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as Partial<HomeSessionCache>;
+      if (
+        parsed.version !== HOME_SESSION_CACHE_VERSION ||
+        typeof parsed.savedAt !== "number" ||
+        Date.now() - parsed.savedAt > HOME_SESSION_CACHE_TTL_MS ||
+        !Array.isArray(parsed.recommendedItems) ||
+        !Array.isArray(parsed.popularItems)
+      ) {
+        window.sessionStorage.removeItem(homeCacheKey);
+        return null;
+      }
+
+      return {
+        version: HOME_SESSION_CACHE_VERSION,
+        savedAt: parsed.savedAt,
+        recommendedItems: parsed.recommendedItems as Item[],
+        popularItems: parsed.popularItems as Item[],
+        favorites: Array.isArray(parsed.favorites) ? parsed.favorites : [],
+        hiddenTransactionItemIds: Array.isArray(parsed.hiddenTransactionItemIds) ? parsed.hiddenTransactionItemIds : [],
+        totalVisiblePopularCount: typeof parsed.totalVisiblePopularCount === "number" ? parsed.totalVisiblePopularCount : parsed.popularItems.length,
+        totalRecommendedCount: typeof parsed.totalRecommendedCount === "number" ? parsed.totalRecommendedCount : parsed.recommendedItems.length,
+        hasMore: Boolean(parsed.hasMore),
+        hasMoreRecommended: Boolean(parsed.hasMoreRecommended),
+      };
+    } catch (err) {
+      console.warn("Failed to read home cache:", err);
+      window.sessionStorage.removeItem(homeCacheKey);
+      return null;
+    }
+  }, [homeCacheKey]);
+
+  const applyHomeCache = useCallback((cache: HomeSessionCache) => {
+    setRecommendedItems(cache.recommendedItems);
+    setPopularItems(cache.popularItems);
+    setFavorites(cache.favorites);
+    setHiddenTransactionItemIds(new Set(cache.hiddenTransactionItemIds));
+    setTotalVisiblePopularCount(cache.totalVisiblePopularCount);
+    setTotalRecommendedCount(cache.totalRecommendedCount);
+    setHasMore(cache.hasMore);
+    setHasMoreRecommended(cache.hasMoreRecommended);
+    setLoadingRecommended(false);
+    setLoadingPopular(false);
+  }, []);
 
   // Pull-to-Refresh
   const [pullDistance, setPullDistance] = useState(0);
@@ -178,6 +259,42 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     () => popularItems.filter((item) => !hiddenTransactionItemIds.has(item.id)),
     [popularItems, hiddenTransactionItemIds]
   );
+
+  useEffect(() => {
+    if (!homeCacheKey || !homeDataReady || loadingPopular || loadingRecommended) return;
+    if (recommendedItems.length === 0 && popularItems.length === 0) return;
+
+    try {
+      const payload: HomeSessionCache = {
+        version: HOME_SESSION_CACHE_VERSION,
+        savedAt: Date.now(),
+        recommendedItems,
+        popularItems,
+        favorites,
+        hiddenTransactionItemIds: Array.from(hiddenTransactionItemIds),
+        totalVisiblePopularCount,
+        totalRecommendedCount,
+        hasMore,
+        hasMoreRecommended,
+      };
+      window.sessionStorage.setItem(homeCacheKey, JSON.stringify(payload));
+    } catch (err) {
+      console.warn("Failed to save home cache:", err);
+    }
+  }, [
+    homeCacheKey,
+    homeDataReady,
+    loadingPopular,
+    loadingRecommended,
+    recommendedItems,
+    popularItems,
+    favorites,
+    hiddenTransactionItemIds,
+    totalVisiblePopularCount,
+    totalRecommendedCount,
+    hasMore,
+    hasMoreRecommended,
+  ]);
 
   useEffect(() => {
     if (demoPreview) {
@@ -256,9 +373,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         return;
       }
 
+      const cachedHome = readHomeCache();
+      const cachedHomeApplied = Boolean(cachedHome);
+      if (cachedHome) {
+        applyHomeCache(cachedHome);
+      }
+
       // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
       // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
-      if (user) {
+      if (user && !cachedHomeApplied) {
         setLoadingPopular(true);
       }
 
@@ -270,7 +393,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setHiddenTransactionItemIds(new Set());
         setLoadingRecommended(false);
 
-        setLoadingPopular(true);
+        if (!cachedHomeApplied) {
+          setLoadingPopular(true);
+        }
         const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
         const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await supabase
           .from("items")
@@ -317,7 +442,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         : Promise.resolve(null);
 
       const shouldLoadPersonalData = user && !isOfficialAdminHomeView;
-      if (shouldLoadPersonalData) {
+      if (shouldLoadPersonalData && !cachedHomeApplied) {
         setLoadingRecommended(true);
       }
 
@@ -474,6 +599,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     appReviewDemo,
     demoPreview,
     popularMobileLayout,
+    readHomeCache,
+    applyHomeCache,
   ]); // userが変わった時（ログイン/ログアウト）に再実行
 
   const favoriteStateRef = useRef<Set<string>>(new Set(favorites));
