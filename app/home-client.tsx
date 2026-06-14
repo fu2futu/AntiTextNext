@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase";
 import { RewardAvatar } from "@/components/reward-avatar";
+import { getItemImageUrl } from "@/lib/image-storage";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting } from "@/lib/rewards";
 import { useLoginRequiredPrompt } from "@/components/login-required-prompt";
 import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components/home-item-card";
@@ -111,6 +112,7 @@ type HomeClientProps = {
   demoPreview?: boolean;
   demoItemHrefPrefix?: string;
   appReviewDemo?: boolean;
+  active?: boolean;
 };
 
 type HomeSessionCache = {
@@ -126,7 +128,7 @@ type HomeSessionCache = {
   hasMoreRecommended: boolean;
 };
 
-export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false }: HomeClientProps) {
+export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false, active = true }: HomeClientProps) {
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -262,6 +264,44 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     [popularItems, hiddenTransactionItemIds]
   );
   const shouldAnimateFavorite = !backgroundRefreshing && !loadingPopular && !loadingRecommended;
+
+  useEffect(() => {
+    if (demoPreview || typeof window === "undefined") return;
+    if (displayedPopularItems.length === 0 && visibleRecommendedItems.length === 0) return;
+
+    const connection = (navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+    if (connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType || "")) {
+      return;
+    }
+
+    const urls = Array.from(new Set(
+      [...visibleRecommendedItems, ...displayedPopularItems]
+        .slice(0, 36)
+        .map((item) => getItemImageUrl(item, "front", "thumbnail"))
+        .filter((url): url is string => Boolean(url))
+    ));
+    if (urls.length === 0) return;
+
+    const preload = () => {
+      urls.forEach((url, index) => {
+        window.setTimeout(() => {
+          const image = new window.Image();
+          image.decoding = "async";
+          image.src = url;
+        }, index * 45);
+      });
+    };
+
+    if ("requestIdleCallback" in window) {
+      const idleId = window.requestIdleCallback(preload, { timeout: 1600 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timer = globalThis.setTimeout(preload, 600);
+    return () => globalThis.clearTimeout(timer);
+  }, [demoPreview, displayedPopularItems, visibleRecommendedItems]);
 
   useEffect(() => {
     if (!homeCacheKey || !homeDataReady || loadingPopular || loadingRecommended) return;
@@ -892,10 +932,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   return (
     <div
-      className="min-h-screen bg-white pb-4 font-gentle"
-      onTouchStart={demoPreview ? undefined : handleTouchStart}
-      onTouchMove={demoPreview ? undefined : handleTouchMove}
-      onTouchEnd={demoPreview ? undefined : handleTouchEnd}
+      className={`min-h-screen bg-white pb-4 font-gentle ${active ? "" : "hidden"}`}
+      onTouchStart={demoPreview || !active ? undefined : handleTouchStart}
+      onTouchMove={demoPreview || !active ? undefined : handleTouchMove}
+      onTouchEnd={demoPreview || !active ? undefined : handleTouchEnd}
+      aria-hidden={!active}
     >
       <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
 
@@ -936,7 +977,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           animation: slideInUp 0.4s ease-out forwards;
           opacity: 0;
         }
-        ${demoPreview ? "" : `
+        ${demoPreview || !active ? "" : `
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
            固定の試験運用バナー分は scroll-padding-top で吸収する。 */

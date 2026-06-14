@@ -24,13 +24,16 @@ import { supabase } from "@/lib/supabase";
 import { RewardAvatar, RewardBadges } from "@/components/reward-avatar";
 import ProfileRewardsTutorial from "@/components/ProfileRewardsTutorial";
 import { LegalLinksPanel } from "@/components/legal-footer";
-import type { UserBadge } from "@/lib/rewards";
+import { resolveEarlyRegistrationEligible, type UserBadge } from "@/lib/rewards";
 import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 
 type Profile = {
+    user_id?: string;
     nickname: string;
     department: string;
     avatar_url: string | null;
+    created_at?: string;
+    is_app_review_demo?: boolean;
 };
 
 type Item = {
@@ -63,7 +66,16 @@ type MypageClientProps = {
 type ProfileSessionCache = {
     version: number;
     savedAt: number;
+    profile: Profile | null;
+    listingItems: Item[];
+    pastItems: Item[];
     favoriteItems: Item[];
+    averageRating: number;
+    listingCount: number;
+    transactionCount: number;
+    earlyRegistrationEligible: boolean;
+    badges: UserBadge[];
+    isAdmin: boolean;
 };
 
 const PROFILE_CACHE_VERSION = 1;
@@ -81,7 +93,9 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
             parsed.version !== PROFILE_CACHE_VERSION ||
             typeof parsed.savedAt !== "number" ||
             Date.now() - parsed.savedAt > PROFILE_CACHE_TTL_MS ||
-            !Array.isArray(parsed.favoriteItems)
+            !Array.isArray(parsed.favoriteItems) ||
+            !Array.isArray(parsed.listingItems) ||
+            !Array.isArray(parsed.pastItems)
         ) {
             window.sessionStorage.removeItem(cacheKey);
             return null;
@@ -90,7 +104,16 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
         return {
             version: PROFILE_CACHE_VERSION,
             savedAt: parsed.savedAt,
+            profile: parsed.profile ?? null,
+            listingItems: parsed.listingItems as Item[],
+            pastItems: parsed.pastItems as Item[],
             favoriteItems: parsed.favoriteItems as Item[],
+            averageRating: typeof parsed.averageRating === "number" ? parsed.averageRating : 0,
+            listingCount: typeof parsed.listingCount === "number" ? parsed.listingCount : 0,
+            transactionCount: typeof parsed.transactionCount === "number" ? parsed.transactionCount : 0,
+            earlyRegistrationEligible: Boolean(parsed.earlyRegistrationEligible),
+            badges: Array.isArray(parsed.badges) ? parsed.badges as UserBadge[] : [],
+            isAdmin: Boolean(parsed.isAdmin),
         };
     } catch (err) {
         console.warn("Failed to read profile cache:", err);
@@ -99,14 +122,14 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
     }
 };
 
-const saveProfileCache = (cacheKey: string, favoriteItems: Item[]) => {
+const saveProfileCache = (cacheKey: string, cache: Omit<ProfileSessionCache, "version" | "savedAt">) => {
     if (typeof window === "undefined") return;
 
     try {
         window.sessionStorage.setItem(cacheKey, JSON.stringify({
             version: PROFILE_CACHE_VERSION,
             savedAt: Date.now(),
-            favoriteItems,
+            ...cache,
         } satisfies ProfileSessionCache));
     } catch (err) {
         console.warn("Failed to save profile cache:", err);
@@ -129,6 +152,15 @@ export default function MypageClient({
     const searchParams = useSearchParams();
     const { user, loading: authLoading } = useAuth();
     const { t } = useI18n();
+    const [profile, setProfile] = useState<Profile | null>(initialProfile);
+    const [listingItems, setListingItems] = useState<Item[]>(initialListingItems);
+    const [pastItems, setPastItems] = useState<Item[]>(initialPastItems);
+    const [ratingAverage, setRatingAverage] = useState(averageRating);
+    const [profileListingCount, setProfileListingCount] = useState(listingCount);
+    const [profileTransactionCount, setProfileTransactionCount] = useState(transactionCount);
+    const [earlyRegistration, setEarlyRegistration] = useState(earlyRegistrationEligible);
+    const [profileBadges, setProfileBadges] = useState<UserBadge[]>(badges);
+    const [adminUser, setAdminUser] = useState(isAdmin);
     const [activeTab, setActiveTab] = useState<"past" | "listing" | null>(null);
     const [detailView, setDetailView] = useState<"favorites" | "listing" | "past">("favorites");
     const [pastFilter, setPastFilter] = useState<"completed" | "cancelled">("completed");
@@ -145,24 +177,173 @@ export default function MypageClient({
 
     useEffect(() => {
         const cached = readProfileCache(cacheKey);
-        if (cached && initialFavoriteItems.length === 0) {
+        if (
+            cached &&
+            initialProfile === null &&
+            initialListingItems.length === 0 &&
+            initialPastItems.length === 0 &&
+            initialFavoriteItems.length === 0
+        ) {
+            setProfile(cached.profile);
+            setListingItems(cached.listingItems);
+            setPastItems(cached.pastItems);
             setFavoriteItems(cached.favoriteItems);
+            setRatingAverage(cached.averageRating);
+            setProfileListingCount(cached.listingCount);
+            setProfileTransactionCount(cached.transactionCount);
+            setEarlyRegistration(cached.earlyRegistrationEligible);
+            setProfileBadges(cached.badges);
+            setAdminUser(cached.isAdmin);
             setBackgroundRefreshing(true);
             return;
         }
 
+        setProfile(initialProfile);
+        setListingItems(initialListingItems);
+        setPastItems(initialPastItems);
         setFavoriteItems(initialFavoriteItems);
+        setRatingAverage(averageRating);
+        setProfileListingCount(listingCount);
+        setProfileTransactionCount(transactionCount);
+        setEarlyRegistration(earlyRegistrationEligible);
+        setProfileBadges(badges);
+        setAdminUser(isAdmin);
         setBackgroundRefreshing(false);
-    }, [initialFavoriteItems, cacheKey]);
+    }, [
+        initialProfile,
+        initialListingItems,
+        initialPastItems,
+        initialFavoriteItems,
+        averageRating,
+        listingCount,
+        transactionCount,
+        earlyRegistrationEligible,
+        badges,
+        isAdmin,
+        cacheKey,
+    ]);
 
     useEffect(() => {
         if (!cacheKey) return;
-        saveProfileCache(cacheKey, favoriteItems);
-    }, [cacheKey, favoriteItems]);
+        saveProfileCache(cacheKey, {
+            profile,
+            listingItems,
+            pastItems,
+            favoriteItems,
+            averageRating: ratingAverage,
+            listingCount: profileListingCount,
+            transactionCount: profileTransactionCount,
+            earlyRegistrationEligible: earlyRegistration,
+            badges: profileBadges,
+            isAdmin: adminUser,
+        });
+    }, [
+        cacheKey,
+        profile,
+        listingItems,
+        pastItems,
+        favoriteItems,
+        ratingAverage,
+        profileListingCount,
+        profileTransactionCount,
+        earlyRegistration,
+        profileBadges,
+        adminUser,
+    ]);
 
     const handleCloseRewardsTutorial = () => {
         setShowRewardsTutorial(false);
     };
+
+    const loadProfileData = useCallback(async () => {
+        if (!user) return;
+
+        try {
+            const [
+                { data: profileData },
+                { data: ratingsData },
+                { data: favoritesData },
+                { data: sellerItems },
+                { data: sellerTransactions },
+                { data: buyerTransactions },
+                { data: rewardSetting },
+                { data: userBadges },
+                { data: rewardOverride },
+                { data: adminStatus },
+            ] = await Promise.all([
+                supabase.from("profiles").select("user_id,nickname,department,avatar_url,created_at,is_app_review_demo").eq("user_id", user.id).single(),
+                supabase.from("ratings").select("score").eq("rated_id", user.id).eq("is_demo", false),
+                supabase.from("favorites").select("item_id, items(id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)").eq("user_id", user.id),
+                supabase.from("items").select("id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider").eq("seller_id", user.id).eq("is_demo", false),
+                supabase.from("transactions").select("id, item_id, status").eq("seller_id", user.id),
+                supabase
+                    .from("transactions")
+                    .select("id, item_id, status, items(id,title,selling_price,status,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider)")
+                    .eq("buyer_id", user.id),
+                (supabase as any).from("reward_settings").select("*").eq("id", "early_registration").single(),
+                (supabase as any).from("user_badges").select("id,badge_type,badge_color,label,note").eq("user_id", user.id).is("revoked_at", null).order("created_at", { ascending: false }),
+                (supabase as any).from("user_reward_overrides").select("early_registration_override").eq("user_id", user.id).maybeSingle(),
+                supabase.rpc("is_current_user_admin" as any),
+            ]);
+
+            const profileRecord = profileData as Profile | null;
+            const isAppReviewDemo = Boolean((profileRecord as any)?.is_app_review_demo);
+            let effectiveSellerItems = (sellerItems || []) as Item[];
+            if (isAppReviewDemo) {
+                const { data: demoSellerItems } = await supabase
+                    .from("items")
+                    .select("id,title,selling_price,status,is_demo,front_image_url,front_thumbnail_url,front_image_storage_path,front_thumbnail_storage_path,image_storage_provider")
+                    .eq("seller_id", user.id)
+                    .eq("is_demo", true);
+                effectiveSellerItems = (demoSellerItems || []) as Item[];
+            }
+
+            const scores = (ratingsData || []).map((rating: any) => rating.score);
+            const nextAverageRating = scores.length > 0
+                ? scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length
+                : 0;
+
+            const txItemIds = new Set(((sellerTransactions || []) as any[]).map(tx => tx.item_id));
+            const nextListingCount = effectiveSellerItems.filter((item: any) => item.status !== "deleted").length;
+            const nextListingItems = effectiveSellerItems.filter((item: any) => item.status === "available" && !txItemIds.has(item.id));
+
+            const terminalStatuses = new Set(["completed", "cancelled", "rejected", "declined", "expired", "auto_closed"]);
+            const sellerTerminalTransactions = ((sellerTransactions || []) as any[]).filter(tx => terminalStatuses.has(tx.status));
+            const sellerTerminalTxByItemId = new Map(sellerTerminalTransactions.map(tx => [tx.item_id, tx]));
+            const sellerPastItems = effectiveSellerItems
+                .filter((item: any) => item.status === "sold" || sellerTerminalTxByItemId.has(item.id))
+                .map((item: any) => {
+                    const tx = sellerTerminalTxByItemId.get(item.id);
+                    return tx ? { ...item, transaction_id: tx.id, transaction_status: tx.status } : item;
+                });
+            const buyerPastItems = ((buyerTransactions || []) as any[])
+                .filter(tx => terminalStatuses.has(tx.status) || tx.items?.status === "sold")
+                .map(tx => tx.items ? { ...tx.items, transaction_id: tx.id, transaction_status: tx.status } : null)
+                .filter(Boolean);
+            const nextPastItems = Array.from(
+                new Map([...sellerPastItems, ...buyerPastItems].map((item: any) => [item.transaction_id || item.id, item])).values()
+            ) as Item[];
+
+            const nextFavoriteItems = ((favoritesData || []) as any[])
+                .map(f => f.items)
+                .filter((item: any) => item && item.is_demo !== true && ["available", "trading", "transaction_pending"].includes(item.status)) as Item[];
+
+            setProfile(profileRecord);
+            setListingItems(nextListingItems);
+            setPastItems(nextPastItems);
+            setFavoriteItems(nextFavoriteItems);
+            setRatingAverage(nextAverageRating);
+            setProfileListingCount(nextListingCount);
+            setProfileTransactionCount(nextPastItems.length);
+            setEarlyRegistration(resolveEarlyRegistrationEligible(profileRecord?.created_at, rewardSetting as any, rewardOverride as any));
+            setProfileBadges((userBadges ?? []) as UserBadge[]);
+            setAdminUser(Boolean(adminStatus));
+        } catch (err) {
+            console.error("Error loading profile data:", err);
+        } finally {
+            setBackgroundRefreshing(false);
+        }
+    }, [user]);
 
     const refreshFavoriteItems = useCallback(async () => {
         if (!user) return;
@@ -200,8 +381,8 @@ export default function MypageClient({
 
     useEffect(() => {
         if (!backgroundRefreshing) return;
-        void refreshFavoriteItems();
-    }, [backgroundRefreshing, refreshFavoriteItems]);
+        void loadProfileData();
+    }, [backgroundRefreshing, loadProfileData]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -221,8 +402,8 @@ export default function MypageClient({
         setDetailView("past");
 
         const targetPastItem = targetTxId
-            ? initialPastItems.find((item) => item.transaction_id === targetTxId)
-            : initialPastItems.find((item) => targetItemId && item.id === targetItemId);
+            ? pastItems.find((item) => item.transaction_id === targetTxId)
+            : pastItems.find((item) => targetItemId && item.id === targetItemId);
         if (targetPastItem) {
             setPastFilter(isCancelledPastStatus(targetPastItem.transaction_status) ? "cancelled" : "completed");
         }
@@ -243,7 +424,7 @@ export default function MypageClient({
         }, 180);
 
         return () => window.clearTimeout(timeoutId);
-    }, [initialPastItems, isCancelledPastStatus, searchParams]);
+    }, [pastItems, isCancelledPastStatus, searchParams]);
 
     useEffect(() => {
         if (!user) return;
@@ -273,15 +454,15 @@ export default function MypageClient({
         return null;
     }
 
-    const ratingStars = Math.round(averageRating);
+    const ratingStars = Math.round(ratingAverage);
 
-    const completedPastItems = initialPastItems.filter((item) => {
+    const completedPastItems = pastItems.filter((item) => {
         if (isCancelledPastStatus(item.transaction_status)) return false;
         return item.transaction_status === "completed" || item.status === "sold" || !item.transaction_status;
     });
-    const cancelledPastItems = initialPastItems.filter((item) => isCancelledPastStatus(item.transaction_status));
+    const cancelledPastItems = pastItems.filter((item) => isCancelledPastStatus(item.transaction_status));
     const visiblePastItems = pastFilter === "completed" ? completedPastItems : cancelledPastItems;
-    const currentHistoryItems = detailView === "past" ? visiblePastItems : initialListingItems;
+    const currentHistoryItems = detailView === "past" ? visiblePastItems : listingItems;
 
     const PastFilterSwitcher = () => (
         <div className="grid grid-cols-2 gap-1 rounded-2xl border border-gray-200 bg-gray-50 p-1">
@@ -414,7 +595,7 @@ export default function MypageClient({
                     onClick={() => router.push(`/seller/${user.id}?from=profile`)}
                     className="group relative bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-md border border-white/50 flex items-center gap-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 cursor-pointer"
                 >
-                    {isAdmin && (
+                    {adminUser && (
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -428,18 +609,18 @@ export default function MypageClient({
                         </button>
                     )}
                     <RewardAvatar
-                        src={initialProfile?.avatar_url}
+                        src={profile?.avatar_url}
                         alt="Avatar"
                         size={80}
-                        listingCount={listingCount}
-                        earlyRegistration={earlyRegistrationEligible}
-                        adminFrame={isAdmin}
+                        listingCount={profileListingCount}
+                        earlyRegistration={earlyRegistration}
+                        adminFrame={adminUser}
                     />
                     <div className="flex-1 pr-24">
                         <h2 className="truncate text-xl font-bold text-gray-900">
-                            {initialProfile?.nickname || "読み込み中..."}
+                            {profile?.nickname || "読み込み中..."}
                         </h2>
-                        <RewardBadges badges={badges} />
+                        <RewardBadges badges={profileBadges} />
                         <div className="flex items-center gap-2 mt-1">
                             <div className="flex text-yellow-500">
                                 {[...Array(5)].map((_, i) => (
@@ -450,17 +631,17 @@ export default function MypageClient({
                                 ))}
                             </div>
                             <span className="text-sm font-bold text-gray-500">
-                                ({averageRating.toFixed(1)})
+                                ({ratingAverage.toFixed(1)})
                             </span>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-2 text-left">
                             <div className="rounded-xl bg-primary/5 px-2.5 py-1.5">
                                 <p className="text-[9px] font-black leading-none text-primary/60">出品数</p>
-                                <p className="mt-0.5 text-sm font-black leading-none text-primary">{listingCount}件</p>
+                                <p className="mt-0.5 text-sm font-black leading-none text-primary">{profileListingCount}件</p>
                             </div>
                             <div className="rounded-xl bg-gray-50 px-2.5 py-1.5">
                                 <p className="text-[9px] font-black leading-none text-gray-500">取引数</p>
-                                <p className="mt-0.5 text-sm font-black leading-none text-gray-900">{transactionCount}件</p>
+                                <p className="mt-0.5 text-sm font-black leading-none text-gray-900">{profileTransactionCount}件</p>
                             </div>
                         </div>
                     </div>
@@ -477,8 +658,8 @@ export default function MypageClient({
                 <nav className="hidden lg:flex lg:flex-col gap-2">
                     {([
                         { key: "favorites", label: "お気に入り", icon: Heart, count: favoriteItems.length },
-                        { key: "listing", label: t('profile.listing_items'), icon: BookOpen, count: initialListingItems.length },
-                        { key: "past", label: t('profile.past_transactions'), icon: History, count: initialPastItems.length },
+                        { key: "listing", label: t('profile.listing_items'), icon: BookOpen, count: listingItems.length },
+                        { key: "past", label: t('profile.past_transactions'), icon: History, count: pastItems.length },
                     ] as const).map((m) => {
                         const Icon = m.icon;
                         const active = detailView === m.key;
@@ -610,7 +791,7 @@ export default function MypageClient({
                         >
                             <History className={`h-5 w-5 ${activeTab === "past" ? "text-white" : "text-primary"}`} />
                             <span className="text-xs font-bold">{t('profile.past_transactions')}</span>
-                            <span className={`text-base font-extrabold leading-none ${activeTab === "past" ? "text-white/90" : "text-primary"}`}>{initialPastItems.length}</span>
+                            <span className={`text-base font-extrabold leading-none ${activeTab === "past" ? "text-white/90" : "text-primary"}`}>{pastItems.length}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab(activeTab === "listing" ? null : "listing")}
@@ -621,7 +802,7 @@ export default function MypageClient({
                         >
                             <BookOpen className={`h-5 w-5 ${activeTab === "listing" ? "text-white" : "text-red-500"}`} />
                             <span className="text-xs font-bold">{t('profile.listing_items')}</span>
-                            <span className={`text-base font-extrabold leading-none ${activeTab === "listing" ? "text-white/90" : "text-red-500"}`}>{initialListingItems.length}</span>
+                            <span className={`text-base font-extrabold leading-none ${activeTab === "listing" ? "text-white/90" : "text-red-500"}`}>{listingItems.length}</span>
                         </button>
                     </div>
 
@@ -633,7 +814,7 @@ export default function MypageClient({
                                     {activeTab === "past" ? "過去の取引一覧" : "出品中のアイテム（未取引）"}
                                 </span>
                                 <span className="text-sm font-bold text-primary">
-                                    {(activeTab === "past" ? visiblePastItems : initialListingItems).length}件
+                                    {(activeTab === "past" ? visiblePastItems : listingItems).length}件
                                 </span>
                             </div>
                             {activeTab === "past" && (
@@ -642,8 +823,8 @@ export default function MypageClient({
                                 </div>
                             )}
                             <div className="space-y-3">
-                                {(activeTab === "past" ? visiblePastItems : initialListingItems).map(renderHistoryRow)}
-                                {(activeTab === "past" ? visiblePastItems : initialListingItems).length === 0 && (
+                                {(activeTab === "past" ? visiblePastItems : listingItems).map(renderHistoryRow)}
+                                {(activeTab === "past" ? visiblePastItems : listingItems).length === 0 && (
                                     <p className="text-center py-8 text-sm text-gray-400">アイテムがありません</p>
                                 )}
                             </div>

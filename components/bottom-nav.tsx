@@ -33,7 +33,7 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
       return;
     }
 
-    const prefetchRoutes = ["/", "/notifications", "/listing", "/profile", "/transactions"]
+    const prefetchRoutes = ["/", "/notifications", "/listing", "/profile", "/transactions", "/search"]
       .filter((href) => href !== pathname);
 
     const prefetch = () => {
