@@ -30,6 +30,7 @@ export const HomeItemCard = memo(function HomeItemCard({
   isFavorite,
   onToggleFavorite,
   showLoginPrompt,
+  animateFavorite = true,
   index,
   mobileLayout,
   href,
@@ -38,6 +39,7 @@ export const HomeItemCard = memo(function HomeItemCard({
   isFavorite: boolean;
   onToggleFavorite?: (id: string) => void;
   showLoginPrompt?: boolean;
+  animateFavorite?: boolean;
   index: number;
   mobileLayout: MobileHomeLayout;
   href?: string;
@@ -60,15 +62,15 @@ export const HomeItemCard = memo(function HomeItemCard({
         className={`${compact ? "h-9 w-9 bg-white/95 shadow-md ring-1 ring-black/5" : "p-2 -m-2 hover:bg-red-50"} group/heart relative rounded-full transition-all active:scale-90 flex items-center justify-center heart-container disabled:pointer-events-none`}
         aria-label={isFavorite ? "お気に入りから削除" : "お気に入りに追加"}
       >
-        <div className={`heart-ring ${isFavorite ? "active" : ""}`} />
-        <div className={`heart-particle-container ${isFavorite ? "active" : ""}`}>
+        <div className={`heart-ring ${isFavorite && animateFavorite ? "active" : ""}`} />
+        <div className={`heart-particle-container ${isFavorite && animateFavorite ? "active" : ""}`}>
           {[...Array(7)].map((_, i) => (
             <div key={i} className="heart-dot" />
           ))}
         </div>
         <Heart
           className={`${compact ? "h-5 w-5" : "h-5 w-5"} transition-all duration-300 relative heart-main ${isFavorite
-            ? "fill-red-500 text-red-500 heart-pop"
+            ? `fill-red-500 text-red-500 ${animateFavorite ? "heart-pop" : ""}`
             : "text-gray-300 group-hover/heart:text-red-300"
           }`}
         />

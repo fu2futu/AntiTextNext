@@ -25,6 +25,7 @@ import { RewardAvatar, RewardBadges } from "@/components/reward-avatar";
 import ProfileRewardsTutorial from "@/components/ProfileRewardsTutorial";
 import { LegalLinksPanel } from "@/components/legal-footer";
 import type { UserBadge } from "@/lib/rewards";
+import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 
 type Profile = {
     nickname: string;
@@ -133,6 +134,7 @@ export default function MypageClient({
     const [pastFilter, setPastFilter] = useState<"completed" | "cancelled">("completed");
     const [favoriteItems, setFavoriteItems] = useState<Item[]>(initialFavoriteItems);
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
+    const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
     const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
@@ -145,10 +147,12 @@ export default function MypageClient({
         const cached = readProfileCache(cacheKey);
         if (cached && initialFavoriteItems.length === 0) {
             setFavoriteItems(cached.favoriteItems);
+            setBackgroundRefreshing(true);
             return;
         }
 
         setFavoriteItems(initialFavoriteItems);
+        setBackgroundRefreshing(false);
     }, [initialFavoriteItems, cacheKey]);
 
     useEffect(() => {
@@ -190,8 +194,14 @@ export default function MypageClient({
             }
         } finally {
             favoriteRefreshInFlightRef.current = false;
+            setBackgroundRefreshing(false);
         }
     }, [user]);
+
+    useEffect(() => {
+        if (!backgroundRefreshing) return;
+        void refreshFavoriteItems();
+    }, [backgroundRefreshing, refreshFavoriteItems]);
 
     useEffect(() => {
         if (!authLoading && !user) {
@@ -373,6 +383,7 @@ export default function MypageClient({
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 pb-32 font-gentle lg:pb-12">
+            <BackgroundRefreshBanner visible={backgroundRefreshing} />
             {showRewardsTutorial && (
                 <ProfileRewardsTutorial onClose={handleCloseRewardsTutorial} />
             )}

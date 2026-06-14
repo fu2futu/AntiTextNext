@@ -268,11 +268,6 @@ export default function ListingPage() {
     }
   }, [user, step, router]);
 
-  // 未認証時は何も表示しない
-  if (!user && step === "form") {
-    return null;
-  }
-
   const sellingPrice = formData.originalPrice
     ? calculateSellingPrice(Number(formData.originalPrice))
     : 0;
@@ -305,6 +300,11 @@ export default function ListingPage() {
       // 診断ログの失敗で出品操作は止めない。
     });
   }, [formData.bookName, formData.hasDescription, user]);
+
+  // 未認証時は何も表示しない。Hookの呼び出し順を固定するため、useCallback定義後に分岐する。
+  if (!user && step === "form") {
+    return null;
+  }
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,

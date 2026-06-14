@@ -12,6 +12,7 @@ import { TransactionsSkeleton } from "./skeleton";
 import { getItemImageUrl } from "@/lib/image-storage";
 import { RewardAvatar } from "@/components/reward-avatar";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting } from "@/lib/rewards";
+import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 
 type Profile = {
     nickname: string;
@@ -131,6 +132,7 @@ export default function TransactionsClient({
     });
     const [showFlowHelp, setShowFlowHelp] = useState(false);
     const [initialCheckDone, setInitialCheckDone] = useState(serverSession);
+    const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
     const cacheAppliedRef = useRef(false);
     const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
@@ -144,9 +146,12 @@ export default function TransactionsClient({
                 const cached = readTransactionsCache(cacheKey);
                 if (cached) {
                     cacheAppliedRef.current = true;
+                    setBackgroundRefreshing(true);
                     setProfile(cached.profile);
                     setActiveItems(cached.activeItems);
                     setProfileAvatar(cached.profileAvatar);
+                } else {
+                    setBackgroundRefreshing(false);
                 }
                 loadData();
                 setInitialCheckDone(true);
@@ -319,6 +324,8 @@ export default function TransactionsClient({
             setActiveItems(active);
         } catch (err) {
             console.error("Error loading transactions:", err);
+        } finally {
+            setBackgroundRefreshing(false);
         }
     }, [user]);
 
@@ -330,6 +337,7 @@ export default function TransactionsClient({
         if (!cached) return;
 
         cacheAppliedRef.current = true;
+        setBackgroundRefreshing(true);
         setProfile(cached.profile);
         setActiveItems(cached.activeItems);
         setProfileAvatar(cached.profileAvatar);
@@ -565,6 +573,7 @@ export default function TransactionsClient({
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24 font-gentle lg:pb-12">
+            <BackgroundRefreshBanner visible={backgroundRefreshing} />
             <div className="lg:mx-auto lg:max-w-5xl lg:px-6">
             <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[40px] lg:pt-6 lg:pb-5">
                 <div className="flex items-start justify-between">

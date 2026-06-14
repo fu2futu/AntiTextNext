@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from 
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
+import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 
 type Notification = {
     id: string;
@@ -77,6 +78,7 @@ export default function NotificationsPage() {
     const { t } = useI18n();
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
+    const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const cacheKey = user ? `textnext:notifications:v${NOTIFICATIONS_CACHE_VERSION}:user:${user.id}` : null;
 
     // Pull-to-Refresh
@@ -98,6 +100,9 @@ export default function NotificationsPage() {
         if (cached) {
             setNotifications(cached.notifications);
             setLoading(false);
+            setBackgroundRefreshing(true);
+        } else {
+            setBackgroundRefreshing(false);
         }
 
         loadNotifications();
@@ -147,6 +152,7 @@ export default function NotificationsPage() {
             console.error("Error loading notifications:", err);
         } finally {
             setLoading(false);
+            setBackgroundRefreshing(false);
         }
     };
 
@@ -324,6 +330,7 @@ export default function NotificationsPage() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
         >
+            <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
             {/* Pull-to-Refresh Indicator */}
             <div
                 className="flex items-center justify-center overflow-hidden transition-all duration-200"

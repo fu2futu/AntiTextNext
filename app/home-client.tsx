@@ -10,6 +10,7 @@ import { RewardAvatar } from "@/components/reward-avatar";
 import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetting } from "@/lib/rewards";
 import { useLoginRequiredPrompt } from "@/components/login-required-prompt";
 import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components/home-item-card";
+import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 
 type Item = HomeItem;
 
@@ -159,6 +160,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   // ログインユーザー向けのクライアント側再取得中フラグ。
   // サーバー描画 → クライアント再取得への差し替えで「取引中/相談中」などがちらつくのを防ぐ。
   const [loadingPopular, setLoadingPopular] = useState(!demoPreview && initialPopularItems.length === 0);
+  const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const requestIdRef = useRef(0);
 
   // PC(lg以上)判定。リスト表示の件数を PC=9 / モバイル=7 に出し分けるために使う。
@@ -259,6 +261,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     () => popularItems.filter((item) => !hiddenTransactionItemIds.has(item.id)),
     [popularItems, hiddenTransactionItemIds]
   );
+  const shouldAnimateFavorite = !backgroundRefreshing && !loadingPopular && !loadingRecommended;
 
   useEffect(() => {
     if (!homeCacheKey || !homeDataReady || loadingPopular || loadingRecommended) return;
@@ -356,6 +359,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     const fetchData = async () => {
       if (!homeDataReady) {
         setLoadingPopular(true);
+        setBackgroundRefreshing(false);
         return;
       }
 
@@ -370,6 +374,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setHiddenTransactionItemIds(new Set());
         setLoadingRecommended(false);
         setLoadingPopular(false);
+        setBackgroundRefreshing(false);
         return;
       }
 
@@ -377,6 +382,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       const cachedHomeApplied = Boolean(cachedHome);
       if (cachedHome) {
         applyHomeCache(cachedHome);
+        setBackgroundRefreshing(true);
+      } else {
+        setBackgroundRefreshing(false);
       }
 
       // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
@@ -423,6 +431,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         }
 
         setLoadingPopular(false);
+        setBackgroundRefreshing(false);
         return;
       }
 
@@ -581,6 +590,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       if (user) {
         setLoadingRecommended(false);
         setLoadingPopular(false);
+        setBackgroundRefreshing(false);
       }
     };
 
@@ -887,6 +897,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       onTouchMove={demoPreview ? undefined : handleTouchMove}
       onTouchEnd={demoPreview ? undefined : handleTouchEnd}
     >
+      <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
+
       {/* Pull-to-Refresh Indicator */}
       {!demoPreview && (
         <div
@@ -1045,6 +1057,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                       <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
+                        animateFavorite={shouldAnimateFavorite}
                         onToggleFavorite={toggleFavorite}
                         showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                         index={index}
@@ -1114,6 +1127,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                       <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
+                        animateFavorite={shouldAnimateFavorite}
                         onToggleFavorite={toggleFavorite}
                         showLoginPrompt={loginPrompt.visible && loginPromptItemId === item.id}
                         index={index}
