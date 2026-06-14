@@ -40,7 +40,7 @@ export type Item = {
 };
 
 const APP_REVIEW_REAL_ITEM_BLOCK_MESSAGE =
-  "このアカウントはApp Store審査用アカウントです。実際の出品への購入リクエストは送信できません。デモ出品で購入フローを確認してください。";
+  "この出品では購入リクエストを送信できません。ホームに表示されている出品から購入フローを確認してください。";
 
 export default function ProductDetailClient({ item, isAppReviewDemo = false }: { item: Item; isAppReviewDemo?: boolean }) {
   const router = useRouter();
@@ -273,7 +273,7 @@ export default function ProductDetailClient({ item, isAppReviewDemo = false }: {
         } else if (eligibility.reason === 'app_review_real_item_blocked') {
           alert(APP_REVIEW_REAL_ITEM_BLOCK_MESSAGE);
         } else if (eligibility.reason === 'demo_item_only') {
-          alert("この商品はデモ確認用です。通常アカウントでは購入リクエストを送信できません。");
+          alert("この商品は現在、購入リクエストを受け付けていません。");
         }
         setIsSubmitting(false);
         return;
@@ -753,7 +753,7 @@ export default function ProductDetailClient({ item, isAppReviewDemo = false }: {
                 className="flex-1 py-3 md:py-4 bg-gray-100 text-gray-500 rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
               >
                 <AlertTriangle className="w-5 h-5" />
-                審査用アカウントでは実出品を操作できません
+                この出品では購入できません
               </button>
             ) : isOwnItem && !hasCheckedActionState ? (
               <button

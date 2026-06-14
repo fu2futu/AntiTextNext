@@ -106,7 +106,7 @@ BEGIN
 
   message_text := COALESCE(
     NULLIF(TRIM(auto_message), ''),
-    '[デモ] ' || COALESCE(buyer_nickname, '購入者') || 'さんから購入リクエストが届きました。チャットで受け渡し日時や場所を相談してください。'
+    COALESCE(buyer_nickname, '購入者') || 'さんから購入リクエストが届きました。チャットで受け渡し日時や場所を相談してください。'
   );
 
   INSERT INTO public.messages(item_id, transaction_id, sender_id, receiver_id, message, is_read)
@@ -116,8 +116,8 @@ BEGIN
   VALUES (
     item_record.seller_id,
     'purchase_request',
-    '[デモ] 購入相談が届きました',
-    '[デモ] 「' || item_record.title || '」に購入リクエストが届きました。',
+    '購入相談が届きました',
+    '「' || item_record.title || '」に購入リクエストが届きました。',
     'chat',
     target_item_id::text || '?tx=' || transaction_id::text,
     false

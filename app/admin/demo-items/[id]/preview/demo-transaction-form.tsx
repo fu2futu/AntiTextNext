@@ -65,7 +65,7 @@ export default function DemoTransactionForm({ itemId, itemTitle }: { itemId: str
           paymentMethod: "other",
           timeSlots: defaultTimeSlots,
           locations: defaultLocations,
-          autoMessage: `[デモ] ${selectedBuyer.nickname || "購入者"}さんから「${itemTitle}」への購入リクエストが届きました。\n\n受け渡し日時や場所をチャットで相談してください。`,
+          autoMessage: `${selectedBuyer.nickname || "購入者"}さんから「${itemTitle}」への購入リクエストが届きました。\n\n受け渡し日時や場所をチャットで相談してください。`,
         }),
       });
       const payload = await response.json();

@@ -15,8 +15,8 @@ export async function POST() {
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://textnext.jp";
     const result = await sendWebPushToUser(user.id, {
-      title: "TextNext テスト通知",
-      body: "ホーム画面通知の送信テストです。",
+      title: "TextNext 通知確認",
+      body: "ホーム画面通知が届く状態です。",
       url: `${baseUrl}/notifications`,
     });
 
@@ -36,6 +36,6 @@ export async function POST() {
 
     return NextResponse.json({ success: true, result });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "テスト通知を送信できませんでした" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "通知を送信できませんでした" }, { status: 500 });
   }
 }

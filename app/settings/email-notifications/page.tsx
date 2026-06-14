@@ -120,12 +120,12 @@ export default function EmailNotificationsSettingsPage() {
             const result = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(result.message || result.error || "テスト通知を送信できませんでした。");
+                throw new Error(result.message || result.error || "通知を送信できませんでした。");
             }
 
-            setPushMessage("テスト通知を送信しました。端末側の通知表示を確認してください。");
+            setPushMessage("通知を送信しました。端末側の通知表示を確認してください。");
         } catch (err: any) {
-            setPushMessage(err.message || "テスト通知を送信できませんでした。");
+            setPushMessage(err.message || "通知を送信できませんでした。");
         } finally {
             setPushTestBusy(false);
         }
@@ -227,7 +227,7 @@ export default function EmailNotificationsSettingsPage() {
                                                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-primary ring-1 ring-primary/30 transition-colors hover:bg-primary/5 disabled:opacity-50"
                                             >
                                                 {pushTestBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
-                                                テスト通知を送る
+                                                通知を確認する
                                             </button>
                                         )}
                                     </div>

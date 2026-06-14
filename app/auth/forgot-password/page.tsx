@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 const RATE_LIMIT_COOLDOWN_MS = 60 * 1000;
 const APP_REVIEW_RESET_MESSAGE =
-  "このアカウントはApp Store審査用アカウントです。パスワード再設定は不要です。App Review情報に記載されたパスワードでログインしてください。";
+  "このアカウントではパスワード再設定は不要です。提供されたパスワードでログインしてください。";
 
 const formatRemainingTime = (seconds: number) => {
   if (seconds >= 60) {

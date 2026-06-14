@@ -980,7 +980,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         ${demoPreview || !active ? "" : `
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
-           固定の試験運用バナー分は scroll-padding-top で吸収する。 */
+           固定ヘッダー分は scroll-padding-top で吸収する。 */
         html {
           scroll-snap-type: y mandatory;
           scroll-padding-top: var(--app-top-offset);

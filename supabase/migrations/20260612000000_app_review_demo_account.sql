@@ -442,9 +442,8 @@ BEGIN
   VALUES (
     item_record.seller_id,
     'purchase_request',
-    CASE WHEN item_record.is_demo THEN '[デモ] 購入相談が届きました' ELSE '購入相談が届きました' END,
-    CASE WHEN item_record.is_demo THEN '[デモ] ' ELSE '' END ||
-      COALESCE(buyer_nickname, '購入者') || 'さんから購入リクエストが届きました。チャットで受け渡し日時や場所を相談してください。',
+    '購入相談が届きました',
+    COALESCE(buyer_nickname, '購入者') || 'さんから購入リクエストが届きました。チャットで受け渡し日時や場所を相談してください。',
     'chat',
     target_item_id::text || '?tx=' || transaction_id::text,
     false
@@ -767,8 +766,8 @@ BEGIN
       (
         rated_user_id,
         'transaction_completed',
-        CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 取引が完了しました' ELSE '取引が完了しました' END,
-        CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '双方の評価が完了したため、取引が正式に完了しました。',
+        '取引が完了しました',
+        '双方の評価が完了したため、取引が正式に完了しました。',
         'chat',
         tx_record.item_id::TEXT || '?tx=' || target_transaction_id::TEXT,
         false
@@ -776,8 +775,8 @@ BEGIN
       (
         auth.uid(),
         'transaction_completed',
-        CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 取引が完了しました' ELSE '取引が完了しました' END,
-        CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '双方の評価が完了したため、取引が正式に完了しました。',
+        '取引が完了しました',
+        '双方の評価が完了したため、取引が正式に完了しました。',
         'chat',
         tx_record.item_id::TEXT || '?tx=' || target_transaction_id::TEXT,
         false
@@ -800,8 +799,8 @@ BEGIN
   VALUES (
     rated_user_id,
     'rating_received',
-    CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 評価をしてください' ELSE '評価をしてください' END,
-    CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '取引相手から評価が送信されました。取引完了ボタンより、取引完了及び評価を行ってください。',
+    '評価をしてください',
+    '取引相手から評価が送信されました。取引完了ボタンより、取引完了及び評価を行ってください。',
     'chat',
     tx_record.item_id::TEXT || '?tx=' || target_transaction_id::TEXT,
     false

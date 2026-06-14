@@ -1258,11 +1258,6 @@ export default function ChatPage({ params }: { params: { id: string } }) {
             {item.title}
           </h1>
           <p className="flex items-center gap-1.5 text-gray-500 text-xs">
-            {isDemoTransaction && (
-              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-black text-blue-700 ring-1 ring-blue-100">
-                デモ取引
-              </span>
-            )}
             <span>{otherUserProfile?.is_deactivated ? "相手は退会済みです" : statusLabel}</span>
           </p>
         </div>

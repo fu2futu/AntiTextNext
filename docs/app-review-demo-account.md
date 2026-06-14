@@ -1,6 +1,6 @@
-# App Review Demo Account
+# App Review Account
 
-TextNext はログイン必須のため、App Store Review 用に専用デモアカウントを用意します。
+TextNext はログイン必須のため、App Store Review 用に専用アカウントを用意します。
 
 ## 方針
 
@@ -35,12 +35,16 @@ TextNext はログイン必須のため、App Store Review 用に専用デモア
 ## App Store Connect Notes 例
 
 ```txt
-Demo Account:
+Review Account:
 Email: app-review@textnext.jp
 Password: <TextNext login password configured by the operator>
 
 Notes:
-This app requires sign-in. Please use the demo account above. This is a demo account for App Review. It can browse the app, view demo textbook listings, open product details, and test purchase requests, chat, handoff coordination, and rating flows using demo listings only. It cannot affect real listings or send purchase requests or messages to real users. Password reset is not required for this demo account.
+This app is a complete production version and requires sign-in. Please use the review account above.
+
+The review account can browse TextNext and use the same production flows available to users with prepared review data that does not affect real users or real listings. You can review textbook listings, product details, purchase requests, chat, handoff coordination, transaction completion, and ratings.
+
+TextNext does not use in-app purchases. Transactions are intended for in-person handoff on campus. Password reset is not required for this review account; please sign in with the credentials above.
 ```
 
 ## 制限
@@ -58,5 +62,5 @@ App Review 用アカウントでは、パスワード再設定は不要な運用
 パスワード再設定画面で該当メールアドレスを入力した場合、メール送信は行わず、以下の案内を表示します。
 
 ```txt
-このアカウントはApp Store審査用アカウントです。パスワード再設定は不要です。App Review情報に記載されたパスワードでログインしてください。
+このアカウントではパスワード再設定は不要です。提供されたパスワードでログインしてください。
 ```

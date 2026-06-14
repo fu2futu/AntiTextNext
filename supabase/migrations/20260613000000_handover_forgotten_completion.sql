@@ -156,8 +156,8 @@ BEGIN
     (
       tx_record.buyer_id,
       'transaction_completed',
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 取引が完了しました' ELSE '取引が完了しました' END,
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '「' || COALESCE(item_title, '商品') || '」の受け渡しが完了しました。評価をお願いします。',
+      '取引が完了しました',
+      '「' || COALESCE(item_title, '商品') || '」の受け渡しが完了しました。評価をお願いします。',
       'chat',
       tx_record.item_id::text || '?tx=' || tx_record.id::text,
       false
@@ -165,8 +165,8 @@ BEGIN
     (
       tx_record.seller_id,
       'transaction_completed',
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 取引が完了しました' ELSE '取引が完了しました' END,
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '「' || COALESCE(item_title, '商品') || '」の受け渡しが完了しました。評価をお願いします。',
+      '取引が完了しました',
+      '「' || COALESCE(item_title, '商品') || '」の受け渡しが完了しました。評価をお願いします。',
       'chat',
       tx_record.item_id::text || '?tx=' || tx_record.id::text,
       false
@@ -279,8 +279,8 @@ BEGIN
     VALUES (
       receiver_id,
       'transaction_completed',
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] 評価をお願いします' ELSE '評価をお願いします' END,
-      CASE WHEN COALESCE(tx_record.is_demo, FALSE) THEN '[デモ] ' ELSE '' END || '「' || COALESCE(item_title, '商品') || '」の受け渡し確認が完了しました。評価をお願いします。',
+      '評価をお願いします',
+      '「' || COALESCE(item_title, '商品') || '」の受け渡し確認が完了しました。評価をお願いします。',
       'chat',
       tx_record.item_id::text || '?tx=' || tx_record.id::text,
       false
