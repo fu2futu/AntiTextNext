@@ -1253,6 +1253,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
+              {/* 見出しとコンテナの間のスナップ吸着ポイント（コンテナ先頭に吸着）。 */}
+              <div aria-hidden="true" className="snap-start scroll-mt-[var(--app-top-offset)]" />
               <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
