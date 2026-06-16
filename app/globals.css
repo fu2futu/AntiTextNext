@@ -31,6 +31,7 @@
     --bottom-nav-listing-lift: -0.6rem;
     --bottom-nav-listing-label-offset: 0.35rem;
     --bottom-nav-active-dot-bottom: 0.35rem;
+    --app-min-top-offset: 0px;
     --app-top-offset: 0px;
     --product-detail-top-gap: 3.5rem;
     --product-detail-desktop-top-gap: 2rem;
@@ -40,6 +41,8 @@
   }
 
   html.capacitor-native {
+    --app-min-top-offset: max(env(safe-area-inset-top), 1rem);
+    --app-top-offset: var(--app-min-top-offset);
     --product-detail-top-gap: 4.25rem;
     --product-detail-desktop-top-gap: 2.75rem;
     --chat-top-inset: max(env(safe-area-inset-top), 1.25rem);

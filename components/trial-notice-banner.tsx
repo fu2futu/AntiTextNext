@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Info, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Info } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type NoticeBanner = {
@@ -10,14 +10,14 @@ type NoticeBanner = {
   message: string;
 };
 
-const DISMISS_PREFIX = "textnext-notice-banner-dismissed:";
+const COLLAPSE_PREFIX = "textnext-notice-banner-collapsed:";
 
 export default function TrialNoticeBanner() {
   const pathname = usePathname();
   const bannerRef = useRef<HTMLDivElement>(null);
   const [banner, setBanner] = useState<NoticeBanner | null>(null);
-  const [dismissKey, setDismissKey] = useState("");
-  const [dismissed, setDismissed] = useState(false);
+  const [collapseKey, setCollapseKey] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,9 +38,9 @@ export default function TrialNoticeBanner() {
       };
       setBanner(nextBanner);
 
-      const nextDismissKey = `${DISMISS_PREFIX}${data?.updated_at || "default"}`;
-      setDismissKey(nextDismissKey);
-      setDismissed(localStorage.getItem(nextDismissKey) === "true");
+      const nextCollapseKey = `${COLLAPSE_PREFIX}${data?.updated_at || "default"}`;
+      setCollapseKey(nextCollapseKey);
+      setCollapsed(localStorage.getItem(nextCollapseKey) === "true");
     };
 
     fetchBanner();
@@ -50,10 +50,18 @@ export default function TrialNoticeBanner() {
   }, []);
 
   useEffect(() => {
-    const shouldHide = pathname?.startsWith("/chat/") || !banner?.enabled || dismissed;
+    const setMinimumTopOffset = () => {
+      document.documentElement.style.setProperty("--app-top-offset", "var(--app-min-top-offset)");
+    };
+
+    const shouldHide = pathname?.startsWith("/chat/") || !banner?.enabled;
 
     if (shouldHide) {
-      document.documentElement.style.setProperty("--app-top-offset", "0px");
+      if (pathname?.startsWith("/chat/")) {
+        document.documentElement.style.setProperty("--app-top-offset", "0px");
+      } else {
+        setMinimumTopOffset();
+      }
       return;
     }
 
@@ -68,7 +76,7 @@ export default function TrialNoticeBanner() {
       window.addEventListener("resize", updateHeight);
       return () => {
         window.removeEventListener("resize", updateHeight);
-        document.documentElement.style.setProperty("--app-top-offset", "0px");
+        setMinimumTopOffset();
       };
     }
 
@@ -77,18 +85,19 @@ export default function TrialNoticeBanner() {
 
     return () => {
       observer.disconnect();
-      document.documentElement.style.setProperty("--app-top-offset", "0px");
+      setMinimumTopOffset();
     };
-  }, [banner?.enabled, banner?.message, dismissed, pathname]);
+  }, [banner?.enabled, banner?.message, collapsed, pathname]);
 
-  const dismiss = () => {
-    setDismissed(true);
-    if (dismissKey) {
-      localStorage.setItem(dismissKey, "true");
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    if (collapseKey) {
+      localStorage.setItem(collapseKey, String(next));
     }
   };
 
-  if (pathname?.startsWith("/chat/") || !banner?.enabled || dismissed) {
+  if (pathname?.startsWith("/chat/") || !banner?.enabled) {
     return null;
   }
 
@@ -100,16 +109,22 @@ export default function TrialNoticeBanner() {
     >
       <div className="mx-auto flex max-w-screen-lg items-start gap-3">
         <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
-        <p className="min-w-0 flex-1 whitespace-pre-wrap text-xs font-bold leading-relaxed">
-          {banner.message}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-black text-sky-900">お知らせ</p>
+          <div className={`overflow-hidden transition-all duration-200 ${collapsed ? "max-h-0 opacity-0" : "mt-1 max-h-40 opacity-100"}`}>
+            <p className="whitespace-pre-wrap text-xs font-bold leading-relaxed">
+              {banner.message}
+            </p>
+          </div>
+        </div>
         <button
           type="button"
-          onClick={dismiss}
-          className="flex flex-shrink-0 rounded-full p-1 text-sky-700 transition hover:bg-sky-100"
-          aria-label="お知らせを閉じる"
+          onClick={toggleCollapsed}
+          className="flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black text-sky-700 transition hover:bg-sky-100"
+          aria-expanded={!collapsed}
         >
-          <X className="h-3.5 w-3.5" />
+          {collapsed ? "開く" : "畳む"}
+          {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
         </button>
       </div>
     </div>
