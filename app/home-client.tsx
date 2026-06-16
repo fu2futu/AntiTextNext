@@ -133,8 +133,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("list");
-  const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("list");
+  const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("image");
+  const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("image");
   const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
   const itemDemoFilter = demoPreview ? true : (appReviewDemo || isAppReviewDemo);
