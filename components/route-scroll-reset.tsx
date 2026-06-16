@@ -23,6 +23,9 @@ export default function RouteScrollReset() {
     const originalPushState = window.history.pushState;
     const originalReplaceState = window.history.replaceState;
 
+    scrollToTop();
+    window.setTimeout(scrollToTop, 80);
+
     window.history.pushState = function patchedPushState(...args) {
       const before = window.location.href;
       const result = originalPushState.apply(this, args);

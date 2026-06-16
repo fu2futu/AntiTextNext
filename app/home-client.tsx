@@ -164,6 +164,21 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [loadingPopular, setLoadingPopular] = useState(!demoPreview && initialPopularItems.length === 0);
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const requestIdRef = useRef(0);
+  const initialHomeTopAppliedRef = useRef(false);
+
+  useEffect(() => {
+    if (!active || demoPreview || initialHomeTopAppliedRef.current) return;
+    initialHomeTopAppliedRef.current = true;
+
+    const scrollTop = () => {
+      if (window.location.hash) return;
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.scrollingElement?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    };
+
+    requestAnimationFrame(scrollTop);
+    window.setTimeout(scrollTop, 120);
+  }, [active, demoPreview]);
 
   // PC(lg以上)判定。リスト表示の件数を PC=9 / モバイル=7 に出し分けるために使う。
   const [isPc, setIsPc] = useState(false);
