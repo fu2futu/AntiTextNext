@@ -73,6 +73,50 @@ function MobileLayoutSwitcher({
   );
 }
 
+// 見出しの右に置く小さなスライドトグル（アイコンのみ）。スマホ専用。
+const LAYOUT_TOGGLE_OPTIONS = [
+  { value: "list" as const, icon: Rows3, label: "1列" },
+  { value: "square" as const, icon: Grid2X2, label: "3列" },
+  { value: "image" as const, icon: Grid3X3, label: "画像" },
+];
+
+function MobileLayoutToggle({
+  value,
+  onChange,
+}: {
+  value: MobileHomeLayout;
+  onChange: (value: MobileHomeLayout) => void;
+}) {
+  const activeIndex = Math.max(0, LAYOUT_TOGGLE_OPTIONS.findIndex((o) => o.value === value));
+  return (
+    <div className="relative ml-auto flex items-center rounded-full border border-gray-200 bg-gray-100 p-0.5 md:hidden">
+      <div
+        className="absolute bottom-0.5 left-0.5 top-0.5 w-7 rounded-full bg-white shadow-sm transition-transform duration-200 ease-out"
+        style={{ transform: `translateX(${activeIndex * 100}%)` }}
+        aria-hidden="true"
+      />
+      {LAYOUT_TOGGLE_OPTIONS.map((option) => {
+        const Icon = option.icon;
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
+              active ? "text-primary" : "text-gray-400"
+            }`}
+            aria-pressed={active}
+            aria-label={option.label}
+          >
+            <Icon className="h-3.5 w-3.5" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function LoadMoreButton({
   loading,
   onClick,
@@ -1199,6 +1243,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <h2 className="text-xl font-bold text-gray-900">
               {t('home.everyones_listings')}
             </h2>
+            <MobileLayoutToggle value={popularMobileLayout} onChange={setPopularMobileLayout} />
           </div>
 
           {(loading || loadingPopular || !homeDataReady) ? (
@@ -1208,13 +1253,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
               <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {
-                    const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
                     return (
                     <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
                       <HomeItemCard
@@ -1227,14 +1270,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         mobileLayout={popularMobileLayout}
                         href={demoItemHrefPrefix ? `${demoItemHrefPrefix}/${item.id}/preview` : undefined}
                       />
-                      {showLoadMoreHere && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent md:hidden" />
-                      )}
                     </div>
                   )})}
                 </div>
                 {hasMore && displayedPopularItems.length > 0 && (
-                  <div className="relative z-30 -mt-12 md:mt-6 flex justify-center pb-3 pointer-events-none">
+                  <div className="relative z-30 mt-4 md:mt-6 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
                         loading={loadingMore}
