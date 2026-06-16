@@ -104,13 +104,13 @@ export default function TrialNoticeBanner() {
   return (
     <div
       ref={bannerRef}
-      className="fixed left-0 right-0 top-0 z-[80] border-b border-sky-100 bg-sky-50/95 px-4 py-2 text-sky-950 shadow-sm backdrop-blur-md [transform:translateZ(0)]"
+      className="fixed left-0 right-0 top-0 z-[80] border-b border-amber-100 bg-amber-50/95 px-4 py-2 text-amber-950 shadow-sm backdrop-blur-md [transform:translateZ(0)]"
       style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
     >
       <div className="mx-auto flex max-w-screen-lg items-start gap-3">
-        <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
+        <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-black text-sky-900">お知らせ</p>
+          <p className="text-xs font-black text-amber-900">お知らせ</p>
           <div className={`overflow-hidden transition-all duration-200 ${collapsed ? "max-h-0 opacity-0" : "mt-1 max-h-40 opacity-100"}`}>
             <p className="whitespace-pre-wrap text-xs font-bold leading-relaxed">
               {banner.message}
@@ -120,7 +120,7 @@ export default function TrialNoticeBanner() {
         <button
           type="button"
           onClick={toggleCollapsed}
-          className="flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black text-sky-700 transition hover:bg-sky-100"
+          className="flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black text-amber-700 transition hover:bg-amber-100"
           aria-expanded={!collapsed}
         >
           {collapsed ? "開く" : "畳む"}

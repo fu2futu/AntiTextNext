@@ -111,10 +111,10 @@ export default function BannerSettingsForm({
         <p className="mt-1 text-sm font-bold text-slate-500">
           現在の設定では{actuallyVisible ? "表示されます" : "表示されません"}。
         </p>
-        <div className="mt-5 rounded-2xl border border-sky-100 bg-sky-50 p-4 text-sky-950">
+        <div className="mt-5 rounded-2xl border border-amber-100 bg-amber-50 p-4 text-amber-950">
           {actuallyVisible ? (
             <div className="flex items-start gap-3">
-              <Megaphone className="mt-0.5 h-4 w-4 flex-shrink-0 text-sky-600" />
+              <Megaphone className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
               <p className="whitespace-pre-wrap text-xs font-bold leading-relaxed">{normalizedMessage}</p>
             </div>
           ) : (
