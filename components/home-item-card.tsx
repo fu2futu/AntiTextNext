@@ -123,14 +123,18 @@ export const HomeItemCard = memo(function HomeItemCard({
                 取引中
               </div>
             )}
+            {mobileLayout === "square" && (
+              <div className="absolute bottom-1 left-1 z-10 rounded bg-white/40 px-1 shadow-sm backdrop-blur-md">
+                <span className={`block text-[10px] font-black leading-none py-[3px] ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
+                  ¥{item.selling_price.toLocaleString()}
+                </span>
+              </div>
+            )}
           </div>
           {mobileLayout === "square" && (
             <div className="px-2.5 py-2">
-              <p className={`line-clamp-2 min-h-[2.5em] text-xs font-black leading-snug ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
+              <p className={`line-clamp-2 min-h-[2.5em] text-[9px] font-black leading-snug ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
                 {item.title}
-              </p>
-              <p className={`mt-0.5 text-sm font-black ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
-                ¥{item.selling_price.toLocaleString()}
               </p>
             </div>
           )}

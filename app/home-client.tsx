@@ -34,7 +34,7 @@ const ACTIVE_TRANSACTION_STATUSES = [
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
     ? "max-h-[70vh]"
-    : "h-[29rem] max-h-[70vh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
+    : "h-[44rem] max-h-[80vh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -205,10 +205,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     };
   }, []);
   const pageSizeFor = (layout: MobileHomeLayout) => {
-    if (layout === "image") return 18;
-    if (layout === "square") return 10;
+    // iPad/PC(md=768px以上)はレイアウト切替が非表示で、列数はグリッドで決まるため
+    // 端末判定を優先する（iPad縦=21 / iPad横・PC=16）。
     if (isTabletPortrait) return TABLET_PORTRAIT_ITEM_PAGE_SIZE;
-    return isPc ? PC_ITEM_PAGE_SIZE : HOME_ITEM_PAGE_SIZE;
+    if (isPc) return PC_ITEM_PAGE_SIZE;
+    // スマホ(<md)のみレイアウト切替に応じた件数。
+    if (layout === "image") return 12; // 3列×4行
+    if (layout === "square") return 12; // 3列×4行
+    return HOME_ITEM_PAGE_SIZE;
   };
   const homeCacheKey = useMemo(() => {
     if (demoPreview) return null;
