@@ -166,6 +166,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
   const requestIdRef = useRef(0);
   const initialHomeTopAppliedRef = useRef(false);
+  // 「もっと見る」連続発火の防止。loadingMore(state)は反映が非同期なため、
+  // 同一レンダー連続でガードをすり抜け、同じ行を二重取得することがある。
+  const loadingMoreRef = useRef(false);
+  const loadingMoreRecommendedRef = useRef(false);
 
   useEffect(() => {
     if (!active || demoPreview || initialHomeTopAppliedRef.current) return;
@@ -775,8 +779,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   }, [user, loginPrompt]);
 
   const loadMoreRecommended = async (requestedCount = pageSizeFor(recommendedMobileLayout)) => {
-    if (loadingMoreRecommended || !hasMoreRecommended || !user) return;
+    if (loadingMoreRecommendedRef.current || loadingMoreRecommended || !hasMoreRecommended || !user) return;
 
+    loadingMoreRecommendedRef.current = true;
     setLoadingMoreRecommended(true);
     try {
       const currentLength = recommendedItems.length;
@@ -812,7 +817,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             ...item,
             favorite_count: item.favorites?.[0]?.count || 0
           })) as Item[];
-          setRecommendedItems(prev => [...prev, ...newItems]);
+          setRecommendedItems(prev => {
+            const existing = new Set(prev.map(item => item.id));
+            const deduped = newItems.filter(item => !existing.has(item.id));
+            return [...prev, ...deduped];
+          });
           if (currentLength + newItems.length >= totalRecommendedCount || newItems.length < requestedCount) {
             setHasMoreRecommended(false);
           }
@@ -821,13 +830,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     } catch (err) {
       console.error("Error loading more recommended items:", err);
     } finally {
+      loadingMoreRecommendedRef.current = false;
       setLoadingMoreRecommended(false);
     }
   };
 
   const loadMorePopular = async (requestedCount = pageSizeFor(popularMobileLayout)) => {
-    if (loadingMore || !hasMore) return;
-    
+    if (loadingMoreRef.current || loadingMore || !hasMore) return;
+
+    loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
       const currentLength = popularItems.length;
@@ -849,7 +860,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ...item,
           favorite_count: item.favorites?.[0]?.count || 0
         })) as Item[];
-        setPopularItems(prev => [...prev, ...newItems]);
+        setPopularItems(prev => {
+          const existing = new Set(prev.map(item => item.id));
+          const deduped = newItems.filter(item => !existing.has(item.id));
+          return [...prev, ...deduped];
+        });
         if (currentLength + newItems.length >= totalVisiblePopularCount || newItems.length < requestedCount) {
           setHasMore(false);
         }
@@ -857,6 +872,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     } catch (err) {
       console.error("Error loading more items:", err);
     } finally {
+      loadingMoreRef.current = false;
       setLoadingMore(false);
     }
   };
