@@ -74,6 +74,15 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://qbmxbkylelaixoxupfeq.supabase.co" />
       </head>
       <body className={`${inter.variable} ${mplusRounded.variable} ${inter.className}`}>
+        {/* ステータスバー(時刻/バッテリー)領域の塗り。
+            本体スクロールでコンテンツが透明なセーフエリアに透けるのを防ぐ。
+            ブラウザでは --app-min-top-offset が 0px のため非表示、ネイティブのみ機能。
+            お知らせバナー(z-80)より下なので、バナー表示中はバナーが優先される。 */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-x-0 top-0 z-[75] bg-white"
+          style={{ height: "var(--app-min-top-offset)" }}
+        />
         <Providers>
           <AuthProvider>
             <TrialNoticeBanner />
