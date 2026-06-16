@@ -899,6 +899,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // Pull-to-Refresh handlers
   const handleTouchStart = useCallback((e: ReactTouchEvent) => {
+    // スクロール可能なボード内で始まったジェスチャーは、ボード自身のスクロール。
+    // ここで pull-to-refresh を起動すると、ボード内スクロール中に
+    // 一覧が1ページ目へ再取得され「もっと見る」が巻き戻るため除外する。
+    if ((e.target as HTMLElement | null)?.closest("[data-home-board]")) return;
     if (window.scrollY === 0 && !isRefreshing) {
       touchStartY.current = e.touches[0].clientY;
       isPulling.current = true;
@@ -1115,7 +1119,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div data-home-board className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
@@ -1185,7 +1189,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
-              <div className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
@@ -1204,13 +1208,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                         href={demoItemHrefPrefix ? `${demoItemHrefPrefix}/${item.id}/preview` : undefined}
                       />
                       {showLoadMoreHere && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent lg:hidden" />
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-1/2 rounded-b-xl bg-gradient-to-t from-white/95 via-white/80 to-transparent md:hidden" />
                       )}
                     </div>
                   )})}
                 </div>
                 {hasMore && displayedPopularItems.length > 0 && (
-                  <div className="relative z-30 -mt-12 lg:mt-6 flex justify-center pb-3 pointer-events-none">
+                  <div className="relative z-30 -mt-12 md:mt-6 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
                         loading={loadingMore}
