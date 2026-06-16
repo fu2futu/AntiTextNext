@@ -180,10 +180,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     window.setTimeout(scrollTop, 120);
   }, [active, demoPreview]);
 
-  // PC(lg以上)判定。リスト表示の件数を PC=9 / モバイル=7 に出し分けるために使う。
+  // タブレット/PC(md=768px以上)判定。リスト表示の件数を 16(4×4) / モバイル=7 に出し分けるために使う。
   const [isPc, setIsPc] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
+    const mq = window.matchMedia("(min-width: 768px)");
     const update = () => setIsPc(mq.matches);
     update();
     mq.addEventListener("change", update);
@@ -1173,7 +1173,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
               <div className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
-                <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
+                <div className={`grid gap-3 md:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {

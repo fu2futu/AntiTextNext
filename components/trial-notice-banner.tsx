@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, ChevronUp, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, Info, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type NoticeBanner = {
@@ -11,6 +11,7 @@ type NoticeBanner = {
 };
 
 const COLLAPSE_PREFIX = "textnext-notice-banner-collapsed:";
+const DISMISS_PREFIX = "textnext-notice-banner-dismissed:";
 
 export default function TrialNoticeBanner() {
   const pathname = usePathname();
@@ -18,6 +19,8 @@ export default function TrialNoticeBanner() {
   const [banner, setBanner] = useState<NoticeBanner | null>(null);
   const [collapseKey, setCollapseKey] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [dismissKey, setDismissKey] = useState("");
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,9 +41,14 @@ export default function TrialNoticeBanner() {
       };
       setBanner(nextBanner);
 
-      const nextCollapseKey = `${COLLAPSE_PREFIX}${data?.updated_at || "default"}`;
+      const versionSuffix = data?.updated_at || "default";
+      const nextCollapseKey = `${COLLAPSE_PREFIX}${versionSuffix}`;
       setCollapseKey(nextCollapseKey);
       setCollapsed(localStorage.getItem(nextCollapseKey) === "true");
+
+      const nextDismissKey = `${DISMISS_PREFIX}${versionSuffix}`;
+      setDismissKey(nextDismissKey);
+      setDismissed(localStorage.getItem(nextDismissKey) === "true");
     };
 
     fetchBanner();
@@ -54,7 +62,7 @@ export default function TrialNoticeBanner() {
       document.documentElement.style.setProperty("--app-top-offset", "var(--app-min-top-offset)");
     };
 
-    const shouldHide = pathname?.startsWith("/chat/") || !banner?.enabled;
+    const shouldHide = pathname?.startsWith("/chat/") || !banner?.enabled || dismissed;
 
     if (shouldHide) {
       if (pathname?.startsWith("/chat/")) {
@@ -87,7 +95,7 @@ export default function TrialNoticeBanner() {
       observer.disconnect();
       setMinimumTopOffset();
     };
-  }, [banner?.enabled, banner?.message, collapsed, pathname]);
+  }, [banner?.enabled, banner?.message, collapsed, pathname, dismissed]);
 
   const toggleCollapsed = () => {
     const next = !collapsed;
@@ -97,8 +105,36 @@ export default function TrialNoticeBanner() {
     }
   };
 
+  const dismiss = () => {
+    setDismissed(true);
+    if (dismissKey) {
+      localStorage.setItem(dismissKey, "true");
+    }
+  };
+
+  const restore = () => {
+    setDismissed(false);
+    if (dismissKey) {
+      localStorage.setItem(dismissKey, "false");
+    }
+  };
+
   if (pathname?.startsWith("/chat/") || !banner?.enabled) {
     return null;
+  }
+
+  if (dismissed) {
+    return (
+      <button
+        type="button"
+        onClick={restore}
+        className="fixed right-3 z-[60] flex h-9 w-9 items-center justify-center rounded-full border border-amber-200 bg-amber-50/95 text-amber-700 shadow-md backdrop-blur-md transition hover:bg-amber-100 bottom-[calc(var(--bottom-nav-height)+env(safe-area-inset-bottom)+0.75rem)] lg:bottom-4"
+        aria-label="お知らせを開く"
+        title="お知らせ"
+      >
+        <Info className="h-4 w-4" />
+      </button>
+    );
   }
 
   return (
@@ -117,15 +153,25 @@ export default function TrialNoticeBanner() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className="flex flex-shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black text-amber-700 transition hover:bg-amber-100"
-          aria-expanded={!collapsed}
-        >
-          {collapsed ? "開く" : "畳む"}
-          {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-black text-amber-700 transition hover:bg-amber-100"
+            aria-expanded={!collapsed}
+          >
+            {collapsed ? "開く" : "畳む"}
+            {collapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          </button>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="flex items-center rounded-full p-1 text-amber-700 transition hover:bg-amber-100"
+            aria-label="お知らせを最小化"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
