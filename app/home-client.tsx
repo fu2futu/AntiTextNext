@@ -17,7 +17,7 @@ type Item = HomeItem;
 
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 16;
-const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 15; // iPad縦: 3列×5行
+const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 21; // iPad縦: 3列×7行
 const HOME_SESSION_CACHE_VERSION = 1;
 const HOME_SESSION_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
@@ -34,7 +34,7 @@ const ACTIVE_TRANSACTION_STATUSES = [
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
     ? "max-h-[70vh]"
-    : "h-[29rem] max-h-[70vh] md:h-[42rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
+    : "h-[29rem] max-h-[70vh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -187,7 +187,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // タブレット/PC(md=768px以上)判定。リスト表示の件数を 16(4×4) / モバイル=7 に出し分けるために使う。
   const [isPc, setIsPc] = useState(false);
-  // iPad縦(md=768〜1023px)判定。3列×5行=15件に出し分けるために使う。
+  // iPad縦(md=768〜1023px)判定。3列×7行=21件に出し分けるために使う。
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
