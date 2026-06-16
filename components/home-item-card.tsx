@@ -23,8 +23,6 @@ export type HomeItem = {
 
 export type MobileHomeLayout = "list" | "square" | "image";
 
-const compactTitle = (title: string) => title.length > 10 ? `${title.slice(0, 10)}...` : title;
-
 export const HomeItemCard = memo(function HomeItemCard({
   item,
   isFavorite,
@@ -128,8 +126,8 @@ export const HomeItemCard = memo(function HomeItemCard({
           </div>
           {mobileLayout === "square" && (
             <div className="px-2.5 py-2">
-              <p className={`truncate text-xs font-black ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
-                {compactTitle(item.title)}
+              <p className={`line-clamp-2 min-h-[2.5em] text-xs font-black leading-snug ${isTrading ? "text-gray-500" : "text-gray-900"}`}>
+                {item.title}
               </p>
               <p className={`mt-0.5 text-sm font-black ${isTrading ? "text-gray-500" : "gradient-text-price"}`}>
                 ¥{item.selling_price.toLocaleString()}

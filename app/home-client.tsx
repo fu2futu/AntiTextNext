@@ -1137,7 +1137,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
               <div data-home-board className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
-                  recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+                  recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
                   {visibleRecommendedItems.map((item, index) => {
                     const showLoadMoreHere = hasMoreRecommended && index === visibleRecommendedItems.length - 1;
@@ -1207,7 +1207,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
               <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
-                  popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
+                  popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {
                     const showLoadMoreHere = hasMore && index === displayedPopularItems.length - 1;
