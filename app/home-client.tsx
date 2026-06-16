@@ -17,6 +17,7 @@ type Item = HomeItem;
 
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 16;
+const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 15; // iPad縦: 3列×5行
 const HOME_SESSION_CACHE_VERSION = 1;
 const HOME_SESSION_CACHE_TTL_MS = 2 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
@@ -33,7 +34,7 @@ const ACTIVE_TRANSACTION_STATUSES = [
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
     ? "max-h-[70vh]"
-    : "h-[29rem] max-h-[70vh] xl:h-[36rem] xl:max-h-[80vh]";
+    : "h-[29rem] max-h-[70vh] md:h-[42rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -182,23 +183,34 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // タブレット/PC(md=768px以上)判定。リスト表示の件数を 16(4×4) / モバイル=7 に出し分けるために使う。
   const [isPc, setIsPc] = useState(false);
+  // iPad縦(md=768〜1023px)判定。3列×5行=15件に出し分けるために使う。
+  const [isTabletPortrait, setIsTabletPortrait] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
-    const update = () => setIsPc(mq.matches);
+    const mqTablet = window.matchMedia("(min-width: 768px) and (max-width: 1023px)");
+    const update = () => {
+      setIsPc(mq.matches);
+      setIsTabletPortrait(mqTablet.matches);
+    };
     update();
     mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
+    mqTablet.addEventListener("change", update);
+    return () => {
+      mq.removeEventListener("change", update);
+      mqTablet.removeEventListener("change", update);
+    };
   }, []);
   const pageSizeFor = (layout: MobileHomeLayout) => {
     if (layout === "image") return 18;
     if (layout === "square") return 10;
+    if (isTabletPortrait) return TABLET_PORTRAIT_ITEM_PAGE_SIZE;
     return isPc ? PC_ITEM_PAGE_SIZE : HOME_ITEM_PAGE_SIZE;
   };
   const homeCacheKey = useMemo(() => {
     if (demoPreview) return null;
     const ownerKey = user?.id ? `user:${user.id}` : "guest";
     const modeKey = itemDemoFilter ? "demo" : "normal";
-    const viewportKey = isPc ? "pc" : "mobile";
+    const viewportKey = isTabletPortrait ? "tablet" : isPc ? "pc" : "mobile";
     return [
       "textnext:home:v",
       HOME_SESSION_CACHE_VERSION,
@@ -208,7 +220,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       recommendedMobileLayout,
       popularMobileLayout,
     ].join(":");
-  }, [demoPreview, user?.id, itemDemoFilter, isPc, recommendedMobileLayout, popularMobileLayout]);
+  }, [demoPreview, user?.id, itemDemoFilter, isPc, isTabletPortrait, recommendedMobileLayout, popularMobileLayout]);
 
   const readHomeCache = useCallback((): HomeSessionCache | null => {
     if (!homeCacheKey || typeof window === "undefined") return null;
@@ -882,6 +894,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     loadingMoreRecommended,
     loadingMore,
     isPc,
+    isTabletPortrait,
   ]);
 
   // Pull-to-Refresh handlers
@@ -1173,7 +1186,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <>
               <MobileLayoutSwitcher value={popularMobileLayout} onChange={setPopularMobileLayout} />
               <div className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
-                <div className={`grid gap-3 md:grid-cols-4 ${
+                <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-2" : "grid-cols-1"
                 }`}>
                   {displayedPopularItems.map((item, index) => {
