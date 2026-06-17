@@ -63,7 +63,7 @@ type MypageClientProps = {
     isAdmin: boolean;
 };
 
-type ProfileSessionCache = {
+type ProfileLocalCache = {
     version: number;
     savedAt: number;
     profile: Profile | null;
@@ -78,8 +78,8 @@ type ProfileSessionCache = {
     isAdmin: boolean;
 };
 
-const PROFILE_CACHE_VERSION = 1;
-const PROFILE_CACHE_TTL_MS = 2 * 60 * 1000;
+const PROFILE_CACHE_VERSION = 2;
+const PROFILE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 const itemVisualKey = (item: Item) => [
     item.id,
@@ -112,14 +112,14 @@ const mergeStableItems = (current: Item[], next: Item[]) => {
     return changed ? merged : current;
 };
 
-const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null => {
+const readProfileCache = (cacheKey: string | null): ProfileLocalCache | null => {
     if (!cacheKey || typeof window === "undefined") return null;
 
     try {
-        const raw = window.sessionStorage.getItem(cacheKey);
+        const raw = window.localStorage.getItem(cacheKey) ?? window.sessionStorage.getItem(cacheKey);
         if (!raw) return null;
 
-        const parsed = JSON.parse(raw) as Partial<ProfileSessionCache>;
+        const parsed = JSON.parse(raw) as Partial<ProfileLocalCache>;
         if (
             parsed.version !== PROFILE_CACHE_VERSION ||
             typeof parsed.savedAt !== "number" ||
@@ -129,6 +129,7 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
             !Array.isArray(parsed.listingItems) ||
             !Array.isArray(parsed.pastItems)
         ) {
+            window.localStorage.removeItem(cacheKey);
             window.sessionStorage.removeItem(cacheKey);
             return null;
         }
@@ -149,20 +150,23 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
         };
     } catch (err) {
         console.warn("Failed to read profile cache:", err);
+        window.localStorage.removeItem(cacheKey);
         window.sessionStorage.removeItem(cacheKey);
         return null;
     }
 };
 
-const saveProfileCache = (cacheKey: string, cache: Omit<ProfileSessionCache, "version" | "savedAt">) => {
+const saveProfileCache = (cacheKey: string, cache: Omit<ProfileLocalCache, "version" | "savedAt">) => {
     if (typeof window === "undefined") return;
 
     try {
-        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+        const payload = JSON.stringify({
             version: PROFILE_CACHE_VERSION,
             savedAt: Date.now(),
             ...cache,
-        } satisfies ProfileSessionCache));
+        } satisfies ProfileLocalCache);
+        window.localStorage.setItem(cacheKey, payload);
+        window.sessionStorage.setItem(cacheKey, payload);
     } catch (err) {
         console.warn("Failed to save profile cache:", err);
     }

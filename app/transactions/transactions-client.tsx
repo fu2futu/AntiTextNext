@@ -50,7 +50,7 @@ type TransactionsClientProps = {
     serverSession?: boolean;
 };
 
-type TransactionsSessionCache = {
+type TransactionsLocalCache = {
     version: number;
     savedAt: number;
     profile: Profile | null;
@@ -61,23 +61,24 @@ type TransactionsSessionCache = {
     };
 };
 
-const TRANSACTIONS_CACHE_VERSION = 1;
-const TRANSACTIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+const TRANSACTIONS_CACHE_VERSION = 2;
+const TRANSACTIONS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-const readTransactionsCache = (cacheKey: string | null): TransactionsSessionCache | null => {
+const readTransactionsCache = (cacheKey: string | null): TransactionsLocalCache | null => {
     if (!cacheKey || typeof window === "undefined") return null;
 
     try {
-        const raw = window.sessionStorage.getItem(cacheKey);
+        const raw = window.localStorage.getItem(cacheKey) ?? window.sessionStorage.getItem(cacheKey);
         if (!raw) return null;
 
-        const parsed = JSON.parse(raw) as Partial<TransactionsSessionCache>;
+        const parsed = JSON.parse(raw) as Partial<TransactionsLocalCache>;
         if (
             parsed.version !== TRANSACTIONS_CACHE_VERSION ||
             typeof parsed.savedAt !== "number" ||
             Date.now() - parsed.savedAt > TRANSACTIONS_CACHE_TTL_MS ||
             !Array.isArray(parsed.activeItems)
         ) {
+            window.localStorage.removeItem(cacheKey);
             window.sessionStorage.removeItem(cacheKey);
             return null;
         }
@@ -94,20 +95,23 @@ const readTransactionsCache = (cacheKey: string | null): TransactionsSessionCach
         };
     } catch (err) {
         console.warn("Failed to read transactions cache:", err);
+        window.localStorage.removeItem(cacheKey);
         window.sessionStorage.removeItem(cacheKey);
         return null;
     }
 };
 
-const saveTransactionsCache = (cacheKey: string, cache: Omit<TransactionsSessionCache, "version" | "savedAt">) => {
+const saveTransactionsCache = (cacheKey: string, cache: Omit<TransactionsLocalCache, "version" | "savedAt">) => {
     if (typeof window === "undefined") return;
 
     try {
-        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+        const payload = JSON.stringify({
             version: TRANSACTIONS_CACHE_VERSION,
             savedAt: Date.now(),
             ...cache,
-        } satisfies TransactionsSessionCache));
+        } satisfies TransactionsLocalCache);
+        window.localStorage.setItem(cacheKey, payload);
+        window.sessionStorage.setItem(cacheKey, payload);
     } catch (err) {
         console.warn("Failed to save transactions cache:", err);
     }
@@ -345,6 +349,7 @@ export default function TransactionsClient({
 
     useEffect(() => {
         if (!cacheKey || !initialCheckDone) return;
+        if (!profile && activeItems.length === 0) return;
         saveTransactionsCache(cacheKey, {
             profile,
             activeItems,
