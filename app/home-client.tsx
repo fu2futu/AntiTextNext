@@ -359,7 +359,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const [isRefreshing, setIsRefreshing] = useState(false);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
-  const PULL_THRESHOLD = 80;
+  const PULL_START_TOLERANCE = 8;
+  const PULL_THRESHOLD = 70;
+  const PULL_MAX_DISTANCE = 128;
 
   // お気に入りセットをメモ化
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
@@ -998,7 +1000,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     // ここで pull-to-refresh を起動すると、ボード内スクロール中に
     // 一覧が1ページ目へ再取得され「もっと見る」が巻き戻るため除外する。
     if ((e.target as HTMLElement | null)?.closest("[data-home-board]")) return;
-    if (window.scrollY === 0 && !isRefreshing) {
+    if (window.scrollY <= PULL_START_TOLERANCE && !isRefreshing) {
       touchStartY.current = e.touches[0].clientY;
       isPulling.current = true;
     }
@@ -1007,8 +1009,14 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const handleTouchMove = useCallback((e: ReactTouchEvent) => {
     if (!isPulling.current || isRefreshing) return;
     const diff = e.touches[0].clientY - touchStartY.current;
-    if (diff > 0 && window.scrollY === 0) {
-      setPullDistance(Math.min(diff * 0.5, 120));
+    if (diff > 0 && window.scrollY <= PULL_START_TOLERANCE) {
+      if (diff > 6) {
+        e.preventDefault();
+      }
+      const easedDistance = Math.min(PULL_MAX_DISTANCE, Math.pow(diff, 0.88) * 0.72);
+      setPullDistance(easedDistance);
+    } else if (diff <= 0) {
+      setPullDistance(0);
     }
   }, [isRefreshing]);
 
@@ -1059,7 +1067,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   return (
     <div
-      className={`min-h-screen bg-white pb-4 font-gentle ${active ? "" : "hidden"}`}
+      className="min-h-screen bg-white pb-4 font-gentle touch-pan-y"
       onTouchStart={demoPreview || !active ? undefined : handleTouchStart}
       onTouchMove={demoPreview || !active ? undefined : handleTouchMove}
       onTouchEnd={demoPreview || !active ? undefined : handleTouchEnd}
@@ -1070,7 +1078,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       {/* Pull-to-Refresh Indicator */}
       {!demoPreview && (
         <div
-          className="flex items-center justify-center overflow-hidden transition-all duration-200"
+          className="flex items-center justify-center overflow-hidden will-change-[height,opacity]"
           style={{
             height: pullDistance > 0 ? `${pullDistance}px` : '0px',
             opacity: Math.min(pullDistance / PULL_THRESHOLD, 1),

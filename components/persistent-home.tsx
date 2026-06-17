@@ -8,7 +8,14 @@ export default function PersistentHome() {
   const active = pathname === "/";
 
   return (
-    <div className={active ? "app-main" : "hidden"}>
+    <div
+      className={
+        active
+          ? "app-main"
+          : "pointer-events-none fixed inset-0 -z-10 h-dvh w-full overflow-hidden opacity-0"
+      }
+      aria-hidden={!active}
+    >
       <HomeClient
         items={[]}
         popularItems={[]}
