@@ -100,7 +100,7 @@ export default async function AdminDashboardPage() {
           })}
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-3">
+        <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
           <Panel title="取引終了法">
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-700">QR: {handoverMethodCounts.qr.toLocaleString()}</p>
