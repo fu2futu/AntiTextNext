@@ -77,7 +77,6 @@ function MobileLayoutSwitcher({
 const LAYOUT_TOGGLE_OPTIONS = [
   { value: "list" as const, icon: Rows3, label: "1列" },
   { value: "square" as const, icon: Grid2X2, label: "3列" },
-  { value: "image" as const, icon: Grid3X3, label: "画像" },
 ];
 
 function MobileLayoutToggle({
@@ -178,7 +177,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("image");
-  const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("image");
+  const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("square");
   const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
   const itemDemoFilter = demoPreview ? true : (appReviewDemo || isAppReviewDemo);
