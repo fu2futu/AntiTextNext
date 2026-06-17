@@ -19,29 +19,30 @@ type Notification = {
     created_at: string;
 };
 
-type NotificationsSessionCache = {
+type NotificationsLocalCache = {
     version: number;
     savedAt: number;
     notifications: Notification[];
 };
 
-const NOTIFICATIONS_CACHE_VERSION = 1;
-const NOTIFICATIONS_CACHE_TTL_MS = 2 * 60 * 1000;
+const NOTIFICATIONS_CACHE_VERSION = 2;
+const NOTIFICATIONS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
-const readNotificationsCache = (cacheKey: string | null): NotificationsSessionCache | null => {
+const readNotificationsCache = (cacheKey: string | null): NotificationsLocalCache | null => {
     if (!cacheKey || typeof window === "undefined") return null;
 
     try {
-        const raw = window.sessionStorage.getItem(cacheKey);
+        const raw = window.localStorage.getItem(cacheKey) ?? window.sessionStorage.getItem(cacheKey);
         if (!raw) return null;
 
-        const parsed = JSON.parse(raw) as Partial<NotificationsSessionCache>;
+        const parsed = JSON.parse(raw) as Partial<NotificationsLocalCache>;
         if (
             parsed.version !== NOTIFICATIONS_CACHE_VERSION ||
             typeof parsed.savedAt !== "number" ||
             Date.now() - parsed.savedAt > NOTIFICATIONS_CACHE_TTL_MS ||
             !Array.isArray(parsed.notifications)
         ) {
+            window.localStorage.removeItem(cacheKey);
             window.sessionStorage.removeItem(cacheKey);
             return null;
         }
@@ -53,6 +54,7 @@ const readNotificationsCache = (cacheKey: string | null): NotificationsSessionCa
         };
     } catch (err) {
         console.warn("Failed to read notifications cache:", err);
+        window.localStorage.removeItem(cacheKey);
         window.sessionStorage.removeItem(cacheKey);
         return null;
     }
@@ -62,11 +64,13 @@ const saveNotificationsCache = (cacheKey: string, notifications: Notification[])
     if (typeof window === "undefined") return;
 
     try {
-        window.sessionStorage.setItem(cacheKey, JSON.stringify({
+        const payload = JSON.stringify({
             version: NOTIFICATIONS_CACHE_VERSION,
             savedAt: Date.now(),
             notifications,
-        } satisfies NotificationsSessionCache));
+        } satisfies NotificationsLocalCache);
+        window.localStorage.setItem(cacheKey, payload);
+        window.sessionStorage.setItem(cacheKey, payload);
     } catch (err) {
         console.warn("Failed to save notifications cache:", err);
     }

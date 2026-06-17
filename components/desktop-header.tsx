@@ -28,7 +28,7 @@ export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderP
   return (
     <header className="hidden lg:flex fixed top-[var(--app-top-offset)] left-0 right-0 z-50 h-20 items-center gap-6 px-8 bg-white/95 backdrop-blur-xl border-b border-sky-100 shadow-[0_4px_24px_rgba(14,116,144,0.08)]">
       {/* ブランディング（ホームヘッダーと同じ見た目） */}
-      <Link href="/" prefetch={false} className="flex-shrink-0 flex flex-col transition-opacity hover:opacity-80">
+      <Link href="/" prefetch={true} className="flex-shrink-0 flex flex-col transition-opacity hover:opacity-80">
         <span className="text-2xl font-bold gradient-text-blue leading-none tracking-tight">
           TextNext
         </span>
@@ -91,11 +91,11 @@ export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderP
             : pathname?.startsWith(item.href);
 
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              className={cn(
+	            <Link
+	              key={item.href}
+	              href={item.href}
+	              prefetch={true}
+	              className={cn(
                 "relative flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold transition-all",
                 isActive
                   ? "text-primary bg-sky-50"
@@ -119,10 +119,10 @@ export function DesktopHeader({ unreadCount, hasUnreadMessages }: DesktopHeaderP
         })}
 
         {/* 出品ボタン（アクセント） */}
-        <Link
-          href="/listing"
-          prefetch={false}
-          className={cn(
+	        <Link
+	          href="/listing"
+	          prefetch={true}
+	          className={cn(
             "flex items-center gap-2 ml-2 px-4 py-2 rounded-xl text-sm font-bold text-white shadow-sm transition-all active:scale-95",
             pathname?.startsWith("/listing")
               ? "bg-red-600 shadow-red-500/40"
