@@ -12,8 +12,12 @@ import { resolveEarlyRegistrationEligible, type RewardOverride, type RewardSetti
 import { useLoginRequiredPrompt } from "@/components/login-required-prompt";
 import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components/home-item-card";
 import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
+import { GuestGateOverlay, GuestSearchGate, GuestSubjectsGate } from "@/components/guest-gate-overlay";
 
 type Item = HomeItem;
+
+/** Maximum number of items to show to non-authenticated visitors. */
+const GUEST_ITEM_LIMIT = 6;
 
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 16;
@@ -372,6 +376,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const displayedPopularItems = useMemo(
     () => popularItems.filter((item) => !hiddenTransactionItemIds.has(item.id)),
     [popularItems, hiddenTransactionItemIds]
+  );
+
+  // Guest: limit both sections to GUEST_ITEM_LIMIT items
+  const isGuest = !user && !demoPreview;
+  const guestLimitedRecommendedItems = useMemo(
+    () => (isGuest ? visibleRecommendedItems.slice(0, GUEST_ITEM_LIMIT) : visibleRecommendedItems),
+    [isGuest, visibleRecommendedItems]
+  );
+  const guestLimitedPopularItems = useMemo(
+    () => (isGuest ? displayedPopularItems.slice(0, GUEST_ITEM_LIMIT) : displayedPopularItems),
+    [isGuest, displayedPopularItems]
   );
   const shouldAnimateFavorite = !backgroundRefreshing && !loadingPopular && !loadingRecommended;
 
@@ -1169,33 +1184,41 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         </div>
 
         {/* Search Bar */}
-        <Link href="/search" className="block">
-          <div className="relative group">
-            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Search className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+        {isGuest ? (
+          <GuestSearchGate placeholder={t('home.search_placeholder')} />
+        ) : (
+          <Link href="/search" className="block">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                <Search className="w-5 h-5 text-gray-400 group-hover:text-primary transition-colors" />
+              </div>
+              <input
+                type="text"
+                placeholder={t('home.search_placeholder')}
+                className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none hover:border-primary/50 hover:bg-white transition-all cursor-pointer"
+                readOnly
+              />
             </div>
-            <input
-              type="text"
-              placeholder={t('home.search_placeholder')}
-              className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none hover:border-primary/50 hover:bg-white transition-all cursor-pointer"
-              readOnly
-            />
-          </div>
-        </Link>
+          </Link>
+        )}
 
         {/* 分野から探す */}
-        <Link
-          href="/subjects"
-          className="mt-3 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 transition-all hover:border-primary/40 hover:bg-primary/10 active:scale-[0.99]"
-        >
-          <BookOpen className="h-5 w-5 flex-shrink-0 text-primary" />
-          <span className="flex-1 text-sm font-bold text-gray-800">分野から探す</span>
-          <span className="text-xs font-medium text-primary">学院・系で絞り込み ›</span>
-        </Link>
+        {isGuest ? (
+          <GuestSubjectsGate />
+        ) : (
+          <Link
+            href="/subjects"
+            className="mt-3 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 transition-all hover:border-primary/40 hover:bg-primary/10 active:scale-[0.99]"
+          >
+            <BookOpen className="h-5 w-5 flex-shrink-0 text-primary" />
+            <span className="flex-1 text-sm font-bold text-gray-800">分野から探す</span>
+            <span className="text-xs font-medium text-primary">学院・系で絞り込み ›</span>
+          </Link>
+        )}
       </header>
 
       {/* おすすめの教材 */}
-      {((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView)) && (
+      {((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView) || (isGuest && guestLimitedRecommendedItems.length > 0)) && (
         <div className="px-6 py-8 snap-start">
           <div className="flex items-center gap-2 mb-6">
             <TrendingUp className="w-6 h-6 text-primary" />
@@ -1212,22 +1235,25 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : visibleRecommendedItems.length === 0 && !hasMoreRecommended ? (
             <div className="text-center py-12">
               <p className="text-gray-500 mb-4">同じ所属の出品はまだありません</p>
-              <Link
-                href="/listing"
-                className="inline-block px-6 py-3 gradient-btn-blue rounded-xl font-semibold transition-all"
-              >
-                最初の出品者になる
-              </Link>
+              {!isGuest && (
+                <Link
+                  href="/listing"
+                  className="inline-block px-6 py-3 gradient-btn-blue rounded-xl font-semibold transition-all"
+                >
+                  最初の出品者になる
+                </Link>
+              )}
             </div>
           ) : (
             <>
-              <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div data-home-board className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              {!isGuest && <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />}
+              <div className="relative">
+              <div data-home-board className={`${isGuest ? 'max-h-[60dvh]' : getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain ${isGuest ? 'overflow-hidden' : 'snap-y snap-mandatory scroll-pt-3 scroll-smooth'}`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
-                  {visibleRecommendedItems.map((item, index) => {
-                    const showLoadMoreHere = hasMoreRecommended && index === visibleRecommendedItems.length - 1;
+                  {guestLimitedRecommendedItems.map((item, index) => {
+                    const showLoadMoreHere = !isGuest && hasMoreRecommended && index === guestLimitedRecommendedItems.length - 1;
                     return (
                     <div key={item.id} className="relative min-w-0 snap-start">
                       <HomeItemCard
@@ -1246,7 +1272,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   )})}
                 </div>
-                {hasMoreRecommended && visibleRecommendedItems.length > 0 && (
+                {!isGuest && hasMoreRecommended && visibleRecommendedItems.length > 0 && (
                   <div className="relative z-30 -mt-12 lg:mt-6 flex justify-center pb-3 pointer-events-none">
                     <div className="pointer-events-auto">
                       <LoadMoreButton
@@ -1258,7 +1284,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   </div>
                 )}
-                {visibleRecommendedItems.length === 0 && hasMoreRecommended && (
+                {!isGuest && visibleRecommendedItems.length === 0 && hasMoreRecommended && (
                   <div className="flex h-full items-center justify-center">
                     <LoadMoreButton
                       loading={loadingMoreRecommended}
@@ -1268,6 +1294,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     />
                   </div>
                 )}
+              </div>
+              {/* Guest overlay for recommended section */}
+              {isGuest && guestLimitedRecommendedItems.length > 0 && (
+                <GuestGateOverlay />
+              )}
               </div>
             </>
           )}
@@ -1295,11 +1326,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               {/* 見出しとコンテナの間のスナップ吸着ポイント（コンテナ先頭に吸着）。 */}
               <div aria-hidden="true" className="snap-start scroll-mt-[var(--app-top-offset)]" />
               <div className="relative">
-              <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-2xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div data-home-board className={`${isGuest ? 'max-h-[60dvh]' : getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-2xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain ${isGuest ? 'overflow-hidden' : 'snap-y snap-mandatory scroll-pt-3 scroll-smooth'}`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
-                  {displayedPopularItems.map((item, index) => {
+                  {guestLimitedPopularItems.map((item, index) => {
                     return (
                     <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
                       <HomeItemCard
@@ -1315,7 +1346,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   )})}
                 </div>
-                {displayedPopularItems.length === 0 && hasMore && (
+                {!isGuest && displayedPopularItems.length === 0 && hasMore && (
                   <div className="flex h-full items-center justify-center">
                     <LoadMoreButton
                       loading={loadingMore}
@@ -1326,7 +1357,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                   </div>
                 )}
               </div>
-              {hasMore && displayedPopularItems.length > 0 && (
+              {/* Guest overlay for popular section */}
+              {isGuest && guestLimitedPopularItems.length > 0 && (
+                <GuestGateOverlay message="すべての出品を見るには会員登録が必要です" />
+              )}
+              {!isGuest && hasMore && displayedPopularItems.length > 0 && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-3 pt-12">
                   <div className="pointer-events-auto">
                     <LoadMoreButton
@@ -1343,13 +1378,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           )}
 
           {/* もっと見る / 出品物は以上です */}
-          <div className="mt-8 text-center">
-            {!hasMore && (
-              <p className="text-gray-500 py-4">
-                出品物は以上です...!
-              </p>
-            )}
-          </div>
+          {!isGuest && (
+            <div className="mt-8 text-center">
+              {!hasMore && (
+                <p className="text-gray-500 py-4">
+                  出品物は以上です...!
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
