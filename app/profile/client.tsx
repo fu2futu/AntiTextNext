@@ -207,6 +207,7 @@ export default function MypageClient({
     const lastFavoriteRefreshAtRef = useRef(0);
     const initialProfileLoadStartedRef = useRef(false);
     const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
+    const uiStateKey = user ? `textnext:profile-ui:v1:user:${user.id}` : null;
 
     const isCancelledPastStatus = useCallback((status?: string | null) => {
         return ["cancelled", "rejected", "declined", "expired", "auto_closed"].includes(status || "");
@@ -259,6 +260,43 @@ export default function MypageClient({
         isAdmin,
         cacheKey,
     ]);
+
+    useEffect(() => {
+        if (!uiStateKey || typeof window === "undefined") return;
+
+        try {
+            const raw = window.localStorage.getItem(uiStateKey) ?? window.sessionStorage.getItem(uiStateKey);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as Partial<{
+                activeTab: "past" | "listing" | null;
+                detailView: "favorites" | "listing" | "past";
+                pastFilter: "completed" | "cancelled";
+            }>;
+            if (parsed.activeTab === "past" || parsed.activeTab === "listing" || parsed.activeTab === null) {
+                setActiveTab(parsed.activeTab);
+            }
+            if (parsed.detailView === "favorites" || parsed.detailView === "listing" || parsed.detailView === "past") {
+                setDetailView(parsed.detailView);
+            }
+            if (parsed.pastFilter === "completed" || parsed.pastFilter === "cancelled") {
+                setPastFilter(parsed.pastFilter);
+            }
+        } catch (err) {
+            console.warn("Failed to read profile UI state:", err);
+        }
+    }, [uiStateKey]);
+
+    useEffect(() => {
+        if (!uiStateKey || typeof window === "undefined") return;
+
+        try {
+            const payload = JSON.stringify({ activeTab, detailView, pastFilter });
+            window.localStorage.setItem(uiStateKey, payload);
+            window.sessionStorage.setItem(uiStateKey, payload);
+        } catch (err) {
+            console.warn("Failed to save profile UI state:", err);
+        }
+    }, [uiStateKey, activeTab, detailView, pastFilter]);
 
     useEffect(() => {
         if (!cacheKey) return;
