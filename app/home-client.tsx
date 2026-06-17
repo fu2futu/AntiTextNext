@@ -33,8 +33,8 @@ const ACTIVE_TRANSACTION_STATUSES = [
 
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
-    ? "max-h-[82dvh]"
-    : "h-[80dvh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
+    ? "max-h-[76dvh]"
+    : "h-[74dvh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
