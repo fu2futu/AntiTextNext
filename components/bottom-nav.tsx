@@ -19,7 +19,6 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
 
   const navigate = (href: string) => {
     if (href === pathname) return;
-    window.dispatchEvent(new Event("textnext:navigation-start"));
     router.push(href);
   };
 
