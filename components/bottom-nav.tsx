@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Home, Camera, ClipboardList, Bell, User } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -16,6 +15,13 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
+  const lastPointerNavigateAtRef = useRef(0);
+
+  const navigate = (href: string) => {
+    if (href === pathname) return;
+    window.dispatchEvent(new Event("textnext:navigation-start"));
+    router.push(href);
+  };
 
   const navItems = [
     { href: "/", label: t("nav.home"), icon: Home },
@@ -33,26 +39,26 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
       return;
     }
 
-    const prefetchRoutes = ["/", "/notifications", "/listing", "/profile", "/transactions", "/search"]
+    const prefetchRoutes = ["/", "/notifications", "/profile", "/transactions", "/search", "/listing"]
       .filter((href) => href !== pathname);
 
     const prefetch = () => {
       prefetchRoutes.forEach((href, index) => {
-        window.setTimeout(() => router.prefetch(href), index * 180);
+        window.setTimeout(() => router.prefetch(href), 1200 + index * 550);
       });
     };
 
     if ("requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(prefetch, { timeout: 1800 });
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 3500 });
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timer = globalThis.setTimeout(prefetch, 800);
+    const timer = globalThis.setTimeout(prefetch, 2500);
     return () => globalThis.clearTimeout(timer);
   }, [pathname, router]);
 
   return (
-    <nav className="bottom-nav-shell fixed bottom-0 left-0 right-0 bg-gradient-to-b from-sky-50/95 via-cyan-50/95 to-blue-100/95 backdrop-blur-xl border-t border-sky-100 z-50 shadow-[0_-10px_32px_rgba(14,116,144,0.16)] [.hide-bottom-nav_&]:hidden lg:hidden">
+    <nav data-no-swipe className="bottom-nav-shell fixed bottom-0 left-0 right-0 bg-gradient-to-b from-sky-50/95 via-cyan-50/95 to-blue-100/95 backdrop-blur-xl border-t border-sky-100 z-50 shadow-[0_-10px_32px_rgba(14,116,144,0.16)] [.hide-bottom-nav_&]:hidden lg:hidden">
       <div className="flex items-end justify-around h-[var(--bottom-nav-height)] max-w-screen-lg mx-auto px-2 pb-[var(--bottom-nav-inner-bottom-padding)]">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -62,10 +68,21 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
 
           if (item.special) {
             return (
-              <Link
+              <button
                 key={item.href}
-                href={item.href}
-                prefetch={true}
+                type="button"
+                onPointerUp={(event) => {
+                  event.preventDefault();
+                  lastPointerNavigateAtRef.current = Date.now();
+                  navigate(item.href);
+                }}
+                onClick={(event) => {
+                  if (Date.now() - lastPointerNavigateAtRef.current < 500) {
+                    event.preventDefault();
+                    return;
+                  }
+                  navigate(item.href);
+                }}
                 className="flex flex-col items-center justify-center"
               >
                 <div className={cn(
@@ -80,15 +97,26 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
                   "text-[10px] font-bold -mt-2 translate-y-[var(--bottom-nav-listing-label-offset)] transition-colors",
                   isActive ? "text-primary" : "text-gray-400"
                 )}>{item.label}</span>
-              </Link>
+              </button>
             );
           }
 
           return (
-            <Link
+            <button
               key={item.href}
-              href={item.href}
-              prefetch={true}
+              type="button"
+              onPointerUp={(event) => {
+                event.preventDefault();
+                lastPointerNavigateAtRef.current = Date.now();
+                navigate(item.href);
+              }}
+              onClick={(event) => {
+                if (Date.now() - lastPointerNavigateAtRef.current < 500) {
+                  event.preventDefault();
+                  return;
+                }
+                navigate(item.href);
+              }}
               className={cn(
                 "flex flex-col items-center justify-center flex-1 h-full space-y-1 transition-all duration-200 relative",
                 isActive
@@ -118,7 +146,7 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
               {isActive && (
                 <div className="w-1 h-1 bg-primary rounded-full absolute bottom-[var(--bottom-nav-active-dot-bottom)]" />
               )}
-            </Link>
+            </button>
           );
         })}
       </div>
