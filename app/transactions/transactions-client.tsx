@@ -140,6 +140,7 @@ export default function TransactionsClient({
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
     const cacheAppliedRef = useRef(false);
     const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
+    const uiStateKey = user ? `textnext:transactions-ui:v1:user:${user.id}` : null;
 
     // If server didn't find a session, check client-side on mount
     useEffect(() => {
@@ -356,6 +357,33 @@ export default function TransactionsClient({
             profileAvatar,
         });
     }, [cacheKey, initialCheckDone, profile, activeItems, profileAvatar]);
+
+    useEffect(() => {
+        if (!uiStateKey || typeof window === "undefined") return;
+
+        try {
+            const raw = window.localStorage.getItem(uiStateKey) ?? window.sessionStorage.getItem(uiStateKey);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as Partial<{ activeTab: "upcoming" | "adjusting" }>;
+            if (parsed.activeTab === "upcoming" || parsed.activeTab === "adjusting") {
+                setActiveTab(parsed.activeTab);
+            }
+        } catch (err) {
+            console.warn("Failed to read transactions UI state:", err);
+        }
+    }, [uiStateKey]);
+
+    useEffect(() => {
+        if (!uiStateKey || typeof window === "undefined") return;
+
+        try {
+            const payload = JSON.stringify({ activeTab });
+            window.localStorage.setItem(uiStateKey, payload);
+            window.sessionStorage.setItem(uiStateKey, payload);
+        } catch (err) {
+            console.warn("Failed to save transactions UI state:", err);
+        }
+    }, [uiStateKey, activeTab]);
 
     useEffect(() => {
         if (!user || !initialCheckDone) return;

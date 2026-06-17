@@ -36,32 +36,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     const pathname = usePathname();
 
-    const fetchAvatarUrl = useCallback(async (userId: string) => {
+    // プロフィール行を1回だけ読み、アバター・デモ判定・存在確認をまとめて返す
+    const fetchAvatarUrl = useCallback(async (userId: string): Promise<boolean> => {
         setProfileReady(false);
         try {
             const { data } = await supabase
                 .from("profiles")
-                .select("avatar_url, is_app_review_demo")
+                .select("user_id, avatar_url, is_app_review_demo")
                 .eq("user_id", userId)
-                .single();
-            
+                .maybeSingle();
+
             if (data) {
                 setAvatarUrl((data as any).avatar_url || null);
                 setIsAppReviewDemo(Boolean((data as any).is_app_review_demo));
-            } else {
-                setAvatarUrl(null);
-                setIsAppReviewDemo(false);
+                return true;
             }
+            setAvatarUrl(null);
+            setIsAppReviewDemo(false);
+            return false;
         } catch (err) {
             console.error("Error fetching avatar:", err);
             setAvatarUrl(null);
             setIsAppReviewDemo(false);
+            return false;
         } finally {
             setProfileReady(true);
         }
     }, []);
 
-    const runPostAuthChecks = useCallback(async (currentUser: User) => {
+    // profileExistsPromise: fetchAvatarUrl のプロフィール存在判定を再利用し、profiles の重複読みを避ける
+    const runPostAuthChecks = useCallback(async (currentUser: User, profileExistsPromise?: Promise<boolean>) => {
         const excludedPaths = ['/suspended', '/auth/'];
         const isExcluded = excludedPaths.some(p => pathname.startsWith(p));
 
@@ -95,18 +99,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             }
 
-            const { data: profile, error: profileError } = await (supabase
-                .from("profiles") as any)
-                .select("user_id")
-                .eq("user_id", currentUser.id)
-                .maybeSingle();
-
-            if (profileError) {
-                console.error("Error checking profile:", profileError);
-                return;
+            // fetchAvatarUrl が並行して読んだ存在判定を再利用（無ければ単独で確認）
+            let profileExists: boolean;
+            if (profileExistsPromise) {
+                profileExists = await profileExistsPromise;
+            } else {
+                const { data: profile, error: profileError } = await (supabase
+                    .from("profiles") as any)
+                    .select("user_id")
+                    .eq("user_id", currentUser.id)
+                    .maybeSingle();
+                if (profileError) {
+                    console.error("Error checking profile:", profileError);
+                    return;
+                }
+                profileExists = Boolean(profile);
             }
 
-            if (!profile) {
+            if (!profileExists) {
                 router.replace('/auth/setup-profile');
             }
         } catch (err) {
@@ -127,8 +137,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(currentUser);
 
                 if (currentUser) {
-                    void fetchAvatarUrl(currentUser.id);
-                    await runPostAuthChecks(currentUser);
+                    const profileExistsPromise = fetchAvatarUrl(currentUser.id);
+                    // 制限チェック等はブロッキングしない（loading を待たせない）
+                    void runPostAuthChecks(currentUser, profileExistsPromise);
                 } else {
                     setAvatarUrl(null);
                     setIsAppReviewDemo(false);
@@ -160,10 +171,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
 
             if (currentUser) {
-                void fetchAvatarUrl(currentUser.id);
+                const profileExistsPromise = fetchAvatarUrl(currentUser.id);
                 window.setTimeout(() => {
                     if (isMounted) {
-                        void runPostAuthChecks(currentUser);
+                        void runPostAuthChecks(currentUser, profileExistsPromise);
                     }
                 }, 0);
             } else {
