@@ -85,16 +85,16 @@ export default async function AdminDashboardPage() {
     <>
       <AdminPageHeader title="管理者ダッシュボード" description="運営対応に必要な件数と最近の動きを確認します。" />
       <main className="space-y-8 p-6">
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-2 md:grid-cols-3 xl:grid-cols-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <Link key={card.key} href={card.href} className={`rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}>
-                <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm font-black">{card.label}</span>
-                  <Icon className="h-5 w-5" />
+              <Link key={card.key} href={card.href} className={`rounded-xl border px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-black">{card.label}</span>
+                  <Icon className="h-4 w-4 shrink-0" />
                 </div>
-                <p className="text-3xl font-black">{counts[card.key].toLocaleString()}</p>
+                <p className="text-xl font-black leading-none">{counts[card.key].toLocaleString()}</p>
               </Link>
             );
           })}
