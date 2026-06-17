@@ -263,18 +263,23 @@ export default function MypageClient({
     useEffect(() => {
         if (!cacheKey) return;
         if (!profile) return;
-        saveProfileCache(cacheKey, {
-            profile,
-            listingItems,
-            pastItems,
-            favoriteItems,
-            averageRating: ratingAverage,
-            listingCount: profileListingCount,
-            transactionCount: profileTransactionCount,
-            earlyRegistrationEligible: earlyRegistration,
-            badges: profileBadges,
-            isAdmin: adminUser,
-        });
+        // 連続した setState のたびにシリアライズせず、デバウンスして1回にまとめる
+        const timeoutId = window.setTimeout(() => {
+            saveProfileCache(cacheKey, {
+                profile,
+                listingItems,
+                pastItems,
+                favoriteItems,
+                averageRating: ratingAverage,
+                listingCount: profileListingCount,
+                transactionCount: profileTransactionCount,
+                earlyRegistrationEligible: earlyRegistration,
+                badges: profileBadges,
+                isAdmin: adminUser,
+            });
+        }, 400);
+
+        return () => window.clearTimeout(timeoutId);
     }, [
         cacheKey,
         profile,
