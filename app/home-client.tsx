@@ -172,6 +172,36 @@ type HomeSessionCache = {
   hasMoreRecommended: boolean;
 };
 
+const itemVisualKey = (item: Item) => [
+  item.id,
+  item.title,
+  item.selling_price,
+  item.status,
+  item.seller_id || "",
+  item.favorite_count ?? "",
+  item.front_image_url || "",
+  item.front_thumbnail_url || "",
+  item.front_image_storage_path || "",
+  item.front_thumbnail_storage_path || "",
+  item.image_storage_provider || "",
+].join("|");
+
+const mergeStableItems = (current: Item[], next: Item[]) => {
+  let changed = current.length !== next.length;
+  const currentById = new Map(current.map((item) => [item.id, item]));
+  const merged = next.map((nextItem, index) => {
+    const currentItem = currentById.get(nextItem.id);
+    if (current[index]?.id !== nextItem.id) changed = true;
+    if (currentItem && itemVisualKey(currentItem) === itemVisualKey(nextItem)) {
+      return currentItem;
+    }
+    changed = true;
+    return nextItem;
+  });
+
+  return changed ? merged : current;
+};
+
 export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false, active = true }: HomeClientProps) {
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
@@ -312,8 +342,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   }, [homeCacheKey]);
 
   const applyHomeCache = useCallback((cache: HomeSessionCache) => {
-    setRecommendedItems(cache.recommendedItems);
-    setPopularItems(cache.popularItems);
+    setRecommendedItems((current) => mergeStableItems(current, cache.recommendedItems));
+    setPopularItems((current) => mergeStableItems(current, cache.popularItems));
     setFavorites(cache.favorites);
     setHiddenTransactionItemIds(new Set(cache.hiddenTransactionItemIds));
     setTotalVisiblePopularCount(cache.totalVisiblePopularCount);
@@ -483,8 +513,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
       if (demoPreview) {
         setFavorites([]);
-        setRecommendedItems(initialRecommendedItems);
-        setPopularItems(initialPopularItems);
+        setRecommendedItems((current) => mergeStableItems(current, initialRecommendedItems));
+        setPopularItems((current) => mergeStableItems(current, initialPopularItems));
         setTotalVisiblePopularCount(totalPopularCount);
         setHasMore(false);
         setHasMoreRecommended(false);
@@ -539,11 +569,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined,
           })) as Item[];
-          setPopularItems(mapped);
+          setPopularItems((current) => mergeStableItems(current, mapped));
           setTotalVisiblePopularCount(visiblePopularCount || 0);
           setHasMore(mapped.length < (visiblePopularCount || 0));
         } else {
-          setPopularItems([]);
+          setPopularItems((current) => current.length === 0 ? current : []);
           setTotalVisiblePopularCount(0);
           setHasMore(false);
         }
@@ -602,10 +632,12 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         
         const updateItemCounts = (prev: Item[]) => prev
           .filter(item => validItemIds.has(item.id)) // 削除されたアイテムを除外
-          .map(item => ({
-            ...item,
-            favorite_count: countMap.get(item.id) ?? item.favorite_count
-          }));
+          .map(item => {
+            const nextFavoriteCount = countMap.get(item.id) ?? item.favorite_count;
+            return nextFavoriteCount === item.favorite_count
+              ? item
+              : { ...item, favorite_count: nextFavoriteCount };
+          });
         
         setRecommendedItems(prev => updateItemCounts(prev));
         setPopularItems(prev => updateItemCounts(prev));
@@ -619,7 +651,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setRecommendedItems([]);
         setHasMoreRecommended(false);
         setTotalRecommendedCount(0);
-        setPopularItems(initialPopularItems);
+        setPopularItems((current) => mergeStableItems(current, initialPopularItems));
         setTotalVisiblePopularCount(totalPopularCount);
         setHasMore(initialPopularItems.length < totalPopularCount);
         setLoadingRecommended(false);
@@ -658,7 +690,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined,
           })) as Item[];
-          setPopularItems(mapped);
+          setPopularItems((current) => mergeStableItems(current, mapped));
           setTotalVisiblePopularCount(visiblePopularCount || 0);
           setHasMore(mapped.length < (visiblePopularCount || 0));
         }
@@ -699,7 +731,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0
           })) as Item[];
           
-          setRecommendedItems(personalized);
+          setRecommendedItems((current) => mergeStableItems(current, personalized));
           setTotalRecommendedCount(count || 0);
           setHasMoreRecommended((count || 0) > personalized.length);
         }
@@ -1010,7 +1042,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined
           })) as Item[];
-          setPopularItems(mapped);
+          setPopularItems((current) => mergeStableItems(current, mapped));
           setTotalVisiblePopularCount(freshPopularCount || 0);
           setHasMore(mapped.length < (freshPopularCount || 0));
         }

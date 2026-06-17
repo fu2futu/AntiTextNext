@@ -81,6 +81,37 @@ type ProfileSessionCache = {
 const PROFILE_CACHE_VERSION = 1;
 const PROFILE_CACHE_TTL_MS = 2 * 60 * 1000;
 
+const itemVisualKey = (item: Item) => [
+    item.id,
+    item.title,
+    item.selling_price,
+    item.status,
+    item.transaction_id || "",
+    item.transaction_status || "",
+    item.front_image_url || "",
+    item.front_thumbnail_url || "",
+    item.front_image_storage_path || "",
+    item.front_thumbnail_storage_path || "",
+    item.image_storage_provider || "",
+].join("|");
+
+const mergeStableItems = (current: Item[], next: Item[]) => {
+    let changed = current.length !== next.length;
+    const currentById = new Map(current.map((item) => [item.transaction_id || item.id, item]));
+    const merged = next.map((nextItem, index) => {
+        const key = nextItem.transaction_id || nextItem.id;
+        const currentItem = currentById.get(key);
+        if ((current[index]?.transaction_id || current[index]?.id) !== key) changed = true;
+        if (currentItem && itemVisualKey(currentItem) === itemVisualKey(nextItem)) {
+            return currentItem;
+        }
+        changed = true;
+        return nextItem;
+    });
+
+    return changed ? merged : current;
+};
+
 const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null => {
     if (!cacheKey || typeof window === "undefined") return null;
 
@@ -93,6 +124,7 @@ const readProfileCache = (cacheKey: string | null): ProfileSessionCache | null =
             parsed.version !== PROFILE_CACHE_VERSION ||
             typeof parsed.savedAt !== "number" ||
             Date.now() - parsed.savedAt > PROFILE_CACHE_TTL_MS ||
+            !parsed.profile ||
             !Array.isArray(parsed.favoriteItems) ||
             !Array.isArray(parsed.listingItems) ||
             !Array.isArray(parsed.pastItems)
@@ -169,6 +201,7 @@ export default function MypageClient({
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
+    const initialProfileLoadStartedRef = useRef(false);
     const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
 
     const isCancelledPastStatus = useCallback((status?: string | null) => {
@@ -185,9 +218,9 @@ export default function MypageClient({
             initialFavoriteItems.length === 0
         ) {
             setProfile(cached.profile);
-            setListingItems(cached.listingItems);
-            setPastItems(cached.pastItems);
-            setFavoriteItems(cached.favoriteItems);
+            setListingItems((current) => mergeStableItems(current, cached.listingItems));
+            setPastItems((current) => mergeStableItems(current, cached.pastItems));
+            setFavoriteItems((current) => mergeStableItems(current, cached.favoriteItems));
             setRatingAverage(cached.averageRating);
             setProfileListingCount(cached.listingCount);
             setProfileTransactionCount(cached.transactionCount);
@@ -199,9 +232,9 @@ export default function MypageClient({
         }
 
         setProfile(initialProfile);
-        setListingItems(initialListingItems);
-        setPastItems(initialPastItems);
-        setFavoriteItems(initialFavoriteItems);
+        setListingItems((current) => mergeStableItems(current, initialListingItems));
+        setPastItems((current) => mergeStableItems(current, initialPastItems));
+        setFavoriteItems((current) => mergeStableItems(current, initialFavoriteItems));
         setRatingAverage(averageRating);
         setProfileListingCount(listingCount);
         setProfileTransactionCount(transactionCount);
@@ -225,6 +258,7 @@ export default function MypageClient({
 
     useEffect(() => {
         if (!cacheKey) return;
+        if (!profile) return;
         saveProfileCache(cacheKey, {
             profile,
             listingItems,
@@ -329,9 +363,9 @@ export default function MypageClient({
                 .filter((item: any) => item && item.is_demo !== true && ["available", "trading", "transaction_pending"].includes(item.status)) as Item[];
 
             setProfile(profileRecord);
-            setListingItems(nextListingItems);
-            setPastItems(nextPastItems);
-            setFavoriteItems(nextFavoriteItems);
+            setListingItems((current) => mergeStableItems(current, nextListingItems));
+            setPastItems((current) => mergeStableItems(current, nextPastItems));
+            setFavoriteItems((current) => mergeStableItems(current, nextFavoriteItems));
             setRatingAverage(nextAverageRating);
             setProfileListingCount(nextListingCount);
             setProfileTransactionCount(nextPastItems.length);
@@ -370,7 +404,7 @@ export default function MypageClient({
                     ) {
                         return current;
                     }
-                    return nextItems;
+                    return mergeStableItems(current, nextItems);
                 });
             }
         } finally {
@@ -383,6 +417,13 @@ export default function MypageClient({
         if (!backgroundRefreshing) return;
         void loadProfileData();
     }, [backgroundRefreshing, loadProfileData]);
+
+    useEffect(() => {
+        if (authLoading || !user || profile || initialProfileLoadStartedRef.current) return;
+
+        initialProfileLoadStartedRef.current = true;
+        setBackgroundRefreshing(true);
+    }, [authLoading, user, profile]);
 
     useEffect(() => {
         if (!authLoading && !user) {
