@@ -33,8 +33,8 @@ const ACTIVE_TRANSACTION_STATUSES = [
 
 const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: boolean) =>
   itemCount < targetCount && !hasMore
-    ? "max-h-[70vh]"
-    : "h-[44rem] max-h-[80vh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
+    ? "max-h-[82dvh]"
+    : "h-[80dvh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
 
 function MobileLayoutSwitcher({
   value,
@@ -1182,7 +1182,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           ) : (
             <>
               <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />
-              <div data-home-board className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-3xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div data-home-board className={`${getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${
                   recommendedMobileLayout === "image" ? "grid-cols-3" : recommendedMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
@@ -1254,7 +1254,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <>
               {/* 見出しとコンテナの間のスナップ吸着ポイント（コンテナ先頭に吸着）。 */}
               <div aria-hidden="true" className="snap-start scroll-mt-[var(--app-top-offset)]" />
-              <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-3xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
+              <div className="relative">
+              <div data-home-board className={`${getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-2xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain snap-y snap-mandatory scroll-pt-3 scroll-smooth`}>
                 <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
@@ -1274,18 +1275,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   )})}
                 </div>
-                {hasMore && displayedPopularItems.length > 0 && (
-                  <div className="relative z-30 mt-4 md:mt-6 flex justify-center pb-3 pointer-events-none">
-                    <div className="pointer-events-auto">
-                      <LoadMoreButton
-                        loading={loadingMore}
-                        onClick={() => loadMorePopular()}
-                        label={t('home.load_more')}
-                        loadingLabel={t('home.loading')}
-                      />
-                    </div>
-                  </div>
-                )}
                 {displayedPopularItems.length === 0 && hasMore && (
                   <div className="flex h-full items-center justify-center">
                     <LoadMoreButton
@@ -1296,6 +1285,19 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     />
                   </div>
                 )}
+              </div>
+              {hasMore && displayedPopularItems.length > 0 && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-3 pt-12">
+                  <div className="pointer-events-auto">
+                    <LoadMoreButton
+                      loading={loadingMore}
+                      onClick={() => loadMorePopular()}
+                      label={t('home.load_more')}
+                      loadingLabel={t('home.loading')}
+                    />
+                  </div>
+                </div>
+              )}
               </div>
             </>
           )}
