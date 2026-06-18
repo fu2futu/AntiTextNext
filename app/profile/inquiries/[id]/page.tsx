@@ -68,12 +68,12 @@ export default async function ProfileInquiryDetailPage({ params }: { params: { i
 
   return (
     <div className="min-h-screen bg-white pb-28">
-      <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
+      <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm">
         <div className="flex items-center gap-4">
           <Link href="/profile/inquiries" className="rounded-full p-2 -ml-2 hover:bg-gray-100">
             <ArrowLeft className="h-6 w-6 text-gray-600" />
           </Link>
-          <h1 className="text-3xl font-black text-gray-900">お問い合わせ詳細</h1>
+          <h1 className="text-2xl font-black text-gray-900">お問い合わせ詳細</h1>
         </div>
       </header>
 

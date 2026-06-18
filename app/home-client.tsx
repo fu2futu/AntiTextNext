@@ -1147,10 +1147,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       `}</style>
 
       {/* Header（PCでは共通のDesktopHeaderに集約するため非表示） */}
-      <header className={`${demoPreview ? "" : "lg:hidden"} bg-white px-6 pt-8 pb-6 border-b snap-start`}>
-        <div className="flex items-end justify-between mb-6">
+      <header className={`${demoPreview ? "" : "lg:hidden"} bg-white px-6 pt-6 pb-4 border-b snap-start`}>
+        <div className="flex items-end justify-between mb-4">
           <div className="flex flex-col">
-            <h1 className="text-3xl font-bold gradient-text-blue leading-none tracking-tight">
+            <h1 className="text-2xl font-bold gradient-text-blue leading-none tracking-tight">
               TextNext
             </h1>
             <div className="flex items-center gap-1 text-primary/80 mt-1">
@@ -1195,7 +1195,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               <input
                 type="text"
                 placeholder={t('home.search_placeholder')}
-                className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none hover:border-primary/50 hover:bg-white transition-all cursor-pointer"
+                className="w-full py-2 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none hover:border-primary/50 hover:bg-white transition-all cursor-pointer"
                 readOnly
               />
             </div>
@@ -1208,7 +1208,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         ) : (
           <Link
             href="/subjects"
-            className="mt-3 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 transition-all hover:border-primary/40 hover:bg-primary/10 active:scale-[0.99]"
+            className="mt-2 flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 transition-all hover:border-primary/40 hover:bg-primary/10 active:scale-[0.99]"
           >
             <BookOpen className="h-5 w-5 flex-shrink-0 text-primary" />
             <span className="flex-1 text-sm font-bold text-gray-800">分野から探す</span>
@@ -1220,9 +1220,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       {/* おすすめの教材 */}
       {((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView) || (isGuest && guestLimitedRecommendedItems.length > 0)) && (
         <div className="px-6 py-8 snap-start">
-          <div className="flex items-center gap-2 mb-6">
-            <TrendingUp className="w-6 h-6 text-primary" />
-            <h2 className="text-xl font-bold text-gray-900">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold text-gray-900">
               {t('home.recommended')}
             </h2>
           </div>
@@ -1308,9 +1308,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       {/* みんなの出品 */}
       {(displayedPopularItems.length > 0 || hasMore || loading || loadingPopular || !homeDataReady) && (
         <div className="px-6 py-8 bg-gray-50 snap-start">
-          <div className="flex items-center gap-2 mb-6">
-            <Users className="w-6 h-6 text-primary" />
-            <h2 className="text-xl font-bold text-gray-900">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-bold text-gray-900">
               {t('home.everyones_listings')}
             </h2>
             <MobileLayoutToggle value={popularMobileLayout} onChange={setPopularMobileLayout} />

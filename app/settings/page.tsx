@@ -158,12 +158,12 @@ export default function SettingsPage() {
 
     return (
         <div className="min-h-screen bg-white pb-32">
-            <header className="bg-white px-6 pt-8 pb-6 border-b">
+            <header className="bg-white px-5 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-4">
                     <Link href="/profile">
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
-                    <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                    <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                         設定
                     </h1>
                 </div>
@@ -179,33 +179,33 @@ export default function SettingsPage() {
                         </h2>
                         <Link
                             href="/contact"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group mb-3"
+                            className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group mb-3"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-primary/5 rounded-xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                                    <MessageSquare className="w-5 h-5 text-primary" />
+                                <div className="w-8 h-8 bg-primary/5 rounded-xl flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                                    <MessageSquare className="w-4 h-4 text-primary" />
                                 </div>
                                 <div>
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">お問い合わせ</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">不具合報告・通報・要望など</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">お問い合わせ</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">不具合報告・通報・要望など</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                         </Link>
                         <Link
                             href="/book-requests"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
+                            className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center group-hover:bg-pink-100 transition-colors">
-                                    <BookHeart className="w-5 h-5 text-pink-500" />
+                                <div className="w-8 h-8 bg-pink-50 rounded-xl flex items-center justify-center group-hover:bg-pink-100 transition-colors">
+                                    <BookHeart className="w-4 h-4 text-pink-500" />
                                 </div>
                                 <div>
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">欲しい本をリクエスト</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">まだ無い本を運営に伝える</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">欲しい本をリクエスト</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">まだ無い本を運営に伝える</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                         </Link>
                     </section>
 
@@ -216,12 +216,12 @@ export default function SettingsPage() {
                             <span className="h-px flex-1 bg-gray-200" />
                         </h2>
                         <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-                            <div className="px-5 py-4">
+                            <div className="px-4 py-3">
                                 <div className="flex items-center gap-3 mb-3">
-                                    <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                                        <Globe className="w-5 h-5 text-indigo-500" />
+                                    <div className="w-8 h-8 bg-indigo-50 rounded-xl flex items-center justify-center">
+                                        <Globe className="w-4 h-4 text-indigo-500" />
                                     </div>
-                                    <span className="font-bold text-gray-700">{t("settings.language")}</span>
+                                    <span className="font-bold text-sm text-gray-700">{t("settings.language")}</span>
                                 </div>
                                 <div className="flex gap-2">
                                     <button
@@ -257,33 +257,33 @@ export default function SettingsPage() {
                         </h2>
                         <Link
                             href="/settings/watch-keywords"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group mb-3"
+                            className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group mb-3"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-yellow-50 rounded-xl flex items-center justify-center group-hover:bg-yellow-100 transition-colors">
-                                    <Bell className="w-5 h-5 text-yellow-600" />
+                                <div className="w-8 h-8 bg-yellow-50 rounded-xl flex items-center justify-center group-hover:bg-yellow-100 transition-colors">
+                                    <Bell className="w-4 h-4 text-yellow-600" />
                                 </div>
                                 <div>
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">探している教科書</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">キーワードを登録して出品通知を受け取る</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">探している教科書</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">キーワードを登録して出品通知を受け取る</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                         </Link>
                         <Link
                             href="/settings/email-notifications"
-                            className="flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
+                            className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                                    <MessageSquare className="w-5 h-5 text-blue-600" />
+                                <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                    <MessageSquare className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div>
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900 transition-colors">メール通知設定</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">各種メール通知の受け取りを設定</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">メール通知設定</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">各種メール通知の受け取りを設定</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                         </Link>
                     </section>
 
@@ -295,48 +295,48 @@ export default function SettingsPage() {
                         </h2>
                         <Link
                             href="/settings/password"
-                            className="mb-3 flex items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-primary/30 group"
+                            className="mb-3 flex items-center justify-between rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-md transition-all hover:border-primary/30 group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/5">
-                                    <Lock className="h-5 w-5 text-primary" />
+                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/5">
+                                    <Lock className="h-4 w-4 text-primary" />
                                 </div>
                                 <div className="text-left">
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">パスワード変更</span>
-                                    <p className="mt-0.5 text-xs text-gray-400">別ページで安全に変更します</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900">パスワード変更</span>
+                                    <p className="mt-0.5 text-[10px] text-gray-400">別ページで安全に変更します</p>
                                 </div>
                             </div>
-                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1 group-hover:text-primary" />
+                            <ChevronRight className="h-4 w-4 text-gray-400 transition-all group-hover:translate-x-1 group-hover:text-primary" />
                         </Link>
                         <button
                             onClick={() => setShowLogoutConfirm(true)}
-                            className="mb-3 flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-white px-5 py-4 shadow-md transition-all hover:border-gray-300 group"
+                            className="mb-3 flex w-full items-center justify-between rounded-2xl border border-gray-100 bg-white px-4 py-3 shadow-md transition-all hover:border-gray-300 group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 group-hover:bg-gray-200 transition-colors">
-                                    <LogOut className="h-5 w-5 text-gray-600" />
+                                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gray-100 group-hover:bg-gray-200 transition-colors">
+                                    <LogOut className="h-4 w-4 text-gray-600" />
                                 </div>
                                 <div className="text-left">
-                                    <span className="font-bold text-gray-700 group-hover:text-gray-900">ログアウト</span>
-                                    <p className="mt-0.5 text-xs text-gray-400">この端末からログアウトします</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900">ログアウト</span>
+                                    <p className="mt-0.5 text-[10px] text-gray-400">この端末からログアウトします</p>
                                 </div>
                             </div>
-                            <ChevronRight className="h-5 w-5 text-gray-400 transition-all group-hover:translate-x-1" />
+                            <ChevronRight className="h-4 w-4 text-gray-400 transition-all group-hover:translate-x-1" />
                         </button>
                         <button
                             onClick={handleStartDeactivate}
-                            className="w-full flex items-center justify-between px-5 py-4 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-red-200 transition-all group"
+                            className="w-full flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-red-200 transition-all group"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center group-hover:bg-red-100 transition-colors">
-                                    <UserX className="w-5 h-5 text-red-500" />
+                                <div className="w-8 h-8 bg-red-50 rounded-xl flex items-center justify-center group-hover:bg-red-100 transition-colors">
+                                    <UserX className="w-4 h-4 text-red-500" />
                                 </div>
                                 <div className="text-left">
-                                    <span className="font-bold text-gray-700 group-hover:text-red-600 transition-colors">アカウントを削除する</span>
-                                    <p className="text-xs text-gray-400 mt-0.5">ログインできない状態にし、プロフィール等を匿名化します</p>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-red-600 transition-colors">アカウントを削除する</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">ログインできない状態にし、プロフィール等を匿名化します</p>
                                 </div>
                             </div>
-                            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-red-500 transition-all" />
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-red-500 transition-all" />
                         </button>
                     </section>
 

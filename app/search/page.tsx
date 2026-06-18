@@ -667,7 +667,7 @@ function SearchContent() {
               }}
               onFocus={() => searchQuery.length > 0 && setShowSuggestions(true)}
               placeholder={t('home.search_placeholder')}
-              className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="w-full py-2 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
             />
           </div>
 

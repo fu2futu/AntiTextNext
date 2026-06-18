@@ -19,14 +19,14 @@ export function LegalLinksPanel() {
         <button
           type="button"
           onClick={() => setActive("terms")}
-          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
+          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-2.5 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
         >
           利用規約
         </button>
         <button
           type="button"
           onClick={() => setActive("privacy")}
-          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-4 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
+          className="whitespace-nowrap rounded-2xl border border-gray-100 bg-white px-3 py-2.5 font-sans text-[13px] font-bold text-gray-700 shadow-md transition-all hover:border-primary/30 active:scale-[0.98] sm:text-sm"
         >
           プライバシーポリシー
         </button>

@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-inter: 'Inter', 'M PLUS Rounded 1c', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mplus-rounded: 'M PLUS Rounded 1c', sans-serif;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;

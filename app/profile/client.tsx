@@ -659,9 +659,9 @@ export default function MypageClient({
 
             <div className="lg:max-w-5xl lg:mx-auto lg:px-6">
             {/* Header */}
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
+            <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
                 <div className="flex items-start justify-between gap-4">
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight lg:text-2xl">
                         {t('profile.mypage')}
                     </h1>
                     <button
@@ -675,13 +675,13 @@ export default function MypageClient({
                 </div>
             </header>
 
-            <div className="px-6 pt-8 space-y-8 lg:px-0 lg:pt-6 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
+            <div className="px-6 pt-6 space-y-6 lg:px-0 lg:pt-6 lg:space-y-0 lg:flex lg:items-start lg:gap-6">
             {/* 左カラム: プロフィール＋各種ボタン＋規約 */}
-            <div className="space-y-8 lg:space-y-6 lg:w-80 lg:flex-shrink-0">
+            <div className="space-y-6 lg:space-y-6 lg:w-80 lg:flex-shrink-0">
                 {/* Profile Section */}
                 <div
                     onClick={() => router.push(`/seller/${user.id}?from=profile`)}
-                    className="group relative bg-white/80 backdrop-blur-md rounded-3xl p-6 shadow-md border border-white/50 flex items-center gap-5 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 cursor-pointer"
+                    className="group relative bg-white/80 backdrop-blur-md rounded-3xl p-4 shadow-md border border-white/50 flex items-center gap-4 transition-all duration-300 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30 cursor-pointer"
                 >
                     {adminUser && (
                         <button
@@ -699,13 +699,13 @@ export default function MypageClient({
                     <RewardAvatar
                         src={profile?.avatar_url}
                         alt="Avatar"
-                        size={80}
+                        size={64}
                         listingCount={profileListingCount}
                         earlyRegistration={earlyRegistration}
                         adminFrame={adminUser}
                     />
                     <div className="flex-1 pr-24">
-                        <h2 className="truncate text-xl font-bold text-gray-900">
+                        <h2 className="truncate text-lg font-bold text-gray-900">
                             {profile?.nickname || "読み込み中..."}
                         </h2>
                         <RewardBadges badges={profileBadges} />
@@ -768,13 +768,13 @@ export default function MypageClient({
                 {/* 設定ボタン */}
                 <button
                     onClick={() => router.push("/settings")}
-                    className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
+                    className="w-full bg-white rounded-2xl p-3 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center transition-colors group-hover:bg-gray-200">
+                        <div className="w-8 h-8 bg-gray-100 rounded-xl flex items-center justify-center transition-colors group-hover:bg-gray-200">
                             <Settings className="w-5 h-5 text-gray-500" />
                         </div>
-                        <span className="font-bold text-gray-700">設定</span>
+                        <span className="text-sm font-bold text-gray-700">設定</span>
                     </div>
                     <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                 </button>
@@ -787,25 +787,25 @@ export default function MypageClient({
                     <div className="space-y-2">
                         <button
                             onClick={() => router.push("/contact")}
-                            className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
+                            className="w-full bg-white rounded-2xl p-3 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center transition-colors group-hover:bg-primary/15">
+                                <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center transition-colors group-hover:bg-primary/15">
                                     <ArrowRight className="w-5 h-5 text-primary" />
                                 </div>
-                                <span className="font-bold text-gray-700">お問い合わせはこちらから</span>
+                                <span className="text-sm font-bold text-gray-700">お問い合わせはこちらから</span>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                         </button>
                         <button
                             onClick={() => router.push("/profile/inquiries")}
-                            className="w-full bg-white rounded-2xl p-4 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
+                            className="w-full bg-white rounded-2xl p-3 shadow-md border border-gray-100 flex items-center justify-between lg:justify-start lg:gap-3 group active:scale-[0.98] transition-all hover:border-primary/30"
                         >
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-100">
+                                <div className="w-8 h-8 bg-blue-50 rounded-xl flex items-center justify-center transition-colors group-hover:bg-blue-100">
                                     <Inbox className="w-5 h-5 text-primary" />
                                 </div>
-                                <span className="font-bold text-gray-700">お問い合わせ履歴</span>
+                                <span className="text-sm font-bold text-gray-700">お問い合わせ履歴</span>
                             </div>
                             <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all lg:hidden" />
                         </button>
@@ -865,7 +865,7 @@ export default function MypageClient({
             <div className="lg:hidden space-y-8">
                 {/* History Section */}
                 <section className="space-y-4">
-                    <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2 px-1">
+                    <h3 className="text-base font-extrabold text-gray-800 flex items-center gap-2 px-1">
                         <History className="w-5 h-5 text-primary" />
                         {t('profile.history')}
                     </h3>
@@ -923,7 +923,7 @@ export default function MypageClient({
                 {/* Favorites Section */}
                 <section className="space-y-4 pb-4">
                     <div className="flex items-center justify-between px-1">
-                        <h3 className="text-lg font-extrabold text-gray-800 flex items-center gap-2">
+                        <h3 className="text-base font-extrabold text-gray-800 flex items-center gap-2">
                             <Heart className="w-5 h-5 text-red-500 fill-red-500" />
                             お気に入り一覧
                         </h3>

@@ -63,7 +63,7 @@ export function GuestSearchGate({
         <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
           <Lock className="w-4 h-4 text-gray-400 group-hover:text-primary transition-colors" />
         </div>
-        <div className="w-full py-3 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-primary/50 hover:bg-white transition-all cursor-pointer text-sm text-gray-400 font-medium select-none">
+        <div className="w-full py-2 pl-12 pr-4 bg-gray-50 rounded-xl border border-gray-200 hover:border-primary/50 hover:bg-white transition-all cursor-pointer text-sm text-gray-400 font-medium select-none">
           {placeholder}
         </div>
       </div>
@@ -81,7 +81,7 @@ export function GuestSubjectsGate({ href = "/auth/signup" }: { href?: string }) 
   return (
     <Link
       href={href}
-      className="mt-3 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 transition-all hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99] group relative"
+      className="mt-2 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 transition-all hover:border-primary/30 hover:bg-primary/5 active:scale-[0.99] group relative"
     >
       <Lock className="h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-primary transition-colors" />
       <span className="flex-1 text-sm font-bold text-gray-400 group-hover:text-gray-600 transition-colors">

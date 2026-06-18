@@ -387,8 +387,8 @@ export default function SellerDetailPage({
             )}
 
             {/* Header */}
-            <header className="bg-white/80 backdrop-blur-md px-6 pt-8 pb-8 border-b border-gray-100 shadow-sm">
-                <div className="flex items-center gap-4 mb-8">
+            <header className="bg-white/80 backdrop-blur-md px-5 pt-6 pb-6 border-b border-gray-100 shadow-sm">
+                <div className="flex items-center gap-4 mb-5">
                     <button onClick={handleBack} className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors active:scale-90">
                         <ArrowLeft className="w-6 h-6 text-gray-600" />
                     </button>
@@ -405,7 +405,7 @@ export default function SellerDetailPage({
                         <RewardAvatar
                             src={profile.avatar_url}
                             alt="Avatar"
-                            size={80}
+                            size={64}
                             listingCount={listingCount}
                             earlyRegistration={resolveEarlyRegistrationEligible(profile.created_at, rewardSetting, rewardOverride)}
                         />
@@ -417,7 +417,7 @@ export default function SellerDetailPage({
                     </button>
                     <div className="flex-1 min-w-0">
                         <div className="mb-1 flex min-w-0 items-center gap-2">
-                            <h2 className="min-w-0 flex-1 truncate text-2xl font-black text-gray-900">
+                            <h2 className="min-w-0 flex-1 truncate text-xl font-black text-gray-900">
                                 {profile.nickname}
                             </h2>
                             {isOwnPage && (

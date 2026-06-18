@@ -302,9 +302,9 @@ export default function NotificationsPage() {
         return (
             <div className="min-h-screen bg-white pb-24 lg:pb-12">
                 <div className="lg:max-w-3xl lg:mx-auto lg:px-6">
-                    <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
+                    <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
                         <div className="flex items-center justify-between">
-                            <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
+                            <h1 className="text-2xl font-black text-gray-900 tracking-tight lg:text-2xl">
                                 {t("notifications.title")}
                             </h1>
                             <Loader2 className="w-5 h-5 text-primary animate-spin" />
@@ -356,10 +356,10 @@ export default function NotificationsPage() {
 
             <div className="lg:max-w-3xl lg:mx-auto lg:px-6">
             {/* Header */}
-            <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
+            <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm lg:mt-6 lg:rounded-[28px] lg:pt-6 lg:pb-5">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-2xl">
+                        <h1 className="text-2xl font-black text-gray-900 tracking-tight lg:text-2xl">
                             {t("notifications.title")}
                         </h1>
                     </div>

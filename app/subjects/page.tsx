@@ -101,7 +101,7 @@ export default function SubjectsPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <header className="bg-white px-6 pt-8 pb-6 border-b sticky top-0 z-10">
+      <header className="bg-white px-5 pt-6 pb-4 border-b sticky top-0 z-10">
         <div className="flex items-center gap-4 mb-2">
           {school || dept ? (
             <button onClick={handleBack} aria-label="戻る">
@@ -112,7 +112,7 @@ export default function SubjectsPage() {
               <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
             </Link>
           )}
-          <h1 className="text-3xl font-bold text-primary">分野から探す</h1>
+          <h1 className="text-2xl font-bold text-primary">分野から探す</h1>
         </div>
         {/* パンくず */}
         <p className="pl-10 text-sm text-gray-400">

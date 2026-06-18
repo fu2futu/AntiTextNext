@@ -501,8 +501,8 @@ export default function ListingPage() {
   if (step === "confirm") {
     return (
       <div className="min-h-screen bg-white">
-        <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm">
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight">
+        <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm">
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight">
             出品内容の確認
           </h1>
         </header>
@@ -622,9 +622,9 @@ export default function ListingPage() {
         <ListingTutorial onClose={handleCloseTutorial} />
       )}
 
-      <header className="bg-white px-6 pt-10 pb-8 rounded-b-[40px] shadow-sm lg:pt-6 lg:pb-5 lg:rounded-b-[28px] snap-start">
+      <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm lg:pt-6 lg:pb-5 lg:rounded-b-[28px] snap-start">
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-4xl font-black text-gray-900 tracking-tight lg:text-3xl">
+          <h1 className="text-2xl font-black text-gray-900 tracking-tight lg:text-3xl">
             教科書の出品
           </h1>
           <button

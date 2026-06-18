@@ -138,12 +138,12 @@ export default function ContactPage() {
     if (step === "done") {
         return (
             <div className="min-h-screen bg-white">
-                <header className="bg-white px-6 pt-8 pb-6 border-b">
+                <header className="bg-white px-5 pt-6 pb-4 border-b">
                     <div className="flex items-center gap-4">
                         <Link href={returnHref}>
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
-                        <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                        <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                             お問い合わせ
                         </h1>
                     </div>
@@ -180,12 +180,12 @@ export default function ContactPage() {
     if (step === "error") {
         return (
             <div className="min-h-screen bg-white">
-                <header className="bg-white px-6 pt-8 pb-6 border-b">
+                <header className="bg-white px-5 pt-6 pb-4 border-b">
                     <div className="flex items-center gap-4">
                         <Link href={returnHref}>
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
-                        <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                        <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                             お問い合わせ
                         </h1>
                     </div>
@@ -218,12 +218,12 @@ export default function ContactPage() {
     if (step === "confirm") {
         return (
             <div className="min-h-screen bg-white">
-                <header className="bg-white px-6 pt-8 pb-6 border-b">
+                <header className="bg-white px-5 pt-6 pb-4 border-b">
                     <div className="flex items-center gap-4">
                         <button onClick={handleBack}>
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </button>
-                        <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                        <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                             内容確認
                         </h1>
                     </div>
@@ -357,12 +357,12 @@ export default function ContactPage() {
     // ===== 入力フォーム =====
     return (
         <div className="min-h-screen bg-white">
-            <header className="bg-white px-6 pt-8 pb-6 border-b">
+            <header className="bg-white px-5 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-4">
                     <Link href={returnHref}>
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
-                    <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                    <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                         お問い合わせ
                     </h1>
                 </div>

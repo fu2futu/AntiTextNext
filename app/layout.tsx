@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, M_PLUS_Rounded_1c } from "next/font/google";
 import dynamic from "next/dynamic";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
@@ -19,21 +18,6 @@ const AppNav = dynamic(() => import("@/components/app-nav").then(mod => ({ defau
   ssr: false,
 });
 
-const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  preload: true,
-  variable: "--font-inter",
-});
-
-const mplusRounded = M_PLUS_Rounded_1c({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
-  display: "swap",
-  preload: true,
-  variable: "--font-mplus-rounded",
-  adjustFontFallback: false,
-});
 
 export const metadata: Metadata = {
   title: "TextNext - 学内教科書フリマ",
@@ -72,8 +56,11 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://qbmxbkylelaixoxupfeq.supabase.co" />
         <link rel="dns-prefetch" href="https://qbmxbkylelaixoxupfeq.supabase.co" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=M+PLUS+Rounded+1c:wght@400;500;700&display=swap" rel="stylesheet" />
       </head>
-      <body className={`${inter.variable} ${mplusRounded.variable} ${inter.className}`}>
+      <body className="font-sans">
         {/* ステータスバー(時刻/バッテリー)領域の塗り。
             本体スクロールでコンテンツが透明なセーフエリアに透けるのを防ぐ。
             ブラウザでは --app-min-top-offset が 0px のため非表示、ネイティブのみ機能。

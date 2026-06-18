@@ -72,7 +72,7 @@ export default function NotificationDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="min-h-screen bg-white pb-24">
-      <header className="rounded-b-[40px] bg-white px-6 pb-7 pt-10 shadow-sm">
+      <header className="rounded-b-[32px] bg-white px-5 pb-5 pt-7 shadow-sm">
         <button
           type="button"
           onClick={() => router.push("/notifications")}

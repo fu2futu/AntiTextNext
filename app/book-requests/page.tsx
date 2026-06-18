@@ -95,12 +95,12 @@ function BookRequestContent() {
     if (step === "done") {
         return (
             <div className="min-h-screen bg-white">
-                <header className="bg-white px-6 pt-8 pb-6 border-b">
+                <header className="bg-white px-5 pt-6 pb-4 border-b">
                     <div className="flex items-center gap-4">
                         <Link href="/">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
-                        <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                        <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                             欲しい本をリクエスト
                         </h1>
                     </div>
@@ -134,12 +134,12 @@ function BookRequestContent() {
     if (step === "error") {
         return (
             <div className="min-h-screen bg-white">
-                <header className="bg-white px-6 pt-8 pb-6 border-b">
+                <header className="bg-white px-5 pt-6 pb-4 border-b">
                     <div className="flex items-center gap-4">
                         <Link href="/">
                             <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                         </Link>
-                        <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                        <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                             欲しい本をリクエスト
                         </h1>
                     </div>
@@ -171,12 +171,12 @@ function BookRequestContent() {
     // ===== 入力フォーム =====
     return (
         <div className="min-h-screen bg-white">
-            <header className="bg-white px-6 pt-8 pb-6 border-b">
+            <header className="bg-white px-5 pt-6 pb-4 border-b">
                 <div className="flex items-center gap-4">
                     <Link href="/">
                         <ArrowLeft className="w-6 h-6 text-gray-600 hover:text-primary transition-colors" />
                     </Link>
-                    <h1 className="text-3xl font-bold text-primary animate-slide-in-left">
+                    <h1 className="text-2xl font-bold text-primary animate-slide-in-left">
                         欲しい本をリクエスト
                     </h1>
                 </div>
