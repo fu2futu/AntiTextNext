@@ -53,7 +53,10 @@ export default function StartupRecovery() {
   if (!visible) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[120] h-1 bg-transparent">
+    <div
+      className="pointer-events-none fixed inset-x-0 z-[120] h-1 bg-transparent"
+      style={{ bottom: "calc(var(--bottom-nav-height) + max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)))" }}
+    >
       <div
         className="h-full rounded-r-full bg-primary transition-[width] duration-200 ease-out"
         style={{ width: `${progress}%` }}

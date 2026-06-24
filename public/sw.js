@@ -1,5 +1,3 @@
-self.TEXTNEXT_IMAGE_CACHE_NAME = "textnext-app-images-v1";
-
 self.addEventListener("install", () => {
   self.skipWaiting();
 });
@@ -43,23 +41,5 @@ self.addEventListener("notificationclick", (event) => {
       return;
     }
     await self.clients.openWindow(url);
-  })());
-});
-
-self.addEventListener("fetch", (event) => {
-  const request = event.request;
-  if (request.method !== "GET") return;
-  if (request.destination !== "image") return;
-
-  event.respondWith((async () => {
-    const cache = await caches.open(self.TEXTNEXT_IMAGE_CACHE_NAME);
-    const cached = await cache.match(request);
-    if (cached) return cached;
-
-    const response = await fetch(request);
-    if (response && (response.ok || response.type === "opaque")) {
-      cache.put(request, response.clone()).catch(() => {});
-    }
-    return response;
   })());
 });

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Search, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2, Grid3X3 } from "lucide-react";
 import { useState, useCallback, useMemo, useEffect, useRef, TouchEvent as ReactTouchEvent } from "react";
 import { useAuth } from "@/components/auth-provider";
@@ -14,7 +13,6 @@ import { useLoginRequiredPrompt } from "@/components/login-required-prompt";
 import { HomeItemCard, type HomeItem, type MobileHomeLayout } from "@/components/home-item-card";
 import { BackgroundRefreshBanner } from "@/components/background-refresh-banner";
 import { GuestGateOverlay, GuestSearchGate, GuestSubjectsGate } from "@/components/guest-gate-overlay";
-import { cacheImageUrls } from "@/lib/client-image-cache";
 
 type Item = HomeItem;
 
@@ -208,21 +206,9 @@ const mergeStableItems = (current: Item[], next: Item[]) => {
   return changed ? merged : current;
 };
 
-const homeCacheSignature = (cache: Omit<HomeSessionCache, "version" | "savedAt">) => JSON.stringify({
-  recommendedItems: cache.recommendedItems.map(itemVisualKey),
-  popularItems: cache.popularItems.map(itemVisualKey),
-  favorites: [...cache.favorites].sort(),
-  hiddenTransactionItemIds: [...cache.hiddenTransactionItemIds].sort(),
-  totalVisiblePopularCount: cache.totalVisiblePopularCount,
-  totalRecommendedCount: cache.totalRecommendedCount,
-  hasMore: cache.hasMore,
-  hasMoreRecommended: cache.hasMoreRecommended,
-});
-
 export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false, active = true }: HomeClientProps) {
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
-  const router = useRouter();
   const [favorites, setFavorites] = useState<string[]>([]);
   const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("image");
   const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("square");
@@ -255,7 +241,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   // サーバー描画 → クライアント再取得への差し替えで「取引中/相談中」などがちらつくのを防ぐ。
   const [loadingPopular, setLoadingPopular] = useState(!demoPreview && initialPopularItems.length === 0);
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
-  const [pendingHomeData, setPendingHomeData] = useState<Omit<HomeSessionCache, "version" | "savedAt"> | null>(null);
   const requestIdRef = useRef(0);
   const initialHomeTopAppliedRef = useRef(false);
   // 「もっと見る」連続発火の防止。loadingMore(state)は反映が非同期なため、
@@ -375,36 +360,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     setLoadingPopular(false);
   }, []);
 
-  const currentHomeCache = useCallback((): Omit<HomeSessionCache, "version" | "savedAt"> => ({
-    recommendedItems,
-    popularItems,
-    favorites,
-    hiddenTransactionItemIds: Array.from(hiddenTransactionItemIds),
-    totalVisiblePopularCount,
-    totalRecommendedCount,
-    hasMore,
-    hasMoreRecommended,
-  }), [
-    recommendedItems,
-    popularItems,
-    favorites,
-    hiddenTransactionItemIds,
-    totalVisiblePopularCount,
-    totalRecommendedCount,
-    hasMore,
-    hasMoreRecommended,
-  ]);
-
-  const applyPendingHomeData = useCallback(() => {
-    if (!pendingHomeData) return;
-    applyHomeCache({
-      version: HOME_SESSION_CACHE_VERSION,
-      savedAt: Date.now(),
-      ...pendingHomeData,
-    });
-    setPendingHomeData(null);
-  }, [applyHomeCache, pendingHomeData]);
-
   // Pull-to-Refresh
   const [pullDistance, setPullDistance] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -439,6 +394,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   useEffect(() => {
     if (!active || demoPreview || typeof window === "undefined") return;
+    if (document.documentElement.classList.contains("capacitor-native")) return;
     if (displayedPopularItems.length === 0 && visibleRecommendedItems.length === 0) return;
 
     const connection = (navigator as Navigator & {
@@ -476,35 +432,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     const timer = globalThis.setTimeout(preload, 600);
     return () => globalThis.clearTimeout(timer);
   }, [active, demoPreview, displayedPopularItems, visibleRecommendedItems]);
-
-  useEffect(() => {
-    if (!active || demoPreview || typeof window === "undefined") return;
-    if (!document.documentElement.classList.contains("capacitor-native")) return;
-
-    const visibleItems = [...visibleRecommendedItems, ...displayedPopularItems].slice(0, 24);
-    if (visibleItems.length === 0) return;
-
-    const imageUrls = visibleItems
-      .map((item) => getItemImageUrl(item, "front", "thumbnail"))
-      .filter((url): url is string => Boolean(url));
-
-    const preload = () => {
-      void cacheImageUrls(imageUrls, 24);
-      visibleItems.forEach((item, index) => {
-        window.setTimeout(() => {
-          router.prefetch(`/product/${item.id}`);
-        }, index * 80);
-      });
-    };
-
-    if ("requestIdleCallback" in window) {
-      const idleId = window.requestIdleCallback(preload, { timeout: 2200 });
-      return () => window.cancelIdleCallback(idleId);
-    }
-
-    const timer = globalThis.setTimeout(preload, 1200);
-    return () => globalThis.clearTimeout(timer);
-  }, [active, demoPreview, displayedPopularItems, router, visibleRecommendedItems]);
 
   useEffect(() => {
     if (!homeCacheKey || !homeDataReady || loadingPopular || loadingRecommended) return;
@@ -632,37 +559,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         setBackgroundRefreshing(false);
       }
 
-      const stageIfNeeded = (next: Omit<HomeSessionCache, "version" | "savedAt">) => {
-        if (!cachedHomeApplied) {
-          applyHomeCache({
-            version: HOME_SESSION_CACHE_VERSION,
-            savedAt: Date.now(),
-            ...next,
-          });
-          setPendingHomeData(null);
-          return;
-        }
-
-        const displayedHome = cachedHome
-          ? {
-              recommendedItems: cachedHome.recommendedItems,
-              popularItems: cachedHome.popularItems,
-              favorites: cachedHome.favorites,
-              hiddenTransactionItemIds: cachedHome.hiddenTransactionItemIds,
-              totalVisiblePopularCount: cachedHome.totalVisiblePopularCount,
-              totalRecommendedCount: cachedHome.totalRecommendedCount,
-              hasMore: cachedHome.hasMore,
-              hasMoreRecommended: cachedHome.hasMoreRecommended,
-            }
-          : currentHomeCache();
-
-        if (homeCacheSignature(displayedHome) !== homeCacheSignature(next)) {
-          setPendingHomeData(next);
-        } else {
-          setPendingHomeData(null);
-        }
-      };
-
       // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
       // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
       if (user && !cachedHomeApplied) {
@@ -697,27 +593,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined,
           })) as Item[];
-          stageIfNeeded({
-            recommendedItems: [],
-            popularItems: mapped,
-            favorites: [],
-            hiddenTransactionItemIds: [],
-            totalVisiblePopularCount: visiblePopularCount || 0,
-            totalRecommendedCount: 0,
-            hasMore: mapped.length < (visiblePopularCount || 0),
-            hasMoreRecommended: false,
-          });
+          setPopularItems((current) => mergeStableItems(current, mapped));
+          setTotalVisiblePopularCount(visiblePopularCount || 0);
+          setHasMore(mapped.length < (visiblePopularCount || 0));
         } else {
-          stageIfNeeded({
-            recommendedItems: [],
-            popularItems: [],
-            favorites: [],
-            hiddenTransactionItemIds: [],
-            totalVisiblePopularCount: 0,
-            totalRecommendedCount: 0,
-            hasMore: false,
-            hasMoreRecommended: false,
-          });
+          setPopularItems((current) => current.length === 0 ? current : []);
+          setTotalVisiblePopularCount(0);
+          setHasMore(false);
         }
 
         setLoadingPopular(false);
@@ -767,15 +649,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       ]) as any[];
       if (cancelled || requestId !== requestIdRef.current) return;
 
-      let nextRecommendedItems = recommendedItems;
-      let nextPopularItems = popularItems;
-      let nextFavorites = favorites;
-      let nextHiddenTransactionItemIds = Array.from(hiddenTransactionItemIds);
-      let nextTotalVisiblePopularCount = totalVisiblePopularCount;
-      let nextTotalRecommendedCount = totalRecommendedCount;
-      let nextHasMore = hasMore;
-      let nextHasMoreRecommended = hasMoreRecommended;
-
       // カウントの反映 & 削除されたアイテムのフィルタリング
       if (countRes?.data) {
         const validItemIds = new Set((countRes.data as any[]).map((i: any) => i.id));
@@ -790,21 +663,21 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               : { ...item, favorite_count: nextFavoriteCount };
           });
         
-        nextRecommendedItems = updateItemCounts(nextRecommendedItems);
-        nextPopularItems = updateItemCounts(nextPopularItems);
+        setRecommendedItems(prev => updateItemCounts(prev));
+        setPopularItems(prev => updateItemCounts(prev));
       }
 
       // お気に入り状態の反映
       if (user && favRes?.data && Array.isArray(favRes.data)) {
-        nextFavorites = favRes.data.map((f: any) => f.item_id);
+        setFavorites(favRes.data.map((f: any) => f.item_id));
       } else if (!user) {
-        nextFavorites = [];
-        nextRecommendedItems = [];
-        nextHasMoreRecommended = false;
-        nextTotalRecommendedCount = 0;
-        nextPopularItems = mergeStableItems(nextPopularItems, initialPopularItems);
-        nextTotalVisiblePopularCount = totalPopularCount;
-        nextHasMore = initialPopularItems.length < totalPopularCount;
+        setFavorites([]);
+        setRecommendedItems([]);
+        setHasMoreRecommended(false);
+        setTotalRecommendedCount(0);
+        setPopularItems((current) => mergeStableItems(current, initialPopularItems));
+        setTotalVisiblePopularCount(totalPopularCount);
+        setHasMore(initialPopularItems.length < totalPopularCount);
         setLoadingRecommended(false);
       }
 
@@ -816,7 +689,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .in("status", ACTIVE_TRANSACTION_STATUSES);
 
         if (!cancelled && requestId === requestIdRef.current && !activeTransactionsError) {
-          nextHiddenTransactionItemIds = (activeTransactions ?? []).map((tx: any) => tx.item_id).filter(Boolean);
+          setHiddenTransactionItemIds(
+            new Set((activeTransactions ?? []).map((tx: any) => tx.item_id).filter(Boolean))
+          );
         }
 
         let popularQuery = supabase
@@ -839,17 +714,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined,
           })) as Item[];
-          nextPopularItems = mergeStableItems(nextPopularItems, mapped);
-          nextTotalVisiblePopularCount = visiblePopularCount || 0;
-          nextHasMore = mapped.length < (visiblePopularCount || 0);
+          setPopularItems((current) => mergeStableItems(current, mapped));
+          setTotalVisiblePopularCount(visiblePopularCount || 0);
+          setHasMore(mapped.length < (visiblePopularCount || 0));
         }
       }
 
       // 2. パーソナライズされたおすすめの取得
       if (isOfficialAdminHomeView) {
-        nextRecommendedItems = [];
-        nextHasMoreRecommended = false;
-        nextTotalRecommendedCount = 0;
+        setRecommendedItems([]);
+        setHasMoreRecommended(false);
+        setTotalRecommendedCount(0);
         setLoadingRecommended(false);
       } else if (user && profileRes?.data) {
         const { department, major } = profileRes.data as any;
@@ -880,23 +755,13 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0
           })) as Item[];
           
-          nextRecommendedItems = mergeStableItems(nextRecommendedItems, personalized);
-          nextTotalRecommendedCount = count || 0;
-          nextHasMoreRecommended = (count || 0) > personalized.length;
+          setRecommendedItems((current) => mergeStableItems(current, personalized));
+          setTotalRecommendedCount(count || 0);
+          setHasMoreRecommended((count || 0) > personalized.length);
         }
       }
 
       if (user) {
-        stageIfNeeded({
-          recommendedItems: nextRecommendedItems,
-          popularItems: nextPopularItems,
-          favorites: nextFavorites,
-          hiddenTransactionItemIds: nextHiddenTransactionItemIds,
-          totalVisiblePopularCount: nextTotalVisiblePopularCount,
-          totalRecommendedCount: nextTotalRecommendedCount,
-          hasMore: nextHasMore,
-          hasMoreRecommended: nextHasMoreRecommended,
-        });
         setLoadingRecommended(false);
         setLoadingPopular(false);
         setBackgroundRefreshing(false);
@@ -920,7 +785,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     popularMobileLayout,
     readHomeCache,
     applyHomeCache,
-    currentHomeCache,
   ]); // userが変わった時（ログイン/ログアウト）に再実行
 
   const favoriteStateRef = useRef<Set<string>>(new Set(favorites));
@@ -1231,11 +1095,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       onTouchEnd={demoPreview || !active ? undefined : handleTouchEnd}
       aria-hidden={!active}
     >
-      <BackgroundRefreshBanner
-        visible={backgroundRefreshing && !isRefreshing}
-        hasUpdate={Boolean(pendingHomeData)}
-        onApplyUpdate={applyPendingHomeData}
-      />
+      <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
 
       {/* Pull-to-Refresh Indicator */}
       {!demoPreview && (
@@ -1282,6 +1142,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           scroll-snap-type: y mandatory;
           scroll-padding-top: var(--app-top-offset);
           scroll-behavior: smooth;
+        }
+        html.capacitor-native {
+          scroll-snap-type: y proximity;
+          scroll-padding-top: calc(var(--app-top-offset) + 0.5rem);
+        }
+        html.capacitor-native [data-home-board] {
+          scroll-snap-type: y proximity;
+          -webkit-overflow-scrolling: touch;
+          scroll-padding-top: 0.75rem;
         }
         /* PC(lg以上)は固定の共通ヘッダー分(h-20=5rem)も吸着位置に加算し、
            セクション見出しがヘッダー裏に隠れないようにする。 */

@@ -117,31 +117,6 @@ const saveTransactionsCache = (cacheKey: string, cache: Omit<TransactionsLocalCa
     }
 };
 
-const transactionItemSignature = (item: TransactionItem) => [
-    item.id,
-    item.title,
-    item.selling_price,
-    item.status,
-    item.isBuyer,
-    item.unreadCount,
-    item.final_meetup_time || "",
-    item.final_meetup_location || "",
-    item.transactionId || "",
-    item.counterpartId || "",
-    item.transactionStatus || "",
-    item.front_image_url || "",
-    item.front_thumbnail_url || "",
-    item.front_image_storage_path || "",
-    item.front_thumbnail_storage_path || "",
-    item.image_storage_provider || "",
-].join("|");
-
-const transactionsCacheSignature = (cache: Omit<TransactionsLocalCache, "version" | "savedAt">) => JSON.stringify({
-    profile: cache.profile,
-    activeItems: cache.activeItems.map(transactionItemSignature),
-    profileAvatar: cache.profileAvatar,
-});
-
 export default function TransactionsClient({
     initialActiveItems,
     initialProfile,
@@ -162,32 +137,12 @@ export default function TransactionsClient({
     const [showFlowHelp, setShowFlowHelp] = useState(false);
     const [initialCheckDone, setInitialCheckDone] = useState(serverSession);
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
-    const [pendingTransactionsData, setPendingTransactionsData] = useState<Omit<TransactionsLocalCache, "version" | "savedAt"> | null>(null);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
     const cacheAppliedRef = useRef(false);
     const loadInFlightRef = useRef(false);
     const lastLoadAtRef = useRef(0);
     const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
     const uiStateKey = user ? `textnext:transactions-ui:v1:user:${user.id}` : null;
-
-    const currentTransactionsCache = useCallback((): Omit<TransactionsLocalCache, "version" | "savedAt"> => ({
-        profile,
-        activeItems,
-        profileAvatar,
-    }), [activeItems, profile, profileAvatar]);
-
-    const applyTransactionsData = useCallback((next: Omit<TransactionsLocalCache, "version" | "savedAt">) => {
-        setProfile(next.profile);
-        setActiveItems(next.activeItems);
-        setProfileAvatar(next.profileAvatar);
-        setPendingTransactionsData(null);
-        if (cacheKey) saveTransactionsCache(cacheKey, next);
-    }, [cacheKey]);
-
-    const applyPendingTransactionsData = useCallback(() => {
-        if (!pendingTransactionsData) return;
-        applyTransactionsData(pendingTransactionsData);
-    }, [applyTransactionsData, pendingTransactionsData]);
 
     // If server didn't find a session, check client-side on mount
     useEffect(() => {
@@ -280,15 +235,18 @@ export default function TransactionsClient({
                     .maybeSingle()
             ]);
 
-            const nextProfile = profileData ? profileData as Profile : profile;
-            const nextProfileAvatar = {
+            if (profileData) {
+                setProfile(profileData as Profile);
+            }
+
+            setProfileAvatar({
                 listingCount: cumulativeListingCount ?? 0,
                 earlyRegistration: resolveEarlyRegistrationEligible(
                     user.created_at,
                     rewardSetting as RewardSetting | null,
                     rewardOverride as RewardOverride | null
                 ),
-            };
+            });
 
             const unreadCountMap = new Map<string, number>();
             if (unreadMessages) {
@@ -378,26 +336,14 @@ export default function TransactionsClient({
                 }
             }
 
-            const nextData = {
-                profile: nextProfile,
-                activeItems: active,
-                profileAvatar: nextProfileAvatar,
-            };
-
-            if (!profile && activeItems.length === 0) {
-                applyTransactionsData(nextData);
-            } else if (transactionsCacheSignature(currentTransactionsCache()) !== transactionsCacheSignature(nextData)) {
-                setPendingTransactionsData(nextData);
-            } else {
-                setPendingTransactionsData(null);
-            }
+            setActiveItems(active);
         } catch (err) {
             console.error("Error loading transactions:", err);
         } finally {
             loadInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
-    }, [activeItems.length, applyTransactionsData, currentTransactionsCache, profile, user]);
+    }, [user]);
 
     useEffect(() => {
         if (!user || !initialCheckDone || cacheAppliedRef.current) return;
@@ -673,11 +619,7 @@ export default function TransactionsClient({
 
     return (
         <div className="min-h-screen bg-gray-50 pb-24 font-gentle lg:pb-12">
-            <BackgroundRefreshBanner
-                visible={backgroundRefreshing}
-                hasUpdate={Boolean(pendingTransactionsData)}
-                onApplyUpdate={applyPendingTransactionsData}
-            />
+            <BackgroundRefreshBanner visible={backgroundRefreshing} />
             <div className="lg:mx-auto lg:max-w-5xl lg:px-6">
             <header className="bg-white px-5 pt-7 pb-5 rounded-b-[32px] shadow-sm lg:mt-6 lg:rounded-[40px] lg:pt-6 lg:pb-5">
                 <div className="flex items-start justify-between">

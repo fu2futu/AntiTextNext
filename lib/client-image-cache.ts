@@ -7,7 +7,21 @@ const isNativeApp = () => {
   return document.documentElement.classList.contains("capacitor-native");
 };
 
-export async function cacheImageUrls(urls: string[], limit = 24) {
+const fetchWithTimeout = async (url: string, timeoutMs = 2500) => {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, {
+      cache: "force-cache",
+      credentials: "omit",
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timer);
+  }
+};
+
+export async function cacheImageUrls(urls: string[], limit = 8) {
   if (typeof window === "undefined") return;
   if (!isNativeApp()) return;
   if (!("caches" in window)) return;
@@ -17,19 +31,14 @@ export async function cacheImageUrls(urls: string[], limit = 24) {
 
   try {
     const cache = await window.caches.open(APP_IMAGE_CACHE_NAME);
-    await Promise.allSettled(
-      uniqueUrls.map(async (url) => {
-        const cached = await cache.match(url);
-        if (cached) return;
+    for (const url of uniqueUrls) {
+      const cached = await cache.match(url);
+      if (cached) continue;
 
-        const response = await fetch(url, {
-          cache: "force-cache",
-          credentials: "omit",
-        });
-        if (!response || (!response.ok && response.type !== "opaque")) return;
-        await cache.put(url, response.clone());
-      })
-    );
+      const response = await fetchWithTimeout(url);
+      if (!response || (!response.ok && response.type !== "opaque")) continue;
+      await cache.put(url, response.clone());
+    }
   } catch {
     // Image caching is only a performance hint. Rendering must never depend on it.
   }
