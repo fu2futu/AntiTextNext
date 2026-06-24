@@ -1247,7 +1247,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           scroll-behavior: smooth;
         }
         html.capacitor-native {
-          --home-snap-extra-offset: 3.0rem;/* 値を大きくすればみんなの出品周辺固定位置が下がる */
+          --home-snap-extra-offset: 2.0rem;/* 値を大きくすればみんなの出品周辺固定位置が下がる */
           scroll-snap-type: y proximity;
           scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
         }
