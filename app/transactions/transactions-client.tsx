@@ -169,12 +169,19 @@ export default function TransactionsClient({
     const lastLoadAtRef = useRef(0);
     const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
     const uiStateKey = user ? `textnext:transactions-ui:v1:user:${user.id}` : null;
-
-    const currentTransactionsCache = useCallback((): Omit<TransactionsLocalCache, "version" | "savedAt"> => ({
+    const transactionsStateRef = useRef<Omit<TransactionsLocalCache, "version" | "savedAt">>({
         profile,
         activeItems,
         profileAvatar,
-    }), [activeItems, profile, profileAvatar]);
+    });
+
+    useEffect(() => {
+        transactionsStateRef.current = {
+            profile,
+            activeItems,
+            profileAvatar,
+        };
+    }, [activeItems, profile, profileAvatar]);
 
     const applyTransactionsData = useCallback((next: Omit<TransactionsLocalCache, "version" | "savedAt">) => {
         setProfile(next.profile);
@@ -188,28 +195,6 @@ export default function TransactionsClient({
         if (!pendingTransactionsData) return;
         applyTransactionsData(pendingTransactionsData);
     }, [applyTransactionsData, pendingTransactionsData]);
-
-    // If server didn't find a session, check client-side on mount
-    useEffect(() => {
-        if (!serverSession && !authLoading) {
-            if (!user) {
-                router.push("/auth/login");
-            } else {
-                const cached = readTransactionsCache(cacheKey);
-                if (cached) {
-                    cacheAppliedRef.current = true;
-                    setBackgroundRefreshing(true);
-                    setProfile(cached.profile);
-                    setActiveItems(cached.activeItems);
-                    setProfileAvatar(cached.profileAvatar);
-                } else {
-                    setBackgroundRefreshing(false);
-                }
-                loadData();
-                setInitialCheckDone(true);
-            }
-        }
-    }, [user, authLoading, serverSession, router, cacheKey]);
 
     const loadData = useCallback(async () => {
         if (!user) return;
@@ -280,7 +265,8 @@ export default function TransactionsClient({
                     .maybeSingle()
             ]);
 
-            const nextProfile = profileData ? profileData as Profile : profile;
+            const displayedTransactionsData = transactionsStateRef.current;
+            const nextProfile = profileData ? profileData as Profile : displayedTransactionsData.profile;
             const nextProfileAvatar = {
                 listingCount: cumulativeListingCount ?? 0,
                 earlyRegistration: resolveEarlyRegistrationEligible(
@@ -384,9 +370,9 @@ export default function TransactionsClient({
                 profileAvatar: nextProfileAvatar,
             };
 
-            if (!profile && activeItems.length === 0) {
+            if (!displayedTransactionsData.profile && displayedTransactionsData.activeItems.length === 0) {
                 applyTransactionsData(nextData);
-            } else if (transactionsCacheSignature(currentTransactionsCache()) !== transactionsCacheSignature(nextData)) {
+            } else if (transactionsCacheSignature(displayedTransactionsData) !== transactionsCacheSignature(nextData)) {
                 setPendingTransactionsData(nextData);
             } else {
                 setPendingTransactionsData(null);
@@ -397,7 +383,30 @@ export default function TransactionsClient({
             loadInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
-    }, [activeItems.length, applyTransactionsData, currentTransactionsCache, profile, user]);
+    }, [applyTransactionsData, user]);
+
+    // If server didn't find a session, check client-side on mount
+    useEffect(() => {
+        if (serverSession || authLoading) return;
+
+        if (!user) {
+            router.push("/auth/login");
+            return;
+        }
+
+        const cached = readTransactionsCache(cacheKey);
+        if (cached) {
+            cacheAppliedRef.current = true;
+            setBackgroundRefreshing(true);
+            setProfile(cached.profile);
+            setActiveItems(cached.activeItems);
+            setProfileAvatar(cached.profileAvatar);
+        } else {
+            setBackgroundRefreshing(false);
+        }
+        setInitialCheckDone(true);
+        void loadData();
+    }, [user, authLoading, serverSession, router, cacheKey, loadData]);
 
     useEffect(() => {
         if (!user || !initialCheckDone || cacheAppliedRef.current) return;

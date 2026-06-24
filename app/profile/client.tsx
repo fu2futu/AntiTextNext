@@ -224,6 +224,18 @@ export default function MypageClient({
     const initialProfileLoadStartedRef = useRef(false);
     const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
     const uiStateKey = user ? `textnext:profile-ui:v1:user:${user.id}` : null;
+    const profileStateRef = useRef<Omit<ProfileLocalCache, "version" | "savedAt">>({
+        profile: initialProfile,
+        listingItems: initialListingItems,
+        pastItems: initialPastItems,
+        favoriteItems: initialFavoriteItems,
+        averageRating,
+        listingCount,
+        transactionCount,
+        earlyRegistrationEligible,
+        badges,
+        isAdmin,
+    });
 
     const isCancelledPastStatus = useCallback((status?: string | null) => {
         return ["cancelled", "rejected", "declined", "expired", "auto_closed"].includes(status || "");
@@ -348,22 +360,20 @@ export default function MypageClient({
         adminUser,
     ]);
 
-    const handleCloseRewardsTutorial = () => {
-        setShowRewardsTutorial(false);
-    };
-
-    const currentProfileCache = useCallback((): Omit<ProfileLocalCache, "version" | "savedAt"> => ({
-        profile,
-        listingItems,
-        pastItems,
-        favoriteItems,
-        averageRating: ratingAverage,
-        listingCount: profileListingCount,
-        transactionCount: profileTransactionCount,
-        earlyRegistrationEligible: earlyRegistration,
-        badges: profileBadges,
-        isAdmin: adminUser,
-    }), [
+    useEffect(() => {
+        profileStateRef.current = {
+            profile,
+            listingItems,
+            pastItems,
+            favoriteItems,
+            averageRating: ratingAverage,
+            listingCount: profileListingCount,
+            transactionCount: profileTransactionCount,
+            earlyRegistrationEligible: earlyRegistration,
+            badges: profileBadges,
+            isAdmin: adminUser,
+        };
+    }, [
         profile,
         listingItems,
         pastItems,
@@ -375,6 +385,10 @@ export default function MypageClient({
         profileBadges,
         adminUser,
     ]);
+
+    const handleCloseRewardsTutorial = () => {
+        setShowRewardsTutorial(false);
+    };
 
     const applyProfileData = useCallback((next: Omit<ProfileLocalCache, "version" | "savedAt">) => {
         setProfile(next.profile);
@@ -490,9 +504,10 @@ export default function MypageClient({
                 isAdmin: Boolean(adminStatus),
             };
 
-            if (!profile) {
+            const displayedProfileData = profileStateRef.current;
+            if (!displayedProfileData.profile) {
                 applyProfileData(nextData);
-            } else if (profileCacheSignature(currentProfileCache()) !== profileCacheSignature(nextData)) {
+            } else if (profileCacheSignature(displayedProfileData) !== profileCacheSignature(nextData)) {
                 setPendingProfileData(nextData);
             } else {
                 setPendingProfileData(null);
@@ -503,7 +518,7 @@ export default function MypageClient({
             profileRefreshInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
-    }, [applyProfileData, currentProfileCache, profile, user]);
+    }, [applyProfileData, user]);
 
     const refreshFavoriteItems = useCallback(async () => {
         if (!user) return;
@@ -540,16 +555,12 @@ export default function MypageClient({
     }, [user]);
 
     useEffect(() => {
-        if (!backgroundRefreshing) return;
-        void loadProfileData();
-    }, [backgroundRefreshing, loadProfileData]);
-
-    useEffect(() => {
-        if (authLoading || !user || profile || initialProfileLoadStartedRef.current) return;
+        if (authLoading || !user || initialProfileLoadStartedRef.current) return;
 
         initialProfileLoadStartedRef.current = true;
         setBackgroundRefreshing(true);
-    }, [authLoading, user, profile]);
+        void loadProfileData();
+    }, [authLoading, user, loadProfileData]);
 
     useEffect(() => {
         if (!authLoading && !user) {

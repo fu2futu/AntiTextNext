@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2, Grid3X3 } from "lucide-react";
+import { Search, BookOpen, TrendingUp, Users, ChevronDown, RefreshCw, Rows3, Grid2X2 } from "lucide-react";
 import { useState, useCallback, useMemo, useEffect, useRef, TouchEvent as ReactTouchEvent } from "react";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -39,43 +39,6 @@ const getBoardSizeClass = (itemCount: number, targetCount: number, hasMore: bool
   itemCount < targetCount && !hasMore
     ? "max-h-[72dvh]"
     : "h-[70dvh] md:h-[56rem] md:max-h-[85vh] lg:h-[36rem] lg:max-h-[80vh]";
-
-function MobileLayoutSwitcher({
-  value,
-  onChange,
-}: {
-  value: MobileHomeLayout;
-  onChange: (value: MobileHomeLayout) => void;
-}) {
-  return (
-    <div className="mb-3 md:hidden">
-      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-gray-200 bg-gray-50 p-1">
-        {[
-          { value: "list" as const, label: "列", icon: Rows3 },
-          { value: "square" as const, label: "2列", icon: Grid2X2 },
-          { value: "image" as const, label: "画像", icon: Grid3X3 },
-        ].map((option) => {
-          const Icon = option.icon;
-          const active = value === option.value;
-          return (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onChange(option.value)}
-              className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-black transition ${
-                active ? "bg-white text-primary shadow-sm" : "text-gray-500 hover:bg-white/70"
-              }`}
-              aria-pressed={active}
-            >
-              <Icon className="h-4 w-4" />
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 // 見出しの右に置く小さなスライドトグル（アイコンのみ）。スマホ専用。
 const LAYOUT_TOGGLE_OPTIONS = [
@@ -224,7 +187,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("image");
+  const [recommendedMobileLayout, setRecommendedMobileLayout] = useState<MobileHomeLayout>("square");
   const [popularMobileLayout, setPopularMobileLayout] = useState<MobileHomeLayout>("square");
   const isOfficialAdminHomeView = user?.email?.toLowerCase() === "textnextbbs@gmail.com";
   const shouldUseAdminAvatarFrame = demoPreview || isOfficialAdminHomeView;
@@ -1272,17 +1235,21 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           opacity: 0;
         }
         ${demoPreview || !active ? "" : `
+        :root {
+          --home-snap-extra-offset: 0rem;
+        }
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
            固定ヘッダー分は scroll-padding-top で吸収する。 */
         html {
           scroll-snap-type: y mandatory;
-          scroll-padding-top: var(--app-top-offset);
+          scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
           scroll-behavior: smooth;
         }
         html.capacitor-native {
+          --home-snap-extra-offset: 3.0rem;/* 値を大きくすればみんなの出品周辺固定位置が下がる */
           scroll-snap-type: y proximity;
-          scroll-padding-top: calc(var(--app-top-offset) + 0.5rem);
+          scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
         }
         html.capacitor-native [data-home-board] {
           scroll-snap-type: y proximity;
@@ -1293,7 +1260,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
            セクション見出しがヘッダー裏に隠れないようにする。 */
         @media (min-width: 1024px) {
           html {
-            scroll-padding-top: calc(var(--app-top-offset) + 5rem);
+            scroll-padding-top: calc(var(--app-top-offset) + 5rem + var(--home-snap-extra-offset));
           }
         }
         `}
@@ -1378,6 +1345,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             <h2 className="text-lg font-bold text-gray-900">
               {t('home.recommended')}
             </h2>
+            {!isGuest && <MobileLayoutToggle value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />}
           </div>
 
           {loadingRecommended ? (
@@ -1399,7 +1367,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              {!isGuest && <MobileLayoutSwitcher value={recommendedMobileLayout} onChange={setRecommendedMobileLayout} />}
               <div className="relative">
               <div data-home-board className={`${isGuest ? 'max-h-[60dvh]' : getBoardSizeClass(visibleRecommendedItems.length, pageSizeFor(recommendedMobileLayout), hasMoreRecommended)} overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/80 p-3 shadow-inner overscroll-contain ${isGuest ? 'overflow-hidden' : 'snap-y snap-mandatory scroll-pt-3 scroll-smooth'}`}>
                 <div className={`grid gap-3 md:grid-cols-2 xl:grid-cols-4 ${

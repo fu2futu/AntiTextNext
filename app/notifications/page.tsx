@@ -99,6 +99,7 @@ export default function NotificationsPage() {
     const [pendingNotifications, setPendingNotifications] = useState<Notification[] | null>(null);
     const notificationsRef = useRef<Notification[]>([]);
     const loadingRef = useRef(true);
+    const loadInFlightRef = useRef(false);
     const cacheKey = user ? `textnext:notifications:v${NOTIFICATIONS_CACHE_VERSION}:user:${user.id}` : null;
 
     // Pull-to-Refresh
@@ -117,7 +118,10 @@ export default function NotificationsPage() {
     }, [loading]);
 
     const applyNotifications = useCallback((next: Notification[]) => {
+        notificationsRef.current = next;
+        loadingRef.current = false;
         setNotifications(next);
+        setLoading(false);
         setPendingNotifications(null);
         if (cacheKey) saveNotificationsCache(cacheKey, next);
     }, [cacheKey]);
@@ -129,6 +133,9 @@ export default function NotificationsPage() {
 
     const loadNotifications = useCallback(async () => {
         if (!user) return;
+        if (loadInFlightRef.current) return;
+
+        loadInFlightRef.current = true;
 
         try {
             const { data, error } = await supabase
@@ -152,6 +159,7 @@ export default function NotificationsPage() {
         } catch (err) {
             console.error("Error loading notifications:", err);
         } finally {
+            loadInFlightRef.current = false;
             setLoading(false);
             setBackgroundRefreshing(false);
         }
