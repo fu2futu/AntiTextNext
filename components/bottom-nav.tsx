@@ -38,12 +38,16 @@ export function BottomNav({ unreadCount, hasUnreadMessages }: BottomNavProps) {
       return;
     }
 
-    const prefetchRoutes = ["/", "/notifications", "/profile", "/transactions", "/search", "/listing"]
-      .filter((href) => href !== pathname);
+    const isSmallScreen = window.matchMedia("(max-width: 767px)").matches;
+    const prefetchRoutes = (
+      isSmallScreen
+        ? ["/notifications", "/profile", "/transactions"]
+        : ["/", "/notifications", "/profile", "/transactions", "/search", "/listing"]
+    ).filter((href) => href !== pathname);
 
     const prefetch = () => {
       prefetchRoutes.forEach((href, index) => {
-        window.setTimeout(() => router.prefetch(href), 1200 + index * 550);
+        window.setTimeout(() => router.prefetch(href), (isSmallScreen ? 2200 : 1200) + index * 650);
       });
     };
 

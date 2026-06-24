@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { Providers } from "@/components/providers";
 import TrialNoticeBanner from "@/components/trial-notice-banner";
-import SwipeTabNavigation from "@/components/swipe-tab-navigation";
 import NavigationLoadingOverlay from "@/components/navigation-loading-overlay";
 import MobileGestureGuard from "@/components/mobile-gesture-guard";
 import RouteScrollReset from "@/components/route-scroll-reset";
@@ -12,6 +11,7 @@ import ServiceWorkerRegister from "@/components/service-worker-register";
 import CapacitorEnvironment from "@/components/capacitor-environment";
 import PersistentHome from "@/components/persistent-home";
 import AppMain from "@/components/app-main";
+import StartupRecovery from "@/components/startup-recovery";
 
 // グローバルナビ（モバイル=ボトムバー / PC=上部ヘッダー）を遅延読み込み（初期表示を高速化）
 const AppNav = dynamic(() => import("@/components/app-nav").then(mod => ({ default: mod.AppNav })), {
@@ -72,8 +72,8 @@ export default function RootLayout({
         />
         <Providers>
           <AuthProvider>
+            <StartupRecovery />
             <TrialNoticeBanner />
-            <SwipeTabNavigation />
             <NavigationLoadingOverlay />
             <MobileGestureGuard />
             <RouteScrollReset />

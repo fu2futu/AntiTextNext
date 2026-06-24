@@ -4,10 +4,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Upload, Loader2, Camera, X, Scan, AlertCircle, CheckCircle, HelpCircle } from "lucide-react";
 import { calculateSellingPrice } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
-import Quagga from "@ericblade/quagga2";
-import ListingTutorial from "@/components/ListingTutorial";
 import { LISTING_NOTICE_ITEMS } from "@/lib/legal";
 import {
   ALLOWED_IMAGE_ACCEPT,
@@ -20,6 +19,10 @@ import {
   uploadItemImageVariantsToR2,
 } from "@/lib/image-storage";
 import { INPUT_LIMITS } from "@/lib/input-limits";
+
+const ListingTutorial = dynamic(() => import("@/components/ListingTutorial"), {
+  ssr: false,
+});
 
 type ListingStep = "form" | "confirm" | "success";
 type ScanStatus = "idle" | "scanning" | "detected";
@@ -66,7 +69,7 @@ const getOriginalPriceValidationMessage = (value: string) => {
 
 export default function ListingPage() {
   const router = useRouter();
-  const { user, isAppReviewDemo } = useAuth();
+  const { user, loading: authLoading, isAppReviewDemo } = useAuth();
   const [step, setStep] = useState<ListingStep>("form");
   const [formData, setFormData] = useState({
     bookName: "",
@@ -82,12 +85,15 @@ export default function ListingPage() {
   const [frontCoverPreview, setFrontCoverPreview] = useState<string>("");
   const [backCoverPreview, setBackCoverPreview] = useState<string>("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState("");
   const [searching, setSearching] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
   const [showTutorial, setShowTutorial] = useState(false);
   const [listingNoticeConfirmed, setListingNoticeConfirmed] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
+  const quaggaRef = useRef<any>(null);
   const detectedCodeRef = useRef<string | null>(null);
   const detectionBufferRef = useRef<string[]>([]);
   const detectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -157,7 +163,7 @@ export default function ListingPage() {
         video.removeAttribute("src");
         video.load();
       }
-      Quagga.stop();
+      quaggaRef.current?.stop?.();
     } catch {
     }
     detectionBufferRef.current = [];
@@ -206,7 +212,11 @@ export default function ListingPage() {
       }, 350);
     };
 
-    (Quagga as any).init(
+    import("@ericblade/quagga2").then((mod) => {
+      if (!active || stopRequestedRef.current) return;
+      const Quagga = (mod as any).default ?? mod;
+      quaggaRef.current = Quagga;
+      Quagga.init(
       {
         frequency: 8,
         inputStream: {
@@ -235,7 +245,7 @@ export default function ListingPage() {
         },
         locate: true,
       },
-      (error: any) => {
+        (error: any) => {
         if (!active || stopRequestedRef.current) return;
 
         if (error) {
@@ -249,12 +259,19 @@ export default function ListingPage() {
         Quagga.onDetected(handleDetected);
         Quagga.start();
       }
-    );
+      );
+    }).catch((error) => {
+      if (!active || stopRequestedRef.current) return;
+      console.error("Barcode scanner load error:", error);
+      alert("カメラを起動できませんでした。時間をおいてもう一度お試しください。");
+      setIsScanning(false);
+      setScanStatus("idle");
+    });
 
     return () => {
       active = false;
       try {
-        (Quagga as any).offDetected?.(handleDetected);
+        quaggaRef.current?.offDetected?.(handleDetected);
       } catch {
       }
       releaseCameraStream();
@@ -263,10 +280,10 @@ export default function ListingPage() {
 
   // useEffect内でリダイレクト（SSRでのlocationエラーを防止）
   useEffect(() => {
-    if (!user && step === "form") {
+    if (!authLoading && !user && step === "form") {
       router.push("/auth/login");
     }
-  }, [user, step, router]);
+  }, [authLoading, user, step, router]);
 
   const sellingPrice = formData.originalPrice
     ? calculateSellingPrice(Number(formData.originalPrice))
@@ -302,6 +319,17 @@ export default function ListingPage() {
   }, [formData.bookName, formData.hasDescription, user]);
 
   // 未認証時は何も表示しない。Hookの呼び出し順を固定するため、useCallback定義後に分岐する。
+  if (authLoading && step === "form") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white px-6">
+        <div className="text-center">
+          <Loader2 className="mx-auto h-7 w-7 animate-spin text-primary" />
+          <p className="mt-3 text-sm font-bold text-gray-500">出品画面を準備中...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user && step === "form") {
     return null;
   }
@@ -367,6 +395,8 @@ export default function ListingPage() {
       setStep("confirm");
     } else if (step === "confirm") {
       setUploading(true);
+      setUploadProgress(8);
+      setUploadStage("出品データを準備しています");
       const itemId = crypto.randomUUID();
       const uploadedR2Paths: string[] = [];
 
@@ -401,8 +431,11 @@ export default function ListingPage() {
         });
 
         if (draftError) throw draftError;
+        setUploadProgress(18);
 
         if (formData.frontCover) {
+          setUploadStage("表紙画像をアップロードしています");
+          setUploadProgress(28);
           let frontImage;
           try {
             frontImage = await uploadItemImageVariantsToR2(formData.frontCover, itemId, "front");
@@ -413,9 +446,12 @@ export default function ListingPage() {
           frontImageStoragePath = frontImage.detail.path;
           frontThumbnailStoragePath = frontImage.thumbnail.path;
           uploadedR2Paths.push(frontImage.detail.path, frontImage.thumbnail.path);
+          setUploadProgress(52);
         }
 
         if (formData.backCover) {
+          setUploadStage("裏表紙画像をアップロードしています");
+          setUploadProgress(60);
           let backImage;
           try {
             backImage = await uploadItemImageVariantsToR2(formData.backCover, itemId, "back");
@@ -426,8 +462,11 @@ export default function ListingPage() {
           backImageStoragePath = backImage.detail.path;
           backThumbnailStoragePath = backImage.thumbnail.path;
           uploadedR2Paths.push(backImage.detail.path, backImage.thumbnail.path);
+          setUploadProgress(82);
         }
 
+        setUploadStage("出品を公開しています");
+        setUploadProgress(90);
         const { data: insertedItem, error } = await (supabase.from("items") as any)
           .update({
             status: "available",
@@ -442,6 +481,8 @@ export default function ListingPage() {
           .single();
 
         if (error) throw error;
+        setUploadProgress(100);
+        setUploadStage("出品が完了しました");
 
         // ウォッチキーワードマッチング（バックグラウンドで実行）
         fetch("/api/check-watch-keywords", {
@@ -472,6 +513,8 @@ export default function ListingPage() {
           .eq("seller_id", user!.id);
         alert("出品に失敗しました: " + error.message);
         setUploading(false);
+        setUploadProgress(0);
+        setUploadStage("");
       }
     }
   };
@@ -574,6 +617,21 @@ export default function ListingPage() {
                 間違いがないかご確認ください
               </p>
             </div>
+
+            {uploading && (
+              <div className="mt-5 rounded-2xl border border-primary/15 bg-primary/5 p-4">
+                <div className="flex items-center justify-between gap-3 text-sm font-black text-primary">
+                  <span>{uploadStage || "出品中..."}</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white">
+                  <div
+                    className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-4 mt-8">
               <button

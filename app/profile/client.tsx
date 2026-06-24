@@ -205,6 +205,8 @@ export default function MypageClient({
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
+    const profileRefreshInFlightRef = useRef(false);
+    const lastProfileRefreshAtRef = useRef(0);
     const initialProfileLoadStartedRef = useRef(false);
     const cacheKey = user ? `textnext:profile:v${PROFILE_CACHE_VERSION}:user:${user.id}` : null;
     const uiStateKey = user ? `textnext:profile-ui:v1:user:${user.id}` : null;
@@ -338,6 +340,14 @@ export default function MypageClient({
 
     const loadProfileData = useCallback(async () => {
         if (!user) return;
+        const now = Date.now();
+        if (profileRefreshInFlightRef.current || now - lastProfileRefreshAtRef.current < 2500) {
+            setBackgroundRefreshing(false);
+            return;
+        }
+
+        profileRefreshInFlightRef.current = true;
+        lastProfileRefreshAtRef.current = now;
 
         try {
             const [
@@ -422,6 +432,7 @@ export default function MypageClient({
         } catch (err) {
             console.error("Error loading profile data:", err);
         } finally {
+            profileRefreshInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
     }, [user]);

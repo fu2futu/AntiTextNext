@@ -22,8 +22,8 @@ const GUEST_ITEM_LIMIT = 6;
 const HOME_ITEM_PAGE_SIZE = 7;
 const PC_ITEM_PAGE_SIZE = 16;
 const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 21; // iPad縦: 3列×7行
-const HOME_SESSION_CACHE_VERSION = 1;
-const HOME_SESSION_CACHE_TTL_MS = 2 * 60 * 1000;
+const HOME_SESSION_CACHE_VERSION = 2;
+const HOME_SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
   "accepted",
@@ -311,7 +311,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     if (!homeCacheKey || typeof window === "undefined") return null;
 
     try {
-      const raw = window.sessionStorage.getItem(homeCacheKey);
+      const raw = window.localStorage.getItem(homeCacheKey) ?? window.sessionStorage.getItem(homeCacheKey);
       if (!raw) return null;
 
       const parsed = JSON.parse(raw) as Partial<HomeSessionCache>;
@@ -322,6 +322,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         !Array.isArray(parsed.recommendedItems) ||
         !Array.isArray(parsed.popularItems)
       ) {
+        window.localStorage.removeItem(homeCacheKey);
         window.sessionStorage.removeItem(homeCacheKey);
         return null;
       }
@@ -340,6 +341,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       };
     } catch (err) {
       console.warn("Failed to read home cache:", err);
+      window.localStorage.removeItem(homeCacheKey);
       window.sessionStorage.removeItem(homeCacheKey);
       return null;
     }
@@ -391,7 +393,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const shouldAnimateFavorite = !backgroundRefreshing && !loadingPopular && !loadingRecommended;
 
   useEffect(() => {
-    if (demoPreview || typeof window === "undefined") return;
+    if (!active || demoPreview || typeof window === "undefined") return;
     if (displayedPopularItems.length === 0 && visibleRecommendedItems.length === 0) return;
 
     const connection = (navigator as Navigator & {
@@ -401,9 +403,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       return;
     }
 
+    const isSmallScreen = window.matchMedia("(max-width: 767px)").matches;
+    const preloadLimit = isSmallScreen ? 18 : 36;
     const urls = Array.from(new Set(
       [...visibleRecommendedItems, ...displayedPopularItems]
-        .slice(0, 36)
+        .slice(0, preloadLimit)
         .map((item) => getItemImageUrl(item, "front", "thumbnail"))
         .filter((url): url is string => Boolean(url))
     ));
@@ -426,7 +430,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
     const timer = globalThis.setTimeout(preload, 600);
     return () => globalThis.clearTimeout(timer);
-  }, [demoPreview, displayedPopularItems, visibleRecommendedItems]);
+  }, [active, demoPreview, displayedPopularItems, visibleRecommendedItems]);
 
   useEffect(() => {
     if (!homeCacheKey || !homeDataReady || loadingPopular || loadingRecommended) return;
@@ -445,7 +449,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         hasMore,
         hasMoreRecommended,
       };
-      window.sessionStorage.setItem(homeCacheKey, JSON.stringify(payload));
+      const serialized = JSON.stringify(payload);
+      window.localStorage.setItem(homeCacheKey, serialized);
+      window.sessionStorage.setItem(homeCacheKey, serialized);
     } catch (err) {
       console.warn("Failed to save home cache:", err);
     }

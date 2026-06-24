@@ -139,6 +139,8 @@ export default function TransactionsClient({
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
     const cacheAppliedRef = useRef(false);
+    const loadInFlightRef = useRef(false);
+    const lastLoadAtRef = useRef(0);
     const cacheKey = user ? `textnext:transactions:v${TRANSACTIONS_CACHE_VERSION}:user:${user.id}` : null;
     const uiStateKey = user ? `textnext:transactions-ui:v1:user:${user.id}` : null;
 
@@ -166,6 +168,14 @@ export default function TransactionsClient({
 
     const loadData = useCallback(async () => {
         if (!user) return;
+        const now = Date.now();
+        if (loadInFlightRef.current || now - lastLoadAtRef.current < 2500) {
+            setBackgroundRefreshing(false);
+            return;
+        }
+
+        loadInFlightRef.current = true;
+        lastLoadAtRef.current = now;
 
         try {
             const [
@@ -330,6 +340,7 @@ export default function TransactionsClient({
         } catch (err) {
             console.error("Error loading transactions:", err);
         } finally {
+            loadInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
     }, [user]);
@@ -439,8 +450,10 @@ export default function TransactionsClient({
         if (!user || !initialCheckDone) return;
 
         pollingRef.current = setInterval(() => {
-            loadData();
-        }, 5000);
+            if (document.visibilityState === "visible") {
+                loadData();
+            }
+        }, 15000);
 
         return () => {
             if (pollingRef.current) {
