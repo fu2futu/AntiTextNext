@@ -1237,6 +1237,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         ${demoPreview || !active ? "" : `
         :root {
           --home-snap-extra-offset: 0rem;
+          --home-load-more-bottom-offset: 0rem;
         }
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
@@ -1248,6 +1249,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         }
         html.capacitor-native {
           --home-snap-extra-offset: 2.0rem;/* 値を大きくすればみんなの出品周辺固定位置が下がる */
+          --home-load-more-bottom-offset: calc(var(--bottom-nav-height) + max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)) + 0.75rem);
           scroll-snap-type: y proximity;
           scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
         }
@@ -1482,7 +1484,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                 <GuestGateOverlay message="すべての出品を見るには会員登録が必要です" />
               )}
               {!isGuest && hasMore && displayedPopularItems.length > 0 && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-3 pt-12">
+                <div className="pointer-events-none absolute inset-x-0 bottom-[var(--home-load-more-bottom-offset)] z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-3 pt-12 md:bottom-0">
                   <div className="pointer-events-auto">
                     <LoadMoreButton
                       loading={loadingMore}
