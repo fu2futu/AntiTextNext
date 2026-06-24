@@ -206,6 +206,20 @@ const mergeStableItems = (current: Item[], next: Item[]) => {
   return changed ? merged : current;
 };
 
+const homeCacheSignature = (cache: Omit<HomeSessionCache, "version" | "savedAt">) => JSON.stringify({
+  recommendedItems: cache.recommendedItems.map(itemVisualKey),
+  popularItems: cache.popularItems.map(itemVisualKey),
+  favorites: [...cache.favorites].sort(),
+  hiddenTransactionItemIds: [...cache.hiddenTransactionItemIds].sort(),
+  totalVisiblePopularCount: cache.totalVisiblePopularCount,
+  totalRecommendedCount: cache.totalRecommendedCount,
+  hasMore: cache.hasMore,
+  hasMoreRecommended: cache.hasMoreRecommended,
+});
+
+const sameStringArray = (a: string[], b: string[]) =>
+  a.length === b.length && a.every((value, index) => value === b[index]);
+
 export default function HomeClient({ items: initialRecommendedItems, popularItems: initialPopularItems, totalPopularCount, demoPreview = false, demoItemHrefPrefix, appReviewDemo = false, active = true }: HomeClientProps) {
   const { user, avatarUrl, loading, profileReady, isAppReviewDemo } = useAuth();
   const { t } = useI18n();
@@ -241,7 +255,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   // サーバー描画 → クライアント再取得への差し替えで「取引中/相談中」などがちらつくのを防ぐ。
   const [loadingPopular, setLoadingPopular] = useState(!demoPreview && initialPopularItems.length === 0);
   const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+  const [pendingHomeData, setPendingHomeData] = useState<Omit<HomeSessionCache, "version" | "savedAt"> | null>(null);
   const requestIdRef = useRef(0);
+  const homeRefreshInFlightRef = useRef(false);
   const initialHomeTopAppliedRef = useRef(false);
   // 「もっと見る」連続発火の防止。loadingMore(state)は反映が非同期なため、
   // 同一レンダー連続でガードをすり抜け、同じ行を二重取得することがある。
@@ -350,15 +366,62 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const applyHomeCache = useCallback((cache: HomeSessionCache) => {
     setRecommendedItems((current) => mergeStableItems(current, cache.recommendedItems));
     setPopularItems((current) => mergeStableItems(current, cache.popularItems));
-    setFavorites(cache.favorites);
-    setHiddenTransactionItemIds(new Set(cache.hiddenTransactionItemIds));
-    setTotalVisiblePopularCount(cache.totalVisiblePopularCount);
-    setTotalRecommendedCount(cache.totalRecommendedCount);
-    setHasMore(cache.hasMore);
-    setHasMoreRecommended(cache.hasMoreRecommended);
+    setFavorites((current) => sameStringArray(current, cache.favorites) ? current : cache.favorites);
+    setHiddenTransactionItemIds((current) => {
+      const currentValues = Array.from(current).sort();
+      const nextValues = [...cache.hiddenTransactionItemIds].sort();
+      return sameStringArray(currentValues, nextValues) ? current : new Set(cache.hiddenTransactionItemIds);
+    });
+    setTotalVisiblePopularCount((current) => current === cache.totalVisiblePopularCount ? current : cache.totalVisiblePopularCount);
+    setTotalRecommendedCount((current) => current === cache.totalRecommendedCount ? current : cache.totalRecommendedCount);
+    setHasMore((current) => current === cache.hasMore ? current : cache.hasMore);
+    setHasMoreRecommended((current) => current === cache.hasMoreRecommended ? current : cache.hasMoreRecommended);
     setLoadingRecommended(false);
     setLoadingPopular(false);
   }, []);
+
+  const homeStateRef = useRef<Omit<HomeSessionCache, "version" | "savedAt">>({
+    recommendedItems: initialRecommendedItems,
+    popularItems: initialPopularItems,
+    favorites: [],
+    hiddenTransactionItemIds: [],
+    totalVisiblePopularCount: totalPopularCount,
+    totalRecommendedCount: initialRecommendedItems.length,
+    hasMore: initialPopularItems.length < totalPopularCount,
+    hasMoreRecommended: false,
+  });
+
+  useEffect(() => {
+    homeStateRef.current = {
+      recommendedItems,
+      popularItems,
+      favorites,
+      hiddenTransactionItemIds: Array.from(hiddenTransactionItemIds),
+      totalVisiblePopularCount,
+      totalRecommendedCount,
+      hasMore,
+      hasMoreRecommended,
+    };
+  }, [
+    recommendedItems,
+    popularItems,
+    favorites,
+    hiddenTransactionItemIds,
+    totalVisiblePopularCount,
+    totalRecommendedCount,
+    hasMore,
+    hasMoreRecommended,
+  ]);
+
+  const applyPendingHomeData = useCallback(() => {
+    if (!pendingHomeData) return;
+    applyHomeCache({
+      version: HOME_SESSION_CACHE_VERSION,
+      savedAt: Date.now(),
+      ...pendingHomeData,
+    });
+    setPendingHomeData(null);
+  }, [applyHomeCache, pendingHomeData]);
 
   // Pull-to-Refresh
   const [pullDistance, setPullDistance] = useState(0);
@@ -525,102 +588,151 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
 
   // 初期表示時にお気に入り & パーソナライズされたおすすめをロード
   useEffect(() => {
+    if (homeRefreshInFlightRef.current) return;
+
     const requestId = ++requestIdRef.current;
     let cancelled = false;
+    homeRefreshInFlightRef.current = true;
 
     const fetchData = async () => {
-      if (!homeDataReady) {
-        setLoadingPopular(true);
-        setBackgroundRefreshing(false);
-        return;
-      }
+      try {
+        if (!homeDataReady) {
+          setLoadingPopular(true);
+          setBackgroundRefreshing(false);
+          return;
+        }
 
-      if (demoPreview) {
-        setFavorites([]);
-        setRecommendedItems((current) => mergeStableItems(current, initialRecommendedItems));
-        setPopularItems((current) => mergeStableItems(current, initialPopularItems));
-        setTotalVisiblePopularCount(totalPopularCount);
-        setHasMore(false);
-        setHasMoreRecommended(false);
-        setTotalRecommendedCount(initialRecommendedItems.length);
-        setHiddenTransactionItemIds(new Set());
-        setLoadingRecommended(false);
-        setLoadingPopular(false);
-        setBackgroundRefreshing(false);
-        return;
-      }
+        if (demoPreview) {
+          setFavorites([]);
+          setRecommendedItems((current) => mergeStableItems(current, initialRecommendedItems));
+          setPopularItems((current) => mergeStableItems(current, initialPopularItems));
+          setTotalVisiblePopularCount(totalPopularCount);
+          setHasMore(false);
+          setHasMoreRecommended(false);
+          setTotalRecommendedCount(initialRecommendedItems.length);
+          setHiddenTransactionItemIds((current) => current.size === 0 ? current : new Set());
+          setLoadingRecommended(false);
+          setLoadingPopular(false);
+          setBackgroundRefreshing(false);
+          return;
+        }
 
-      const cachedHome = readHomeCache();
-      const cachedHomeApplied = Boolean(cachedHome);
-      if (cachedHome) {
-        applyHomeCache(cachedHome);
-        setBackgroundRefreshing(true);
-      } else {
-        setBackgroundRefreshing(false);
-      }
+        const cachedHome = readHomeCache();
+        const cachedHomeApplied = Boolean(cachedHome);
+        const displayedHome = cachedHome
+          ? {
+              recommendedItems: cachedHome.recommendedItems,
+              popularItems: cachedHome.popularItems,
+              favorites: cachedHome.favorites,
+              hiddenTransactionItemIds: cachedHome.hiddenTransactionItemIds,
+              totalVisiblePopularCount: cachedHome.totalVisiblePopularCount,
+              totalRecommendedCount: cachedHome.totalRecommendedCount,
+              hasMore: cachedHome.hasMore,
+              hasMoreRecommended: cachedHome.hasMoreRecommended,
+            }
+          : homeStateRef.current;
 
-      // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
-      // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
-      if (user && !cachedHomeApplied) {
-        setLoadingPopular(true);
-      }
+        if (cachedHome) {
+          applyHomeCache(cachedHome);
+          setBackgroundRefreshing(true);
+        } else {
+          setBackgroundRefreshing(false);
+        }
 
-      if (!user) {
-        setFavorites([]);
-        setRecommendedItems([]);
-        setHasMoreRecommended(false);
-        setTotalRecommendedCount(0);
-        setHiddenTransactionItemIds(new Set());
-        setLoadingRecommended(false);
+        const stageIfNeeded = (next: Omit<HomeSessionCache, "version" | "savedAt">) => {
+          if (!cachedHomeApplied) {
+            applyHomeCache({
+              version: HOME_SESSION_CACHE_VERSION,
+              savedAt: Date.now(),
+              ...next,
+            });
+            setPendingHomeData(null);
+            return;
+          }
 
-        if (!cachedHomeApplied) {
+          if (homeCacheSignature(displayedHome) !== homeCacheSignature(next)) {
+            setPendingHomeData(next);
+          } else {
+            setPendingHomeData(null);
+          }
+        };
+
+        // ログインユーザーは「みんなの出品」をクライアント側で再取得するため、
+        // 完了までスピナーを表示してサーバー描画データのちらつきを隠す。
+        if (user && !cachedHomeApplied) {
           setLoadingPopular(true);
         }
-        const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
-        const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await supabase
-          .from("items")
-          .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
-          .in("status", ["available", "trading"])
-          .eq("is_demo", itemDemoFilter)
-          .order("created_at", { ascending: false })
-          .range(0, initialVisiblePopularCount - 1);
 
-        if (cancelled || requestId !== requestIdRef.current) return;
+        if (!user) {
+          setFavorites([]);
+          setRecommendedItems([]);
+          setHasMoreRecommended(false);
+          setTotalRecommendedCount(0);
+          setHiddenTransactionItemIds((current) => current.size === 0 ? current : new Set());
+          setLoadingRecommended(false);
 
-        if (!visiblePopularError && visiblePopular) {
-          const mapped = (visiblePopular as any[]).map(item => ({
-            ...item,
-            favorite_count: item.favorites?.[0]?.count || 0,
-            favorites: undefined,
-          })) as Item[];
-          setPopularItems((current) => mergeStableItems(current, mapped));
-          setTotalVisiblePopularCount(visiblePopularCount || 0);
-          setHasMore(mapped.length < (visiblePopularCount || 0));
-        } else {
-          setPopularItems((current) => current.length === 0 ? current : []);
-          setTotalVisiblePopularCount(0);
-          setHasMore(false);
+          if (!cachedHomeApplied) {
+            setLoadingPopular(true);
+          }
+          const initialVisiblePopularCount = pageSizeFor(popularMobileLayout);
+          const { data: visiblePopular, count: visiblePopularCount, error: visiblePopularError } = await supabase
+            .from("items")
+            .select("id, title, selling_price, status, front_image_url, front_thumbnail_url, front_image_storage_path, front_thumbnail_storage_path, image_storage_provider, seller_id, favorites(count)", { count: "exact" })
+            .in("status", ["available", "trading"])
+            .eq("is_demo", itemDemoFilter)
+            .order("created_at", { ascending: false })
+            .range(0, initialVisiblePopularCount - 1);
+
+          if (cancelled || requestId !== requestIdRef.current) return;
+
+          if (!visiblePopularError && visiblePopular) {
+            const mapped = (visiblePopular as any[]).map(item => ({
+              ...item,
+              favorite_count: item.favorites?.[0]?.count || 0,
+              favorites: undefined,
+            })) as Item[];
+            stageIfNeeded({
+              recommendedItems: [],
+              popularItems: mapped,
+              favorites: [],
+              hiddenTransactionItemIds: [],
+              totalVisiblePopularCount: visiblePopularCount || 0,
+              totalRecommendedCount: 0,
+              hasMore: mapped.length < (visiblePopularCount || 0),
+              hasMoreRecommended: false,
+            });
+          } else {
+            stageIfNeeded({
+              recommendedItems: [],
+              popularItems: [],
+              favorites: [],
+              hiddenTransactionItemIds: [],
+              totalVisiblePopularCount: 0,
+              totalRecommendedCount: 0,
+              hasMore: false,
+              hasMoreRecommended: false,
+            });
+          }
+
+          setLoadingPopular(false);
+          setBackgroundRefreshing(false);
+          return;
         }
 
-        setLoadingPopular(false);
-        setBackgroundRefreshing(false);
-        return;
-      }
-
-      // 1. お気に入り状態のロード & 最新カウントの取得
-      const itemIds = [
-        ...recommendedItems.map(i => i.id),
-        ...popularItems.map(i => i.id)
-      ];
+        // 1. お気に入り状態のロード & 最新カウントの取得
+        const itemIds = [
+          ...displayedHome.recommendedItems.map(i => i.id),
+          ...displayedHome.popularItems.map(i => i.id)
+        ];
       
-      const countPromise = itemIds.length > 0
-        ? supabase
-          .from("items")
-          .select("id, favorites(count)")
-          .in("id", itemIds)
-          .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
-          .eq("is_demo", itemDemoFilter)
-        : Promise.resolve(null);
+        const countPromise = itemIds.length > 0
+          ? supabase
+            .from("items")
+            .select("id, favorites(count)")
+            .in("id", itemIds)
+            .in("status", ["available", "trading"]) // 削除済み・売却済みは除外し、相談中は表示継続
+            .eq("is_demo", itemDemoFilter)
+          : Promise.resolve(null);
 
       const shouldLoadPersonalData = user && !isOfficialAdminHomeView;
       if (shouldLoadPersonalData && !cachedHomeApplied) {
@@ -649,6 +761,15 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       ]) as any[];
       if (cancelled || requestId !== requestIdRef.current) return;
 
+      let nextRecommendedItems = displayedHome.recommendedItems;
+      let nextPopularItems = displayedHome.popularItems;
+      let nextFavorites = displayedHome.favorites;
+      let nextHiddenTransactionItemIds = displayedHome.hiddenTransactionItemIds;
+      let nextTotalVisiblePopularCount = displayedHome.totalVisiblePopularCount;
+      let nextTotalRecommendedCount = displayedHome.totalRecommendedCount;
+      let nextHasMore = displayedHome.hasMore;
+      let nextHasMoreRecommended = displayedHome.hasMoreRecommended;
+
       // カウントの反映 & 削除されたアイテムのフィルタリング
       if (countRes?.data) {
         const validItemIds = new Set((countRes.data as any[]).map((i: any) => i.id));
@@ -663,21 +784,21 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
               : { ...item, favorite_count: nextFavoriteCount };
           });
         
-        setRecommendedItems(prev => updateItemCounts(prev));
-        setPopularItems(prev => updateItemCounts(prev));
+        nextRecommendedItems = updateItemCounts(nextRecommendedItems);
+        nextPopularItems = updateItemCounts(nextPopularItems);
       }
 
       // お気に入り状態の反映
       if (user && favRes?.data && Array.isArray(favRes.data)) {
-        setFavorites(favRes.data.map((f: any) => f.item_id));
+        nextFavorites = favRes.data.map((f: any) => f.item_id);
       } else if (!user) {
-        setFavorites([]);
-        setRecommendedItems([]);
-        setHasMoreRecommended(false);
-        setTotalRecommendedCount(0);
-        setPopularItems((current) => mergeStableItems(current, initialPopularItems));
-        setTotalVisiblePopularCount(totalPopularCount);
-        setHasMore(initialPopularItems.length < totalPopularCount);
+        nextFavorites = [];
+        nextRecommendedItems = [];
+        nextHasMoreRecommended = false;
+        nextTotalRecommendedCount = 0;
+        nextPopularItems = mergeStableItems(nextPopularItems, initialPopularItems);
+        nextTotalVisiblePopularCount = totalPopularCount;
+        nextHasMore = initialPopularItems.length < totalPopularCount;
         setLoadingRecommended(false);
       }
 
@@ -689,9 +810,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           .in("status", ACTIVE_TRANSACTION_STATUSES);
 
         if (!cancelled && requestId === requestIdRef.current && !activeTransactionsError) {
-          setHiddenTransactionItemIds(
-            new Set((activeTransactions ?? []).map((tx: any) => tx.item_id).filter(Boolean))
-          );
+          nextHiddenTransactionItemIds = (activeTransactions ?? []).map((tx: any) => tx.item_id).filter(Boolean);
         }
 
         let popularQuery = supabase
@@ -714,17 +833,17 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0,
             favorites: undefined,
           })) as Item[];
-          setPopularItems((current) => mergeStableItems(current, mapped));
-          setTotalVisiblePopularCount(visiblePopularCount || 0);
-          setHasMore(mapped.length < (visiblePopularCount || 0));
+          nextPopularItems = mergeStableItems(nextPopularItems, mapped);
+          nextTotalVisiblePopularCount = visiblePopularCount || 0;
+          nextHasMore = mapped.length < (visiblePopularCount || 0);
         }
       }
 
       // 2. パーソナライズされたおすすめの取得
       if (isOfficialAdminHomeView) {
-        setRecommendedItems([]);
-        setHasMoreRecommended(false);
-        setTotalRecommendedCount(0);
+        nextRecommendedItems = [];
+        nextHasMoreRecommended = false;
+        nextTotalRecommendedCount = 0;
         setLoadingRecommended(false);
       } else if (user && profileRes?.data) {
         const { department, major } = profileRes.data as any;
@@ -755,22 +874,36 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             favorite_count: item.favorites?.[0]?.count || 0
           })) as Item[];
           
-          setRecommendedItems((current) => mergeStableItems(current, personalized));
-          setTotalRecommendedCount(count || 0);
-          setHasMoreRecommended((count || 0) > personalized.length);
+          nextRecommendedItems = mergeStableItems(nextRecommendedItems, personalized);
+          nextTotalRecommendedCount = count || 0;
+          nextHasMoreRecommended = (count || 0) > personalized.length;
         }
       }
 
       if (user) {
+        stageIfNeeded({
+          recommendedItems: nextRecommendedItems,
+          popularItems: nextPopularItems,
+          favorites: nextFavorites,
+          hiddenTransactionItemIds: nextHiddenTransactionItemIds,
+          totalVisiblePopularCount: nextTotalVisiblePopularCount,
+          totalRecommendedCount: nextTotalRecommendedCount,
+          hasMore: nextHasMore,
+          hasMoreRecommended: nextHasMoreRecommended,
+        });
         setLoadingRecommended(false);
         setLoadingPopular(false);
         setBackgroundRefreshing(false);
+      }
+      } finally {
+        homeRefreshInFlightRef.current = false;
       }
     };
 
     fetchData();
     return () => {
       cancelled = true;
+      homeRefreshInFlightRef.current = false;
     };
   }, [
     user,
@@ -1095,7 +1228,11 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
       onTouchEnd={demoPreview || !active ? undefined : handleTouchEnd}
       aria-hidden={!active}
     >
-      <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
+      <BackgroundRefreshBanner
+        visible={backgroundRefreshing && !isRefreshing}
+        hasUpdate={Boolean(pendingHomeData)}
+        onApplyUpdate={applyPendingHomeData}
+      />
 
       {/* Pull-to-Refresh Indicator */}
       {!demoPreview && (

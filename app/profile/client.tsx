@@ -172,6 +172,19 @@ const saveProfileCache = (cacheKey: string, cache: Omit<ProfileLocalCache, "vers
     }
 };
 
+const profileCacheSignature = (cache: Omit<ProfileLocalCache, "version" | "savedAt">) => JSON.stringify({
+    profile: cache.profile,
+    listingItems: cache.listingItems.map(itemVisualKey),
+    pastItems: cache.pastItems.map(itemVisualKey),
+    favoriteItems: cache.favoriteItems.map(itemVisualKey),
+    averageRating: cache.averageRating,
+    listingCount: cache.listingCount,
+    transactionCount: cache.transactionCount,
+    earlyRegistrationEligible: cache.earlyRegistrationEligible,
+    badges: cache.badges,
+    isAdmin: cache.isAdmin,
+});
+
 export default function MypageClient({
     initialProfile,
     initialListingItems,
@@ -203,6 +216,7 @@ export default function MypageClient({
     const [favoriteItems, setFavoriteItems] = useState<Item[]>(initialFavoriteItems);
     const [showRewardsTutorial, setShowRewardsTutorial] = useState(false);
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+    const [pendingProfileData, setPendingProfileData] = useState<Omit<ProfileLocalCache, "version" | "savedAt"> | null>(null);
     const favoriteRefreshInFlightRef = useRef(false);
     const lastFavoriteRefreshAtRef = useRef(0);
     const profileRefreshInFlightRef = useRef(false);
@@ -338,6 +352,50 @@ export default function MypageClient({
         setShowRewardsTutorial(false);
     };
 
+    const currentProfileCache = useCallback((): Omit<ProfileLocalCache, "version" | "savedAt"> => ({
+        profile,
+        listingItems,
+        pastItems,
+        favoriteItems,
+        averageRating: ratingAverage,
+        listingCount: profileListingCount,
+        transactionCount: profileTransactionCount,
+        earlyRegistrationEligible: earlyRegistration,
+        badges: profileBadges,
+        isAdmin: adminUser,
+    }), [
+        profile,
+        listingItems,
+        pastItems,
+        favoriteItems,
+        ratingAverage,
+        profileListingCount,
+        profileTransactionCount,
+        earlyRegistration,
+        profileBadges,
+        adminUser,
+    ]);
+
+    const applyProfileData = useCallback((next: Omit<ProfileLocalCache, "version" | "savedAt">) => {
+        setProfile(next.profile);
+        setListingItems((current) => mergeStableItems(current, next.listingItems));
+        setPastItems((current) => mergeStableItems(current, next.pastItems));
+        setFavoriteItems((current) => mergeStableItems(current, next.favoriteItems));
+        setRatingAverage(next.averageRating);
+        setProfileListingCount(next.listingCount);
+        setProfileTransactionCount(next.transactionCount);
+        setEarlyRegistration(next.earlyRegistrationEligible);
+        setProfileBadges(next.badges);
+        setAdminUser(next.isAdmin);
+        setPendingProfileData(null);
+        if (cacheKey) saveProfileCache(cacheKey, next);
+    }, [cacheKey]);
+
+    const applyPendingProfileData = useCallback(() => {
+        if (!pendingProfileData) return;
+        applyProfileData(pendingProfileData);
+    }, [applyProfileData, pendingProfileData]);
+
     const loadProfileData = useCallback(async () => {
         if (!user) return;
         const now = Date.now();
@@ -419,23 +477,33 @@ export default function MypageClient({
                 .map(f => f.items)
                 .filter((item: any) => item && item.is_demo !== true && ["available", "trading", "transaction_pending"].includes(item.status)) as Item[];
 
-            setProfile(profileRecord);
-            setListingItems((current) => mergeStableItems(current, nextListingItems));
-            setPastItems((current) => mergeStableItems(current, nextPastItems));
-            setFavoriteItems((current) => mergeStableItems(current, nextFavoriteItems));
-            setRatingAverage(nextAverageRating);
-            setProfileListingCount(nextListingCount);
-            setProfileTransactionCount(nextPastItems.length);
-            setEarlyRegistration(resolveEarlyRegistrationEligible(profileRecord?.created_at, rewardSetting as any, rewardOverride as any));
-            setProfileBadges((userBadges ?? []) as UserBadge[]);
-            setAdminUser(Boolean(adminStatus));
+            const nextData = {
+                profile: profileRecord,
+                listingItems: nextListingItems,
+                pastItems: nextPastItems,
+                favoriteItems: nextFavoriteItems,
+                averageRating: nextAverageRating,
+                listingCount: nextListingCount,
+                transactionCount: nextPastItems.length,
+                earlyRegistrationEligible: resolveEarlyRegistrationEligible(profileRecord?.created_at, rewardSetting as any, rewardOverride as any),
+                badges: (userBadges ?? []) as UserBadge[],
+                isAdmin: Boolean(adminStatus),
+            };
+
+            if (!profile) {
+                applyProfileData(nextData);
+            } else if (profileCacheSignature(currentProfileCache()) !== profileCacheSignature(nextData)) {
+                setPendingProfileData(nextData);
+            } else {
+                setPendingProfileData(null);
+            }
         } catch (err) {
             console.error("Error loading profile data:", err);
         } finally {
             profileRefreshInFlightRef.current = false;
             setBackgroundRefreshing(false);
         }
-    }, [user]);
+    }, [applyProfileData, currentProfileCache, profile, user]);
 
     const refreshFavoriteItems = useCallback(async () => {
         if (!user) return;
@@ -663,7 +731,11 @@ export default function MypageClient({
 
     return (
         <div className="min-h-screen bg-gradient-to-b from-white to-blue-50 pb-32 font-gentle lg:pb-12">
-            <BackgroundRefreshBanner visible={backgroundRefreshing} />
+            <BackgroundRefreshBanner
+                visible={backgroundRefreshing}
+                hasUpdate={Boolean(pendingProfileData)}
+                onApplyUpdate={applyPendingProfileData}
+            />
             {showRewardsTutorial && (
                 <ProfileRewardsTutorial onClose={handleCloseRewardsTutorial} />
             )}

@@ -54,7 +54,7 @@ export default function StartupRecovery() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-0 z-[120] h-1 bg-transparent"
+      className="pointer-events-none fixed inset-x-0 z-[45] h-1 bg-transparent"
       style={{ bottom: "calc(var(--bottom-nav-height) + max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)))" }}
     >
       <div
