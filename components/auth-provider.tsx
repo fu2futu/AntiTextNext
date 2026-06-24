@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
+import { clearAppImageCache } from '@/lib/client-image-cache';
+import { clearUserLocalCaches } from '@/lib/client-user-cache';
 
 type AuthContextType = {
     user: User | null;
@@ -193,12 +195,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [fetchAvatarUrl, runPostAuthChecks]);
 
     const signOut = useCallback(async () => {
+        const currentUserId = user?.id ?? null;
         setUser(null);
+        clearUserLocalCaches(currentUserId);
+        void clearAppImageCache();
         await supabase.auth.signOut();
         setAvatarUrl(null);
         setIsAppReviewDemo(false);
         setProfileReady(true);
-    }, []);
+    }, [user?.id]);
 
     const refreshAvatar = useCallback(async () => {
         if (user) {

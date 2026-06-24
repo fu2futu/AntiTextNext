@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Bell, Inbox, MessageCircle, Star, XCircle, CheckCircle2, Loader2, ShoppingBag, CheckCheck, RefreshCw, BookHeart } from "lucide-react";
-import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
+import { useCallback, useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
 import { useI18n } from "@/lib/i18n";
@@ -76,6 +76,19 @@ const saveNotificationsCache = (cacheKey: string, notifications: Notification[])
     }
 };
 
+const notificationSignature = (items: Notification[]) => JSON.stringify(
+    items.map((item) => [
+        item.id,
+        item.type,
+        item.title,
+        item.message,
+        item.link_type || "",
+        item.link_id || "",
+        item.is_read,
+        item.created_at,
+    ])
+);
+
 export default function NotificationsPage() {
     const router = useRouter();
     const { user, loading: authLoading } = useAuth();
@@ -83,6 +96,9 @@ export default function NotificationsPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const [backgroundRefreshing, setBackgroundRefreshing] = useState(false);
+    const [pendingNotifications, setPendingNotifications] = useState<Notification[] | null>(null);
+    const notificationsRef = useRef<Notification[]>([]);
+    const loadingRef = useRef(true);
     const cacheKey = user ? `textnext:notifications:v${NOTIFICATIONS_CACHE_VERSION}:user:${user.id}` : null;
 
     // Pull-to-Refresh
@@ -91,6 +107,55 @@ export default function NotificationsPage() {
     const touchStartY = useRef(0);
     const isPulling = useRef(false);
     const PULL_THRESHOLD = 80;
+
+    useEffect(() => {
+        notificationsRef.current = notifications;
+    }, [notifications]);
+
+    useEffect(() => {
+        loadingRef.current = loading;
+    }, [loading]);
+
+    const applyNotifications = useCallback((next: Notification[]) => {
+        setNotifications(next);
+        setPendingNotifications(null);
+        if (cacheKey) saveNotificationsCache(cacheKey, next);
+    }, [cacheKey]);
+
+    const applyPendingNotifications = useCallback(() => {
+        if (!pendingNotifications) return;
+        applyNotifications(pendingNotifications);
+    }, [applyNotifications, pendingNotifications]);
+
+    const loadNotifications = useCallback(async () => {
+        if (!user) return;
+
+        try {
+            const { data, error } = await supabase
+                .from("notifications")
+                .select("*")
+                .eq("user_id", user.id)
+                .order("created_at", { ascending: false })
+                .limit(50);
+
+            if (!error && data) {
+                const next = data as Notification[];
+                const currentNotifications = notificationsRef.current;
+                if (loadingRef.current || currentNotifications.length === 0) {
+                    applyNotifications(next);
+                } else if (notificationSignature(currentNotifications) !== notificationSignature(next)) {
+                    setPendingNotifications(next);
+                } else {
+                    setPendingNotifications(null);
+                }
+            }
+        } catch (err) {
+            console.error("Error loading notifications:", err);
+        } finally {
+            setLoading(false);
+            setBackgroundRefreshing(false);
+        }
+    }, [applyNotifications, user]);
 
     useEffect(() => {
         if (authLoading) return;
@@ -103,7 +168,9 @@ export default function NotificationsPage() {
         const cached = readNotificationsCache(cacheKey);
         if (cached) {
             setNotifications(cached.notifications);
+            notificationsRef.current = cached.notifications;
             setLoading(false);
+            loadingRef.current = false;
             setBackgroundRefreshing(true);
         } else {
             setBackgroundRefreshing(false);
@@ -131,34 +198,12 @@ export default function NotificationsPage() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user, authLoading, router, cacheKey]);
+    }, [user, authLoading, router, cacheKey, loadNotifications]);
 
     useEffect(() => {
         if (!cacheKey || loading) return;
         saveNotificationsCache(cacheKey, notifications);
     }, [cacheKey, loading, notifications]);
-
-    const loadNotifications = async () => {
-        if (!user) return;
-
-        try {
-            const { data, error } = await supabase
-                .from("notifications")
-                .select("*")
-                .eq("user_id", user.id)
-                .order("created_at", { ascending: false })
-                .limit(50);
-
-            if (!error && data) {
-                setNotifications(data as Notification[]);
-            }
-        } catch (err) {
-            console.error("Error loading notifications:", err);
-        } finally {
-            setLoading(false);
-            setBackgroundRefreshing(false);
-        }
-    };
 
     // Pull-to-Refresh handlers（ホームと同じ挙動）
     const handleTouchStart = (e: ReactTouchEvent) => {
@@ -334,7 +379,11 @@ export default function NotificationsPage() {
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
         >
-            <BackgroundRefreshBanner visible={backgroundRefreshing && !isRefreshing} />
+            <BackgroundRefreshBanner
+                visible={backgroundRefreshing && !isRefreshing}
+                hasUpdate={Boolean(pendingNotifications)}
+                onApplyUpdate={applyPendingNotifications}
+            />
             {/* Pull-to-Refresh Indicator */}
             <div
                 className="flex items-center justify-center overflow-hidden transition-all duration-200"
