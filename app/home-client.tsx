@@ -1484,7 +1484,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                 <GuestGateOverlay message="すべての出品を見るには会員登録が必要です" />
               )}
               {!isGuest && hasMore && displayedPopularItems.length > 0 && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-[var(--home-load-more-bottom-offset)] z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-3 pt-12 md:bottom-0">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-[calc(var(--home-load-more-bottom-offset)+0.75rem)] pt-12 md:pb-3">
                   <div className="pointer-events-auto">
                     <LoadMoreButton
                       loading={loadingMore}
