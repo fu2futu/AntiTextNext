@@ -9,6 +9,7 @@ import BadgeActions from "./badge-actions";
 import EarlyRewardActions from "./early-reward-actions";
 import { RevokeBadgeButton } from "./revoke-badge-button";
 import AppReviewDemoActions from "./app-review-demo-actions";
+import UserNotificationActions from "./user-notification-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
         </section>
 
         <RestrictionActions userId={userId} activeRestriction={activeRestriction?.restriction_type ?? userSummary?.restriction_status} />
+        <UserNotificationActions userId={userId} />
         <AppReviewDemoActions userId={userId} enabled={Boolean(profile?.is_app_review_demo)} />
         <EarlyRewardActions
           userId={userId}

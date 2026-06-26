@@ -84,27 +84,27 @@ export default async function AdminDashboardPage() {
   return (
     <>
       <AdminPageHeader title="管理者ダッシュボード" description="運営対応に必要な件数と最近の動きを確認します。" />
-      <main className="space-y-8 p-6">
+      <main className="space-y-4 p-4 sm:p-6">
         <section className="grid gap-2 md:grid-cols-3 xl:grid-cols-5">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
-              <Link key={card.key} href={card.href} className={`rounded-xl border px-3 py-2.5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}>
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-xs font-black">{card.label}</span>
-                  <Icon className="h-4 w-4 shrink-0" />
+              <Link key={card.key} href={card.href} className={`rounded-lg border px-2.5 py-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${card.tone}`}>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="truncate text-[11px] font-black">{card.label}</span>
+                  <Icon className="h-3.5 w-3.5 shrink-0" />
                 </div>
-                <p className="text-xl font-black leading-none">{counts[card.key].toLocaleString()}</p>
+                <p className="text-lg font-black leading-none">{counts[card.key].toLocaleString()}</p>
               </Link>
             );
           })}
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
           <Panel title="取引終了法">
-            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-700">QR: {handoverMethodCounts.qr.toLocaleString()}</p>
-              <p className="mt-2 text-sm font-black text-slate-700">やり忘れ: {handoverMethodCounts.forget.toLocaleString()}</p>
+            <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+              <p className="text-xs font-black text-slate-700">QR: {handoverMethodCounts.qr.toLocaleString()}</p>
+              <p className="mt-1 text-xs font-black text-slate-700">やり忘れ: {handoverMethodCounts.forget.toLocaleString()}</p>
             </div>
           </Panel>
           <Panel title="最近登録したユーザー">
@@ -142,20 +142,20 @@ export default async function AdminDashboardPage() {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 className="mb-4 text-lg font-black">{title}</h2>
-      <div className="space-y-3">{children}</div>
+    <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+      <h2 className="mb-2 text-sm font-black">{title}</h2>
+      <div className="space-y-2">{children}</div>
     </section>
   );
 }
 
 function Row({ title, meta, sub, href }: { title: string; meta: React.ReactNode; sub: string; href?: string }) {
-  const className = "block rounded-xl border border-slate-100 bg-slate-50 p-3 transition hover:border-slate-300 hover:bg-white";
+  const className = "block rounded-lg border border-slate-100 bg-slate-50 p-2 transition hover:border-slate-300 hover:bg-white";
   const content = (
     <>
-      <p className="truncate text-sm font-black">{title}</p>
-      <div className="mt-1 text-xs font-bold text-slate-600">{meta}</div>
-      <p className="mt-1 text-xs text-slate-500">{sub}</p>
+      <p className="truncate text-xs font-black">{title}</p>
+      <div className="mt-0.5 text-[11px] font-bold text-slate-600">{meta}</div>
+      <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p>
     </>
   );
 
