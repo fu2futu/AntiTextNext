@@ -45,12 +45,14 @@ export default async function AdminDashboardPage() {
     recentReports,
     recentInquiries,
     handoverMethods,
+    activeTransactionsDemo,
+    completedTransactionsDemo,
   ] = await Promise.all([
     (supabase as any).rpc("admin_get_today_access_count"),
     supabase.from("profiles").select("*", { count: "exact", head: true }),
     supabase.from("items").select("*", { count: "exact", head: true }),
-    supabase.from("transactions").select("*", { count: "exact", head: true }).in("status", ACTIVE_TRANSACTION_STATUSES),
-    supabase.from("transactions").select("*", { count: "exact", head: true }).eq("status", "completed"),
+    (supabase as any).from("transactions").select("*", { count: "exact", head: true }).in("status", ACTIVE_TRANSACTION_STATUSES).or("is_demo.eq.false,is_demo.is.null"),
+    (supabase as any).from("transactions").select("*", { count: "exact", head: true }).eq("status", "completed").or("is_demo.eq.false,is_demo.is.null"),
     (supabase as any).from("reports").select("*", { count: "exact", head: true }),
     (supabase as any).from("inquiries").select("*", { count: "exact", head: true }).not("status", "in", "(completed,no_action)"),
     (supabase as any).from("user_restrictions").select("*", { count: "exact", head: true }).is("lifted_at", null).or(`ends_at.is.null,ends_at.gt.${now}`),
@@ -58,7 +60,15 @@ export default async function AdminDashboardPage() {
     (supabase as any).from("reports").select("id, reason, status, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("inquiries").select("id, sender_name, category, status, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("transactions").select("handover_completion_method").not("handover_completion_method", "is", null),
+    // Demo-only counts for annotation
+    (supabase as any).from("transactions").select("*", { count: "exact", head: true }).in("status", ACTIVE_TRANSACTION_STATUSES).eq("is_demo", true),
+    (supabase as any).from("transactions").select("*", { count: "exact", head: true }).eq("status", "completed").eq("is_demo", true),
   ]);
+
+  const demoCounts: Record<string, number> = {
+    activeTransactions: activeTransactionsDemo.count ?? 0,
+    completedTransactions: completedTransactionsDemo.count ?? 0,
+  };
 
   const counts: Record<string, number> = {
     todayAccess: Number(todayAccess.data ?? 0),
@@ -95,6 +105,9 @@ export default async function AdminDashboardPage() {
                   <Icon className="h-3.5 w-3.5 shrink-0" />
                 </div>
                 <p className="text-lg font-black leading-none">{counts[card.key].toLocaleString()}</p>
+                {demoCounts[card.key] != null && demoCounts[card.key] > 0 && (
+                  <p className="mt-0.5 text-[10px] font-bold text-slate-500">(デモ: {demoCounts[card.key]}件)</p>
+                )}
               </Link>
             );
           })}

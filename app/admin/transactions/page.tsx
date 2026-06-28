@@ -19,15 +19,21 @@ const ACTIVE_TRANSACTION_STATUSES = [
 export default async function AdminTransactionsPage({ searchParams }: { searchParams: AdminSearchParams }) {
   const { supabase } = await requireAdmin();
   const status = getStringParam(searchParams, "status");
+  const demo = getStringParam(searchParams, "demo");
   let query = (supabase as any)
     .from("transactions")
-    .select("id, item_id, seller_id, buyer_id, status, created_at, completed_at, cancelled_at, final_meetup_time, cancellation_reason, items(title), ratings(id)")
+    .select("id, item_id, seller_id, buyer_id, status, is_demo, created_at, completed_at, cancelled_at, final_meetup_time, cancellation_reason, items(title), ratings(id)")
     .order("created_at", { ascending: false })
     .limit(200);
 
   if (status === "active") query = query.in("status", ACTIVE_TRANSACTION_STATUSES);
   if (status === "completed") query = query.eq("status", "completed");
   if (status === "cancelled") query = query.eq("status", "cancelled");
+
+  // Demo filter — default to "real" (non-demo) if not specified
+  if (demo === "demo") query = query.eq("is_demo", true);
+  else if (demo === "all") { /* no filter */ }
+  else query = query.or("is_demo.eq.false,is_demo.is.null"); // default: real only
 
   const { data, error } = await query;
   const txIds = ((data ?? []) as any[]).map((tx) => tx.id);
@@ -67,14 +73,19 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
     <>
       <AdminPageHeader title="取引管理" description="チャット全文は詳細画面で理由付き確認を行った場合のみ表示します。" />
       <main className="space-y-5 p-6">
-        <form className="rounded-2xl border border-slate-200 bg-white p-4">
+        <form className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
           <select name="status" defaultValue={status} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold">
-            <option value="">すべて</option>
+            <option value="">すべてのステータス</option>
             <option value="active">取引中</option>
             <option value="completed">完了</option>
             <option value="cancelled">キャンセル</option>
           </select>
-          <button className="ml-3 rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">絞り込み</button>
+          <select name="demo" defaultValue={demo || ""} className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold">
+            <option value="">通常のみ</option>
+            <option value="all">すべて（デモ含む）</option>
+            <option value="demo">デモのみ</option>
+          </select>
+          <button className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">絞り込み</button>
         </form>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error.message}</div>}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -95,8 +106,15 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
             <tbody className="divide-y divide-slate-100">
               {((data ?? []) as any[]).map((tx) => {
                 return (
-                  <tr key={tx.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3"><Link href={`/admin/transactions/${tx.id}`} className="font-mono text-xs font-black text-primary">{tx.id}</Link></td>
+                  <tr key={tx.id} className={`hover:bg-slate-50 ${tx.is_demo ? "bg-amber-50/40" : ""}`}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Link href={`/admin/transactions/${tx.id}`} className="font-mono text-xs font-black text-primary">{tx.id}</Link>
+                        {tx.is_demo && (
+                          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">🏷️ デモ</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-black">{tx.items?.title ?? tx.item_id}</td>
                     <td className="px-4 py-3"><AdminUserLink id={tx.seller_id} name={profileMap.get(tx.seller_id) as string | undefined} /></td>
                     <td className="px-4 py-3"><AdminUserLink id={tx.buyer_id} name={profileMap.get(tx.buyer_id) as string | undefined} /></td>

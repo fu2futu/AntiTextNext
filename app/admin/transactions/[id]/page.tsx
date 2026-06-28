@@ -1,6 +1,7 @@
 import { AdminPageHeader, StatusBadge } from "../../_components/admin-shell";
 import { AdminUserLink } from "../../_components/admin-user-link";
 import { RevealChatButton } from "../../_components/reveal-chat-button";
+import { DemoToggleButton } from "./demo-toggle";
 import { formatAdminDate, requireAdmin } from "@/lib/admin-utils";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +24,12 @@ export default async function AdminTransactionDetailPage({ params }: { params: {
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error.message}</div>}
         {tx && (
           <>
+            {/* Demo toggle section */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-3 text-xs font-black uppercase text-slate-500">デモ管理</h2>
+              <DemoToggleButton transactionId={tx.id} isDemo={Boolean(tx.is_demo)} />
+            </section>
+
             <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2">
               <Field label="商品" value={tx.items?.title ?? tx.item_id} />
               <Field label="取引ステータス" value={<StatusBadge value={tx.status} />} />

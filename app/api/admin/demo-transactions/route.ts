@@ -85,3 +85,59 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: err.message || "デモ取引を作成できませんでした" }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { supabase } = await requireAdmin();
+    const body = await request.json();
+    const transactionId = String(body.transactionId || "").trim();
+    const isDemo = Boolean(body.isDemo);
+
+    if (!transactionId) {
+      return NextResponse.json({ error: "取引IDを指定してください" }, { status: 400 });
+    }
+
+    // Fetch transaction to get item_id
+    const { data: tx, error: fetchError } = await (supabase as any)
+      .from("transactions")
+      .select("id, item_id, is_demo")
+      .eq("id", transactionId)
+      .single();
+
+    if (fetchError || !tx) {
+      return NextResponse.json({ error: "取引が見つかりません" }, { status: 404 });
+    }
+
+    // Update transaction is_demo
+    const { error: txError } = await (supabase as any)
+      .from("transactions")
+      .update({ is_demo: isDemo })
+      .eq("id", transactionId);
+
+    if (txError) throw txError;
+
+    // Also update the related item's is_demo
+    if (tx.item_id) {
+      await (supabase as any)
+        .from("items")
+        .update({ is_demo: isDemo })
+        .eq("id", tx.item_id);
+    }
+
+    await adminLog(
+      supabase,
+      isDemo ? "transaction_marked_demo" : "transaction_unmarked_demo",
+      "transaction",
+      transactionId,
+      isDemo ? "取引をデモに変更" : "取引を通常に変更",
+      { itemId: tx.item_id, previousIsDemo: tx.is_demo }
+    );
+
+    revalidatePath("/admin/transactions");
+    revalidatePath(`/admin/transactions/${transactionId}`);
+    revalidatePath("/admin");
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "デモ切り替えに失敗しました" }, { status: 500 });
+  }
+}
