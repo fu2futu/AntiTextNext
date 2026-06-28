@@ -37,12 +37,12 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: A
     const key = p.department || "未設定";
     deptCounts.set(key, (deptCounts.get(key) ?? 0) + 1);
   }
-  const sortedDeptCounts = [...deptCounts.entries()]
+  const sortedDeptCounts = Array.from(deptCounts.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([label, count]) => ({ label, count }));
 
   // Unique departments for filter dropdown
-  const uniqueDepartments = [...deptCounts.keys()].filter((d) => d !== "未設定").sort();
+  const uniqueDepartments = Array.from(deptCounts.keys()).filter((d) => d !== "未設定").sort();
 
   // ─── Fetch user list (with RPC or fallback) ───
   const { data, error } = await (supabase as any).rpc("admin_list_users", {
