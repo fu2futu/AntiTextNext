@@ -23,6 +23,7 @@ import {
     Bell,
     Globe,
     BookHeart,
+    PauseCircle,
 } from "lucide-react";
 
 type DeactivateStep = "idle" | "confirm" | "password" | "processing" | "done" | "error";
@@ -203,6 +204,29 @@ export default function SettingsPage() {
                                 <div>
                                     <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">欲しい本をリクエスト</span>
                                     <p className="text-[10px] text-gray-400 mt-0.5">まだ無い本を運営に伝える</p>
+                                </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                        </Link>
+                    </section>
+
+                    {/* 出品設定 */}
+                    <section className="animate-slide-in-left" style={{ animationDelay: '12ms' }}>
+                        <h2 className="mb-3 flex items-center gap-3 px-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                            <span className="shrink-0">出品</span>
+                            <span className="h-px flex-1 bg-gray-200" />
+                        </h2>
+                        <Link
+                            href="/settings/listings-pause"
+                            className="flex items-center justify-between px-4 py-3 bg-white rounded-2xl shadow-md border border-gray-100 hover:border-primary/30 transition-all group"
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-amber-50 rounded-xl flex items-center justify-center group-hover:bg-amber-100 transition-colors">
+                                    <PauseCircle className="w-4 h-4 text-amber-600" />
+                                </div>
+                                <div>
+                                    <span className="font-bold text-sm text-gray-700 group-hover:text-gray-900 transition-colors">おやすみモード</span>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">出品を一括で一時停止・再開する</p>
                                 </div>
                             </div>
                             <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all" />

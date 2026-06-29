@@ -789,8 +789,10 @@ export default function ProductDetailClient({ item, isAppReviewDemo = false }: {
                     setIsManaging(true);
                     try {
                       const newStatus = currentStatus === 'paused' ? 'available' : 'paused';
+                      // 個別操作なので、おやすみモードの一括停止マークは外しておく
+                      // （再開時にこの商品が意図せず巻き戻らないようにする）
                       const { error } = await (supabase.from('items') as any)
-                        .update({ status: newStatus })
+                        .update({ status: newStatus, vacation_paused: false })
                         .eq('id', item.id)
                         .eq('seller_id', user?.id);
                       if (error) throw error;
