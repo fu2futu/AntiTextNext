@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { AdminUserLink } from "../_components/admin-user-link";
 import { StatusBadge } from "../_components/admin-shell";
+import { getItemImageUrl } from "@/lib/image-storage";
 
 function formatAdminDateClient(dateString: string | null) {
   if (!dateString) return "-";
@@ -143,8 +144,8 @@ export default function ItemsListClient({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3"><Thumb src={item.front_thumbnail_url} /></td>
-                <td className="px-4 py-3"><Thumb src={item.back_thumbnail_url} /></td>
+                <td className="px-4 py-3"><Thumb src={getItemImageUrl(item, "front", "thumbnail")} /></td>
+                <td className="px-4 py-3"><Thumb src={getItemImageUrl(item, "back", "thumbnail")} /></td>
                 <td className="px-4 py-3"><AdminUserLink id={item.seller_id} name={profileMap[item.seller_id]} /></td>
                 <td className="px-4 py-3 font-bold text-slate-600">{formatAdminDateClient(item.created_at)}</td>
                 <td className="px-4 py-3"><StatusBadge value={item.status} /></td>
