@@ -118,10 +118,14 @@ export async function PATCH(request: NextRequest) {
 
     // Also update the related item's is_demo
     if (tx.item_id) {
-      await (supabase as any)
+      const { error: itemError } = await (supabase as any)
         .from("items")
         .update({ is_demo: isDemo })
         .eq("id", tx.item_id);
+
+      if (itemError) {
+        console.error("Failed to update item is_demo:", itemError.message);
+      }
     }
 
     await adminLog(
@@ -136,6 +140,9 @@ export async function PATCH(request: NextRequest) {
     revalidatePath("/admin/transactions");
     revalidatePath(`/admin/transactions/${transactionId}`);
     revalidatePath("/admin");
+    revalidatePath("/admin/items");
+    revalidatePath("/admin/demo-home");
+    revalidatePath("/admin/demo-items");
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || "デモ切り替えに失敗しました" }, { status: 500 });

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AdminPageHeader, StatusBadge } from "../_components/admin-shell";
 import { AdminUserLink } from "../_components/admin-user-link";
 import { formatAdminDate, getStringParam, requireAdmin, type AdminSearchParams } from "@/lib/admin-utils";
-import { getItemImageUrl } from "@/lib/image-storage";
+import ItemsListClient from "./items-list-client";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export default async function AdminItemsPage({ searchParams }: { searchParams: A
   const status = getStringParam(searchParams, "status");
   let query = (supabase as any)
     .from("items")
-    .select("id, title, front_image_url, back_image_url, front_thumbnail_url, back_thumbnail_url, front_image_storage_path, back_image_storage_path, front_thumbnail_storage_path, back_thumbnail_storage_path, image_storage_provider, seller_id, created_at, status, transactions(id,status)");
+    .select("id, title, is_demo, front_image_url, back_image_url, front_thumbnail_url, back_thumbnail_url, front_image_storage_path, back_image_storage_path, front_thumbnail_storage_path, back_thumbnail_storage_path, image_storage_provider, seller_id, created_at, status, transactions(id,status)");
 
   if (q) query = query.ilike("title", `%${q}%`);
   if (status) query = query.eq("status", status);
@@ -45,52 +45,12 @@ export default async function AdminItemsPage({ searchParams }: { searchParams: A
           <button className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">検索</button>
         </form>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error.message}</div>}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">出品</th>
-                <th className="px-4 py-3">表紙</th>
-                <th className="px-4 py-3">裏表紙</th>
-                <th className="px-4 py-3">出品者</th>
-                <th className="px-4 py-3">出品日時</th>
-                <th className="px-4 py-3">状態</th>
-                <th className="px-4 py-3">取引状態</th>
-                <th className="px-4 py-3">通報</th>
-                <th className="px-4 py-3">メモ/フラグ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {((data ?? []) as any[]).map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/items/${item.id}`} className="font-black text-primary hover:underline">
-                      {item.title}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3"><Thumb src={getItemImageUrl(item, "front", "thumbnail")} /></td>
-                  <td className="px-4 py-3"><Thumb src={getItemImageUrl(item, "back", "thumbnail")} /></td>
-                  <td className="px-4 py-3"><AdminUserLink id={item.seller_id} name={profileMap.get(item.seller_id) as string | undefined} /></td>
-                  <td className="px-4 py-3 font-bold text-slate-600">{formatAdminDate(item.created_at)}</td>
-                  <td className="px-4 py-3"><StatusBadge value={item.status} /></td>
-                  <td className="px-4 py-3"><StatusBadge value={item.transactions?.[0]?.status ?? "未取引"} /></td>
-                  <td className="px-4 py-3">{reportedIds.has(item.id) ? <StatusBadge value="通報あり" /> : "-"}</td>
-                  <td className="px-4 py-3">
-                    <Link href={`/admin/items/${item.id}`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
-                      詳細
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ItemsListClient 
+          items={data ?? []} 
+          reportedIds={Array.from(reportedIds)} 
+          profileMap={Object.fromEntries(profileMap)} 
+        />
       </main>
     </>
   );
-}
-
-function Thumb({ src }: { src?: string | null }) {
-  if (!src) return <div className="h-14 w-10 rounded-lg bg-slate-100" />;
-  return <Image src={src} alt="" width={40} height={56} className="h-14 w-10 rounded-lg object-cover" />;
 }

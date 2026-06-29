@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, Ban, BookOpen, ClipboardList, Eye, FileWarning, Inbox, Users } from "lucide-react";
+import { Activity, Ban, BookOpen, BookHeart, ClipboardList, Eye, FileWarning, Inbox, Users } from "lucide-react";
 import { AdminPageHeader, StatusBadge } from "./_components/admin-shell";
 import { formatAdminDate, requireAdmin } from "@/lib/admin-utils";
 
@@ -8,11 +8,13 @@ export const dynamic = "force-dynamic";
 const cards = [
   { key: "todayAccess", label: "今日の訪問者数", href: "/admin/access", icon: Eye, tone: "border-sky-100 bg-sky-50 text-sky-700" },
   { key: "users", label: "登録ユーザー数", href: "/admin/users", icon: Users, tone: "border-blue-100 bg-blue-50 text-blue-700" },
-  { key: "items", label: "出品数", href: "/admin/items", icon: BookOpen, tone: "border-emerald-100 bg-emerald-50 text-emerald-700" },
+  { key: "activeItems", label: "出品中の商品数", href: "/admin/items?status=available", icon: BookOpen, tone: "border-emerald-100 bg-emerald-50 text-emerald-700" },
+  { key: "totalItems", label: "総出品数", href: "/admin/items", icon: BookOpen, tone: "border-teal-100 bg-teal-50 text-teal-700" },
   { key: "activeTransactions", label: "取引中の件数", href: "/admin/transactions?status=active", icon: ClipboardList, tone: "border-amber-100 bg-amber-50 text-amber-700" },
   { key: "completedTransactions", label: "完了取引数", href: "/admin/transactions?status=completed", icon: ClipboardList, tone: "border-violet-100 bg-violet-50 text-violet-700" },
   { key: "reports", label: "通報件数", href: "/admin/reports", icon: FileWarning, tone: "border-red-100 bg-red-50 text-red-700" },
-  { key: "openInquiries", label: "未対応のお問い合わせ数", href: "/admin/inquiries?status=unresolved", icon: Inbox, tone: "border-cyan-100 bg-cyan-50 text-cyan-700" },
+  { key: "openInquiries", label: "未対応のお問い合わせ", href: "/admin/inquiries?status=unresolved", icon: Inbox, tone: "border-cyan-100 bg-cyan-50 text-cyan-700" },
+  { key: "openBookRequests", label: "未対応の教科書リクエスト", href: "/admin/book-requests", icon: BookHeart, tone: "border-fuchsia-100 bg-fuchsia-50 text-fuchsia-700" },
   { key: "restrictedUsers", label: "BAN中のユーザー数", href: "/admin/users?restriction=restricted", icon: Ban, tone: "border-rose-100 bg-rose-50 text-rose-700" },
   { key: "errors", label: "エラー件数", href: "/admin/errors", icon: Activity, tone: "border-slate-200 bg-slate-100 text-slate-700" },
 ];
@@ -35,37 +37,47 @@ export default async function AdminDashboardPage() {
   const [
     todayAccess,
     users,
-    items,
+    activeItems,
+    totalItems,
     activeTransactions,
     completedTransactions,
     reports,
     openInquiries,
+    openBookRequests,
     restrictedUsers,
     recentUsers,
     recentReports,
     recentInquiries,
     handoverMethods,
+    activeItemsDemo,
+    totalItemsDemo,
     activeTransactionsDemo,
     completedTransactionsDemo,
   ] = await Promise.all([
     (supabase as any).rpc("admin_get_today_access_count"),
     supabase.from("profiles").select("*", { count: "exact", head: true }),
-    supabase.from("items").select("*", { count: "exact", head: true }),
+    supabase.from("items").select("*", { count: "exact", head: true }).eq("status", "available").or("is_demo.eq.false,is_demo.is.null"),
+    supabase.from("items").select("*", { count: "exact", head: true }).or("is_demo.eq.false,is_demo.is.null"),
     (supabase as any).from("transactions").select("*", { count: "exact", head: true }).in("status", ACTIVE_TRANSACTION_STATUSES).or("is_demo.eq.false,is_demo.is.null"),
     (supabase as any).from("transactions").select("*", { count: "exact", head: true }).eq("status", "completed").or("is_demo.eq.false,is_demo.is.null"),
     (supabase as any).from("reports").select("*", { count: "exact", head: true }),
     (supabase as any).from("inquiries").select("*", { count: "exact", head: true }).not("status", "in", "(completed,no_action)"),
+    (supabase as any).from("book_requests").select("*", { count: "exact", head: true }).eq("status", "open"),
     (supabase as any).from("user_restrictions").select("*", { count: "exact", head: true }).is("lifted_at", null).or(`ends_at.is.null,ends_at.gt.${now}`),
     supabase.from("profiles").select("user_id, nickname, department, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("reports").select("id, reason, status, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("inquiries").select("id, sender_name, category, status, created_at").order("created_at", { ascending: false }).limit(5),
     (supabase as any).from("transactions").select("handover_completion_method").not("handover_completion_method", "is", null),
     // Demo-only counts for annotation
+    supabase.from("items").select("*", { count: "exact", head: true }).eq("status", "available").eq("is_demo", true),
+    supabase.from("items").select("*", { count: "exact", head: true }).eq("is_demo", true),
     (supabase as any).from("transactions").select("*", { count: "exact", head: true }).in("status", ACTIVE_TRANSACTION_STATUSES).eq("is_demo", true),
     (supabase as any).from("transactions").select("*", { count: "exact", head: true }).eq("status", "completed").eq("is_demo", true),
   ]);
 
   const demoCounts: Record<string, number> = {
+    activeItems: activeItemsDemo.count ?? 0,
+    totalItems: totalItemsDemo.count ?? 0,
     activeTransactions: activeTransactionsDemo.count ?? 0,
     completedTransactions: completedTransactionsDemo.count ?? 0,
   };
@@ -73,11 +85,13 @@ export default async function AdminDashboardPage() {
   const counts: Record<string, number> = {
     todayAccess: Number(todayAccess.data ?? 0),
     users: users.count ?? 0,
-    items: items.count ?? 0,
+    activeItems: activeItems.count ?? 0,
+    totalItems: totalItems.count ?? 0,
     activeTransactions: activeTransactions.count ?? 0,
     completedTransactions: completedTransactions.count ?? 0,
     reports: reports.count ?? 0,
     openInquiries: openInquiries.count ?? 0,
+    openBookRequests: openBookRequests.count ?? 0,
     restrictedUsers: restrictedUsers.count ?? 0,
     errors: 0,
   };

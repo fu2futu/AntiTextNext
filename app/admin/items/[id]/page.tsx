@@ -5,6 +5,7 @@ import { AdminUserLink } from "../../_components/admin-user-link";
 import { formatAdminDate, requireAdmin } from "@/lib/admin-utils";
 import { getItemImageUrl } from "@/lib/image-storage";
 import AdminItemActions from "./item-actions";
+import { ItemDemoToggleButton } from "./demo-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
   const [{ data: item, error }, { data: reports }, { data: transactions }, { data: flags }] = await Promise.all([
     (supabase as any)
       .from("items")
-      .select("id,title,original_price,selling_price,status,seller_id,created_at,front_image_url,back_image_url,front_thumbnail_url,back_thumbnail_url,front_image_storage_path,back_image_storage_path,front_thumbnail_storage_path,back_thumbnail_storage_path,image_storage_provider,moderation_status,moderation_note,hidden_at,deleted_at")
+      .select("id,title,original_price,selling_price,status,seller_id,created_at,front_image_url,back_image_url,front_thumbnail_url,back_thumbnail_url,front_image_storage_path,back_image_storage_path,front_thumbnail_storage_path,back_thumbnail_storage_path,image_storage_provider,moderation_status,moderation_note,hidden_at,deleted_at,is_demo")
       .eq("id", id)
       .maybeSingle(),
     (supabase as any).from("reports").select("*").eq("item_id", id).order("created_at", { ascending: false }).limit(20),
@@ -49,6 +50,11 @@ export default async function AdminItemDetailPage({ params }: { params: { id: st
 
         {item && (
           <>
+            <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-lg font-black text-slate-900">デモ管理</h2>
+              <ItemDemoToggleButton itemId={item.id} isDemo={Boolean(item.is_demo)} />
+            </section>
+
             <section className="grid gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[280px_1fr]">
               <div className="grid grid-cols-2 gap-3">
                 <PreviewImage src={frontUrl} label="表紙" />

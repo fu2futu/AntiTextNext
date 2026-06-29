@@ -169,3 +169,62 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: err.message || "デモ出品を削除できませんでした" }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { supabase } = await requireAdmin();
+    const body = await request.json();
+    const itemId = String(body.itemId || "").trim();
+    const isDemo = Boolean(body.isDemo);
+
+    if (!itemId) {
+      return NextResponse.json({ error: "出品IDを指定してください" }, { status: 400 });
+    }
+
+    const { data: item, error: fetchError } = await (supabase as any)
+      .from("items")
+      .select("id, title, is_demo")
+      .eq("id", itemId)
+      .single();
+
+    if (fetchError || !item) {
+      return NextResponse.json({ error: "出品が見つかりません" }, { status: 404 });
+    }
+
+    const { error: updateError } = await (supabase as any)
+      .from("items")
+      .update({ is_demo: isDemo })
+      .eq("id", itemId);
+
+    if (updateError) throw updateError;
+
+    // Also update related transactions' is_demo
+    const { error: txError } = await (supabase as any)
+      .from("transactions")
+      .update({ is_demo: isDemo })
+      .eq("item_id", itemId);
+
+    if (txError) {
+      console.error("Failed to update related transactions is_demo:", txError.message);
+    }
+
+    await adminLog(
+      supabase,
+      isDemo ? "item_marked_demo" : "item_unmarked_demo",
+      "item",
+      itemId,
+      isDemo ? "出品をデモに変更" : "出品を通常に変更",
+      { title: item.title, previousIsDemo: item.is_demo }
+    );
+
+    revalidatePath("/admin/items");
+    revalidatePath(`/admin/items/${itemId}`);
+    revalidatePath("/admin");
+    revalidatePath("/admin/demo-home");
+    revalidatePath("/admin/demo-items");
+    revalidatePath("/admin/transactions");
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "デモ切り替えに失敗しました" }, { status: 500 });
+  }
+}

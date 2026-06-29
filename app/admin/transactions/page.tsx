@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { AdminPageHeader, StatusBadge } from "../_components/admin-shell";
+import { AdminPageHeader, StatusBadge } from "../_components/admin-shell";
 import { AdminUserLink } from "../_components/admin-user-link";
 import { formatAdminDate, getStringParam, requireAdmin, type AdminSearchParams } from "@/lib/admin-utils";
+import TransactionsListClient from "./transactions-list-client";
 
 export const dynamic = "force-dynamic";
 
@@ -88,49 +90,13 @@ export default async function AdminTransactionsPage({ searchParams }: { searchPa
           <button className="rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">絞り込み</button>
         </form>
         {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error.message}</div>}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="bg-slate-50 text-xs font-black uppercase text-slate-500">
-              <tr>
-                <th className="px-4 py-3">取引ID</th>
-                <th className="px-4 py-3">出品タイトル</th>
-                <th className="px-4 py-3">出品者</th>
-                <th className="px-4 py-3">購入者</th>
-                <th className="px-4 py-3">ステータス</th>
-                <th className="px-4 py-3">購入日時</th>
-                <th className="px-4 py-3">最終チャット</th>
-                <th className="px-4 py-3">通報</th>
-                <th className="px-4 py-3">評価</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {((data ?? []) as any[]).map((tx) => {
-                return (
-                  <tr key={tx.id} className={`hover:bg-slate-50 ${tx.is_demo ? "bg-amber-50/40" : ""}`}>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Link href={`/admin/transactions/${tx.id}`} className="font-mono text-xs font-black text-primary">{tx.id}</Link>
-                        {tx.is_demo && (
-                          <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">🏷️ デモ</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-black">{tx.items?.title ?? tx.item_id}</td>
-                    <td className="px-4 py-3"><AdminUserLink id={tx.seller_id} name={profileMap.get(tx.seller_id) as string | undefined} /></td>
-                    <td className="px-4 py-3"><AdminUserLink id={tx.buyer_id} name={profileMap.get(tx.buyer_id) as string | undefined} /></td>
-                    <td className="px-4 py-3"><StatusBadge value={tx.status} /></td>
-                    <td className="px-4 py-3 font-bold text-slate-600">{formatAdminDate(tx.created_at)}</td>
-                    <td className="px-4 py-3 font-bold text-slate-600">
-                      {formatAdminDate(lastMessageByTransaction.get(tx.id) ?? lastMessageByItem.get(tx.item_id))}
-                    </td>
-                    <td className="px-4 py-3">{reportedIds.has(tx.id) ? <StatusBadge value="通報あり" /> : "-"}</td>
-                    <td className="px-4 py-3">{tx.ratings?.length ? <StatusBadge value="評価あり" /> : "-"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <TransactionsListClient 
+          transactions={data ?? []} 
+          reportedIds={Array.from(reportedIds)} 
+          profileMap={Object.fromEntries(profileMap)} 
+          lastMessageByTransaction={Object.fromEntries(lastMessageByTransaction)} 
+          lastMessageByItem={Object.fromEntries(lastMessageByItem)} 
+        />
       </main>
     </>
   );
