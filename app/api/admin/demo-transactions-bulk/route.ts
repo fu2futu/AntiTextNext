@@ -6,7 +6,7 @@ export async function PATCH(request: NextRequest) {
   try {
     const { supabase } = await requireAdmin();
     const body = await request.json();
-    const transactionIds = Array.isArray(body.transactionIds) ? body.transactionIds.filter((id) => typeof id === "string" && id.trim()) : [];
+    const transactionIds = Array.isArray(body.transactionIds) ? body.transactionIds.filter((id: any) => typeof id === "string" && id.trim()) : [];
     const isDemo = Boolean(body.isDemo);
 
     if (!transactionIds.length) {

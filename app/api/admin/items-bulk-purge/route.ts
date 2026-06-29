@@ -44,7 +44,7 @@ export async function DELETE(request: NextRequest) {
   try {
     const { supabase } = await requireAdmin();
     const body = await request.json();
-    const itemIds = Array.isArray(body.itemIds) ? body.itemIds.filter((id) => typeof id === "string" && id.trim()) : [];
+    const itemIds = Array.isArray(body.itemIds) ? body.itemIds.filter((id: any) => typeof id === "string" && id.trim()) : [];
 
     if (!itemIds.length) {
       return NextResponse.json({ error: "削除する出品を選択してください" }, { status: 400 });
