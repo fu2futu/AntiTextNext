@@ -47,6 +47,33 @@ export default function ItemsListClient({
     else setSelected(new Set(items.map((i) => i.id)));
   };
 
+  const toggleDemoSelected = async (targetIsDemo: boolean) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0 || loading) return;
+
+    const actionText = targetIsDemo ? "デモに切り替え" : "通常に戻し";
+    if (!window.confirm(`選択した出品 ${ids.length}件を${actionText}ます。関連する取引も連動します。続行しますか？`)) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch("/api/admin/demo-items-bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: ids, isDemo: targetIsDemo }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "変更に失敗しました");
+      
+      alert(`${result.updated}件の出品を${targetIsDemo ? "デモ" : "通常"}に設定しました`);
+      setSelected(new Set());
+      router.refresh();
+    } catch (err: any) {
+      alert(err.message || "変更に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteSelected = async () => {
     const ids = Array.from(selected);
     if (ids.length === 0 || loading) return;
@@ -89,11 +116,27 @@ export default function ItemsListClient({
         <div className="flex gap-2">
           <button
             type="button"
+            onClick={() => toggleDemoSelected(true)}
+            disabled={selected.size === 0 || loading}
+            className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+          >
+            {loading ? "処理中..." : "デモにする"}
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleDemoSelected(false)}
+            disabled={selected.size === 0 || loading}
+            className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {loading ? "処理中..." : "通常に戻す"}
+          </button>
+          <button
+            type="button"
             onClick={deleteSelected}
             disabled={selected.size === 0 || loading}
             className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700 disabled:opacity-50"
           >
-            {loading ? "削除中..." : "選択した出品を完全削除"}
+            {loading ? "削除中..." : "完全削除"}
           </button>
         </div>
       </div>
