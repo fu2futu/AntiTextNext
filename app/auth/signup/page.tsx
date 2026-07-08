@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/lib/supabase";
 import { ArrowLeft, Mail, Lock, CheckCircle, X } from "lucide-react";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, PRIVACY_POLICY_TEXT, TERMS_TEXT } from "@/lib/legal";
@@ -156,11 +157,16 @@ export default function SignupPage() {
 
         try {
             const appOrigin = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
+            // アプリ内で登録した場合、確認メールのリンクは外部ブラウザで開かれるため、
+            // 認証完了後は「アプリに戻ってログイン」を案内する画面へ遷移させる。
+            // web(ブラウザ)からの登録はそのままプロフィール設定へ進める。
+            const isNativeApp = Capacitor.isNativePlatform();
+            const nextPath = isNativeApp ? "/auth/app-signup-complete" : "/auth/setup-profile";
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: normalizedEmail,
                 password,
                 options: {
-                    emailRedirectTo: `${appOrigin.replace(/\/$/, "")}/auth/callback?next=/auth/setup-profile`,
+                    emailRedirectTo: `${appOrigin.replace(/\/$/, "")}/auth/callback?next=${encodeURIComponent(nextPath)}`,
                     data: {
                         accepted_terms_version: CURRENT_TERMS_VERSION,
                         accepted_privacy_version: CURRENT_PRIVACY_VERSION,
