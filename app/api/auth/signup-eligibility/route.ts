@@ -7,6 +7,19 @@ export const runtime = "nodejs";
 
 const CAMPUS_EMAIL_DOMAIN = "@m.isct.ac.jp";
 
+// テスト用に登録を許可するメールアドレス。
+// 本番環境でenvを触れないため、ここに直接埋め込む。テスト後は削除すること。
+// env(SIGNUP_TEST_ALLOWED_EMAILS カンマ区切り)でも追加できる。
+const HARDCODED_TEST_ALLOWED_EMAILS = ["edamamemochi2004@gmail.com"];
+
+const getTestAllowedEmails = () =>
+  [
+    ...HARDCODED_TEST_ALLOWED_EMAILS,
+    ...(process.env.SIGNUP_TEST_ALLOWED_EMAILS || "").split(","),
+  ]
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
 const createServiceClient = () => {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) return null;
@@ -38,13 +51,14 @@ export async function POST(request: NextRequest) {
     }
 
     const isCampusEmail = email.endsWith(CAMPUS_EMAIL_DOMAIN);
+    const isTestAllowedEmail = getTestAllowedEmails().includes(email);
     const { data: isAdminEmail, error: adminEmailError } = await (serviceClient as any).rpc("is_allowed_admin_email", {
       target_email: email,
     });
 
     if (adminEmailError) throw adminEmailError;
 
-    if (!isCampusEmail && !isAdminEmail) {
+    if (!isCampusEmail && !isAdminEmail && !isTestAllowedEmail) {
       return NextResponse.json({
         allowed: false,
         error: "学内メールアドレス（@m.isct.ac.jp）または登録済みの管理者メールアドレスを使用してください",
