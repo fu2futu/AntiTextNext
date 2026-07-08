@@ -3,9 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Capacitor } from "@capacitor/core";
 import { supabase } from "@/lib/supabase";
-import { ArrowLeft, Mail, Lock, CheckCircle, X } from "lucide-react";
+import { ArrowLeft, Mail, Lock, X, KeyRound } from "lucide-react";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, PRIVACY_POLICY_TEXT, TERMS_TEXT } from "@/lib/legal";
 
 type LegalKind = "terms" | "privacy";
@@ -76,6 +75,8 @@ export default function SignupPage() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [emailSent, setEmailSent] = useState(false);
+    const [code, setCode] = useState("");
+    const [verifying, setVerifying] = useState(false);
     const [activeLegal, setActiveLegal] = useState<LegalKind | null>(null);
     const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
     const [cooldownSeconds, setCooldownSeconds] = useState(0);
@@ -156,17 +157,13 @@ export default function SignupPage() {
         setLoading(true);
 
         try {
-            const appOrigin = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
-            // アプリ内で登録した場合、確認メールのリンクは外部ブラウザで開かれるため、
-            // 認証完了後は「アプリに戻ってログイン」を案内する画面へ遷移させる。
-            // web(ブラウザ)からの登録はそのままプロフィール設定へ進める。
-            const isNativeApp = Capacitor.isNativePlatform();
-            const nextPath = isNativeApp ? "/auth/app-signup-complete" : "/auth/setup-profile";
+            // ワンタイムパスワード(6桁コード)方式。
+            // メールのリンクを踏ませず、アプリ内でコードを入力して認証する。
+            // これによりアプリ↔ブラウザ間の遷移や PKCE の検証キー不一致を回避できる。
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: normalizedEmail,
                 password,
                 options: {
-                    emailRedirectTo: `${appOrigin.replace(/\/$/, "")}/auth/callback?next=${encodeURIComponent(nextPath)}`,
                     data: {
                         accepted_terms_version: CURRENT_TERMS_VERSION,
                         accepted_privacy_version: CURRENT_PRIVACY_VERSION,
@@ -177,7 +174,9 @@ export default function SignupPage() {
 
             if (authError) throw authError;
 
-            // メール送信成功画面へ切り替え
+            // コード入力画面へ切り替え（再送クールダウンも開始）
+            setCode("");
+            setCooldownUntil(Date.now() + EMAIL_SEND_COOLDOWN_MS);
             setEmailSent(true);
         } catch (err: any) {
             const message = err?.message || "";
@@ -208,7 +207,82 @@ export default function SignupPage() {
         }
     };
 
-    // メール送信完了画面
+    // 6桁コードの検証
+    const handleVerifyCode = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
+
+        const token = code.trim();
+        if (!/^\d{6}$/.test(token)) {
+            showError("6桁の確認コードを入力してください");
+            return;
+        }
+
+        setVerifying(true);
+
+        try {
+            const { error: verifyError } = await supabase.auth.verifyOtp({
+                email: normalizedEmail,
+                token,
+                type: "signup",
+            });
+
+            if (verifyError) throw verifyError;
+
+            // 認証成功。アプリ内にセッションが確立されるのでプロフィール設定へ。
+            router.push("/auth/setup-profile");
+            router.refresh();
+        } catch (err: any) {
+            const message = (err?.message || "").toLowerCase();
+
+            if (message.includes("expired")) {
+                showError("確認コードの有効期限が切れています。コードを再送してください。");
+            } else if (message.includes("invalid") || err?.status === 403) {
+                showError("確認コードが正しくありません。もう一度ご確認ください。");
+            } else {
+                showError(err?.message || "確認に失敗しました");
+            }
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    // コード再送
+    const handleResendCode = async () => {
+        setError("");
+
+        if (cooldownUntil && Date.now() < cooldownUntil) {
+            const remainingSeconds = Math.max(1, Math.ceil((cooldownUntil - Date.now()) / 1000));
+            showError(`確認コードは連続送信できません。${formatCooldown(remainingSeconds)}に再度お試しください。`);
+            return;
+        }
+
+        try {
+            const { error: resendError } = await supabase.auth.resend({
+                type: "signup",
+                email: normalizedEmail,
+            });
+
+            if (resendError) throw resendError;
+
+            setCooldownUntil(Date.now() + EMAIL_SEND_COOLDOWN_MS);
+        } catch (err: any) {
+            const message = (err?.message || "").toLowerCase();
+            const isRateLimited =
+                err?.status === 429 ||
+                message.includes("rate limit") ||
+                message.includes("email rate limit");
+
+            if (isRateLimited) {
+                setCooldownUntil(Date.now() + EMAIL_SEND_COOLDOWN_MS);
+                showError("送信が一時的に混み合っています。時間を置いてから再度お試しください。");
+            } else {
+                showError(err?.message || "コードの再送に失敗しました");
+            }
+        }
+    };
+
+    // コード入力画面
     if (emailSent) {
         return (
             <div className="min-h-screen bg-white">
@@ -227,46 +301,79 @@ export default function SignupPage() {
                     <div className="max-w-md mx-auto">
                         <div className="bg-white rounded-2xl shadow-lg border p-8 text-center">
                             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 animate-slide-in-left">
-                                <Mail className="w-10 h-10 text-green-600" />
+                                <KeyRound className="w-10 h-10 text-green-600" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-900 mb-4 animate-slide-in-left" style={{ animationDelay: '100ms' }}>
-                                確認メールを送信しました
+                                確認コードを入力
                             </h2>
-                            <p className="text-gray-600 mb-2 animate-slide-in-left" style={{ animationDelay: '200ms' }}>
+                            <p className="text-gray-600 mb-1 animate-slide-in-left" style={{ animationDelay: '200ms' }}>
                                 <span className="font-semibold text-primary">{email}</span>
                             </p>
                             <p className="text-gray-600 mb-6 animate-slide-in-left" style={{ animationDelay: '200ms' }}>
-                                上記のメールアドレスに確認メールを送信しました。
-                                メール内のリンクをクリックして、登録を完了してください。再送が必要な場合も、60秒以上あけてください。
+                                上記のメールアドレスに6桁の確認コードを送信しました。
+                                メールに記載されたコードを入力してください。
                             </p>
 
-                            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left mb-6 animate-slide-in-left" style={{ animationDelay: '300ms' }}>
-                                <p className="text-sm text-yellow-800 font-medium mb-2">📌 メールが届かない場合</p>
+                            {error && (
+                                <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                                    {error}
+                                </div>
+                            )}
+
+                            <form onSubmit={handleVerifyCode} className="space-y-4 animate-slide-in-left" style={{ animationDelay: '300ms' }}>
+                                <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    pattern="\d{6}"
+                                    maxLength={6}
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                    placeholder="123456"
+                                    className="w-full px-4 py-4 border border-gray-300 rounded-xl text-center text-2xl font-bold tracking-[0.5em] focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                    autoFocus
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={verifying || code.length !== 6}
+                                    className="w-full py-4 bg-primary text-white rounded-xl font-semibold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg"
+                                >
+                                    {verifying ? "確認中..." : "確認して登録を完了"}
+                                </button>
+                            </form>
+
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-left mt-6 mb-6 animate-slide-in-left" style={{ animationDelay: '400ms' }}>
+                                <p className="text-sm text-yellow-800 font-medium mb-2">📌 コードが届かない場合</p>
                                 <ul className="text-sm text-yellow-700 space-y-1">
                                     <li>• 迷惑メールフォルダを確認してください</li>
                                     <li>• メールアドレスが正しいか確認してください</li>
-                                    <li>• 連続送信せず、少なくとも60秒以上待ってから再度お試しください</li>
+                                    <li>• 再送は60秒以上あけてください</li>
                                 </ul>
                             </div>
 
-                            <div className="space-y-3 animate-slide-in-left" style={{ animationDelay: '400ms' }}>
+                            <div className="space-y-3 animate-slide-in-left" style={{ animationDelay: '500ms' }}>
                                 <button
+                                    type="button"
+                                    onClick={handleResendCode}
+                                    disabled={cooldownSeconds > 0}
+                                    className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                                >
+                                    {cooldownSeconds > 0 ? `コードを再送（${formatCooldown(cooldownSeconds)}）` : "コードを再送する"}
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => {
                                         setEmailSent(false);
+                                        setCode("");
                                         setEmail("");
                                         setPassword("");
                                         setConfirmPassword("");
                                     }}
-                                    className="w-full py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all"
+                                    className="block w-full py-3 text-primary font-semibold hover:underline"
                                 >
                                     別のメールアドレスで登録
                                 </button>
-                                <Link
-                                    href="/auth/login"
-                                    className="block w-full py-3 text-primary font-semibold hover:underline"
-                                >
-                                    ログインページに戻る
-                                </Link>
                             </div>
                         </div>
                     </div>

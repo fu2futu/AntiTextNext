@@ -6,29 +6,34 @@ Supabase Auth の認証メール本文はアプリコードではなく Supabase
 
 ---
 
-## Confirm signup（登録確認メール）★重要
+## Confirm signup（登録確認メール）★重要：OTPコード方式
 
-### 背景 / なぜ変更が必要か
+### 背景 / なぜこの方式か
 
-デフォルトの `{{ .ConfirmationURL }}` は **PKCE（code）方式**のリンクを生成する。
-PKCE は「登録を開始したブラウザに保存された検証キー(code verifier)」を必要とするため、
-**アプリ内WebViewで登録 → メールのリンクを Safari 等の別ブラウザで開く**と検証キーが無く
-`exchangeCodeForSession` が失敗し、`/auth/link-error`（「リンクを確認できません」）に飛ぶ。
+**リンク方式は使わない。** デフォルトの `{{ .ConfirmationURL }}`（およびtoken_hashリンク）は、
+メールのリンクを踏む＝ブラウザに遷移する前提。アプリ内WebViewで登録した場合、
+リンクは Safari 等の別ブラウザで開かれ、PKCEの検証キー不一致で認証が失敗する
+（`/auth/link-error`「リンクを確認できません」に飛ぶ）など想定外の挙動が起きる。
 
-これを回避するため、**token_hash（OTP）方式**に変更する。
-`app/auth/callback/route.ts` は token_hash を受けて `verifyOtp` で検証する処理を実装済みで、
-この方式なら検証キー不要＝**別ブラウザでも認証が通る**。
+そこで **ワンタイムパスワード（6桁コード）方式**に統一する。
+メールには **6桁の数字コード `{{ .Token }}` だけ**を載せ、ユーザーはアプリ内の入力欄に打ち込む。
+アプリから一切出ないため、ブラウザ遷移・PKCE・クロスブラウザの問題がすべて消える。
+
+アプリ側は実装済み（`app/auth/signup/page.tsx`）:
+- `supabase.auth.signUp({ email, password })` でアカウント作成＋コードメール送信
+- コード入力画面で `supabase.auth.verifyOtp({ email, token, type: "signup" })` を実行
+- 成功するとアプリ内にセッションが確立し、`/auth/setup-profile` へ遷移
 
 ### 設定手順
 
 Supabase Dashboard → Authentication → Email Templates → **Confirm signup** を開き、
-本文（Message body）を以下に差し替える。ポイントはリンクを
-`{{ .ConfirmationURL }}` ではなく **`{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup`** にすること。
+本文（Message body）を以下に差し替える。**リンク（`{{ .ConfirmationURL }}`）は入れず、
+必ず `{{ .Token }}`（6桁コード）を載せる**こと。
 
 件名（Subject）例:
 
 ```text
-【TextNext】メールアドレスの確認
+【TextNext】確認コード: {{ .Token }}
 ```
 
 本文（HTML）:
@@ -36,31 +41,24 @@ Supabase Dashboard → Authentication → Email Templates → **Confirm signup**
 ```html
 <h2>メールアドレスの確認</h2>
 <p>TextNext へのご登録ありがとうございます。</p>
-<p>以下のボタンをタップして、メールアドレスの確認を完了してください。</p>
-<p>
-  <a href="{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup"
-     style="display:inline-block;padding:12px 20px;background:#e60033;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;">
-    メールアドレスを確認する
-  </a>
+<p>アプリの画面に、以下の6桁の確認コードを入力してください。</p>
+<p style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#e60033;margin:24px 0;">
+  {{ .Token }}
 </p>
 <p style="color:#666;font-size:13px;">
-  このリンクは一度のみ有効です。<br>
-  ボタンが押せない場合は、次のURLをブラウザに貼り付けてください：<br>
-  {{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=signup
+  このコードの有効期限は1時間です。<br>
+  心当たりがない場合は、このメールを破棄してください。
 </p>
-<p style="color:#999;font-size:12px;">心当たりがない場合は、このメールを破棄してください。</p>
 ```
 
-### 補足
+### 補足・注意
 
-- `{{ .RedirectTo }}` は signUp 時の `emailRedirectTo` の値が入る。
-  本アプリはアプリ内登録なら `.../auth/callback?next=/auth/app-signup-complete`、
-  web登録なら `.../auth/callback?next=/auth/setup-profile` を渡している。
-  よって `&token_hash=...&type=signup` を後ろに足すだけで、アプリ/web双方の遷移先が保たれる。
-- `emailRedirectTo` のURLは Authentication → URL Configuration の Redirect URLs 許可リストに
-  含まれている必要がある（`https://textnext.jp/auth/callback`）。
-- 変更後は、アプリ内登録 → 届いたメールのリンクを別ブラウザ(Safari)で開いても
-  `/auth/app-signup-complete`（「アプリに戻ってログイン」画面）に到達すればOK。
+- **リンクは載せないこと。** `{{ .ConfirmationURL }}` を残すと、ユーザーがそちらを踏んで
+  従来の（壊れる）リンク方式に逆戻りする。コードのみにする。
+- `verifyOtp` の `type` は `"signup"`。アプリ側と一致させる。
+- コードの有効期限は Supabase の OTP expiry 設定（Authentication → Providers → Email）に従う。
+- 再送はアプリ側で `supabase.auth.resend({ type: "signup", email })` を使用（60秒クールダウン）。
+- web（ブラウザ）からの登録も同じOTPコード方式で動作する（分岐不要）。
 
 ---
 
