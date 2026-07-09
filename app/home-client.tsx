@@ -22,7 +22,7 @@ const GUEST_ITEM_LIMIT = 6;
 const HOME_ITEM_PAGE_SIZE = 7; // iPhone(1列): 7件
 const PC_ITEM_PAGE_SIZE = 20; // PC(lg以上=5列): 5列×4行
 const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 21; // iPad縦(3列): 3列×7行
-const HOME_SESSION_CACHE_VERSION = 3; // 初期表示件数/PC列数(5列)変更のため旧キャッシュを無効化
+const HOME_SESSION_CACHE_VERSION = 4; // 初期表示件数(スマホ3×7=21)/PC列数(5列)変更のため旧キャッシュを無効化
 const HOME_SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
@@ -285,8 +285,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     if (isTabletPortrait) return TABLET_PORTRAIT_ITEM_PAGE_SIZE;
     if (isPc) return PC_ITEM_PAGE_SIZE;
     // スマホ(<md)のみレイアウト切替に応じた件数。
-    if (layout === "image") return 12; // 3列×4行
-    if (layout === "square") return 12; // 3列×4行
+    if (layout === "image") return 21; // 3列×7行
+    if (layout === "square") return 21; // 3列×7行
     return HOME_ITEM_PAGE_SIZE;
   };
   const homeCacheKey = useMemo(() => {
@@ -1509,9 +1509,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
           )}
 
           {/* もっと見る / 出品物は以上です
-              下方向フロー配置にしたため、スマホのボトムバー分だけ末尾を持ち上げてボタンが隠れないようにする。 */}
+              下方向フロー配置にしたため、スマホのボトムバー分だけ末尾を持ち上げてボタンが隠れないようにする。
+              snap-start を付けて「もっと見る」が見える位置にもスナップ吸着させる。 */}
           {!isGuest && (
-            <div className="mt-8 text-center pb-[var(--home-load-more-bottom-offset)]">
+            <div className="mt-8 text-center pb-[var(--home-load-more-bottom-offset)] snap-start">
               {hasMore ? (
                 <LoadMoreButton
                   loading={loadingMore}
