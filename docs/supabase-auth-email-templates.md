@@ -15,8 +15,8 @@ Supabase Auth の認証メール本文はアプリコードではなく Supabase
 リンクは Safari 等の別ブラウザで開かれ、PKCEの検証キー不一致で認証が失敗する
 （`/auth/link-error`「リンクを確認できません」に飛ぶ）など想定外の挙動が起きる。
 
-そこで **ワンタイムパスワード（6桁コード）方式**に統一する。
-メールには **6桁の数字コード `{{ .Token }}` だけ**を載せ、ユーザーはアプリ内の入力欄に打ち込む。
+そこで **ワンタイムパスワード（確認コード）方式**に統一する。
+メールには **数字コード `{{ .Token }}` だけ**を載せ、ユーザーはアプリ内の入力欄に打ち込む。
 アプリから一切出ないため、ブラウザ遷移・PKCE・クロスブラウザの問題がすべて消える。
 
 アプリ側は実装済み（`app/auth/signup/page.tsx`）:
@@ -28,7 +28,7 @@ Supabase Auth の認証メール本文はアプリコードではなく Supabase
 
 Supabase Dashboard → Authentication → Email Templates → **Confirm signup** を開き、
 本文（Message body）を以下に差し替える。**リンク（`{{ .ConfirmationURL }}`）は入れず、
-必ず `{{ .Token }}`（6桁コード）を載せる**こと。
+必ず `{{ .Token }}`（確認コード）を載せる**こと。
 
 件名（Subject）例:
 
@@ -56,6 +56,8 @@ Supabase Dashboard → Authentication → Email Templates → **Confirm signup**
 - **リンクは載せないこと。** `{{ .ConfirmationURL }}` を残すと、ユーザーがそちらを踏んで
   従来の（壊れる）リンク方式に逆戻りする。コードのみにする。
 - `verifyOtp` の `type` は `"signup"`。アプリ側と一致させる。
+- **コードの桁数はアプリUI（6桁）と揃える。** Authentication → Providers → Email の
+  Email OTP Length を `6` に設定する（8桁等になっていると入力欄と桁数がズレて認証できない）。
 - コードの有効期限は Supabase の OTP expiry 設定（Authentication → Providers → Email）に従う。
 - 再送はアプリ側で `supabase.auth.resend({ type: "signup", email })` を使用（60秒クールダウン）。
 - web（ブラウザ）からの登録も同じOTPコード方式で動作する（分岐不要）。

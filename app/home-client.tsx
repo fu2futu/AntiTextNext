@@ -19,10 +19,10 @@ type Item = HomeItem;
 /** Maximum number of items to show to non-authenticated visitors. */
 const GUEST_ITEM_LIMIT = 6;
 
-const HOME_ITEM_PAGE_SIZE = 7;
-const PC_ITEM_PAGE_SIZE = 16;
-const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 21; // iPad縦: 3列×7行
-const HOME_SESSION_CACHE_VERSION = 2;
+const HOME_ITEM_PAGE_SIZE = 7; // iPhone(1列): 7件
+const PC_ITEM_PAGE_SIZE = 20; // PC(lg以上=5列): 5列×4行
+const TABLET_PORTRAIT_ITEM_PAGE_SIZE = 21; // iPad縦(3列): 3列×7行
+const HOME_SESSION_CACHE_VERSION = 3; // 初期表示件数/PC列数(5列)変更のため旧キャッシュを無効化
 const HOME_SESSION_CACHE_TTL_MS = 10 * 60 * 1000;
 const ACTIVE_TRANSACTION_STATUSES = [
   "requested",
@@ -227,6 +227,25 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   const loadingMoreRef = useRef(false);
   const loadingMoreRecommendedRef = useRef(false);
 
+  // 「あなたへのおすすめ」セクションの表示可否（管理画面 /admin/home-settings で制御）。
+  // 既定は非表示扱いで、取得後にenabledならtrueにする（未取得/失敗時は非表示にフォールバック）。
+  const [recommendedSectionEnabled, setRecommendedSectionEnabled] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("app_home_settings")
+        .select("recommended_enabled")
+        .eq("id", "global")
+        .maybeSingle();
+      if (cancelled) return;
+      setRecommendedSectionEnabled(Boolean(data?.recommended_enabled));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!active || demoPreview || initialHomeTopAppliedRef.current) return;
     initialHomeTopAppliedRef.current = true;
@@ -241,7 +260,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
     window.setTimeout(scrollTop, 120);
   }, [active, demoPreview]);
 
-  // タブレット/PC(md=768px以上)判定。リスト表示の件数を 16(4×4) / モバイル=7 に出し分けるために使う。
+  // タブレット/PC(md=768px以上)判定。初期表示件数を PC(5列)=20 / iPad縦(3列)=21 / モバイル=7 に出し分けるために使う。
   const [isPc, setIsPc] = useState(false);
   // iPad縦(md=768〜1023px)判定。3列×7行=21件に出し分けるために使う。
   const [isTabletPortrait, setIsTabletPortrait] = useState(false);
@@ -262,7 +281,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
   }, []);
   const pageSizeFor = (layout: MobileHomeLayout) => {
     // iPad/PC(md=768px以上)はレイアウト切替が非表示で、列数はグリッドで決まるため
-    // 端末判定を優先する（iPad縦=21 / iPad横・PC=16）。
+    // 端末判定を優先する（iPad縦=21(3列×7) / iPad横・PC=20(5列×4)）。
     if (isTabletPortrait) return TABLET_PORTRAIT_ITEM_PAGE_SIZE;
     if (isPc) return PC_ITEM_PAGE_SIZE;
     // スマホ(<md)のみレイアウト切替に応じた件数。
@@ -1237,7 +1256,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         ${demoPreview || !active ? "" : `
         :root {
           --home-snap-extra-offset: 0rem;
-          --home-load-more-bottom-offset: 0rem;
+          /* 下方向フローにした「みんなの出品」の末尾（もっと見る/以上です）を、
+             ボトムナビ中央の飛び出した出品ボタン分だけ持ち上げて重なりを防ぐ（スマホのみ。PCはボトムナビなし）。
+             バー本体の高さは .app-main の padding-bottom が既に確保しているため、飛び出し分のみ。 */
+          --home-load-more-bottom-offset: 2.5rem;
         }
         /* ホーム表示中のみ、ページ全体（親レイアウト）のスクロールもセクション単位でスナップ吸着させる。
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
@@ -1249,7 +1271,6 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         }
         html.capacitor-native {
           --home-snap-extra-offset: 2.0rem;/* 値を大きくすればみんなの出品周辺固定位置が下がる */
-          --home-load-more-bottom-offset: calc(var(--bottom-nav-height) + max(var(--bottom-nav-safe-padding-min), env(safe-area-inset-bottom)) + 0.75rem);
           scroll-snap-type: y proximity;
           scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
         }
@@ -1263,6 +1284,10 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         @media (min-width: 1024px) {
           html {
             scroll-padding-top: calc(var(--app-top-offset) + 5rem + var(--home-snap-extra-offset));
+          }
+          /* PCはボトムナビが無いので持ち上げ不要。:root は html より詳細度が高いので :root で上書きする。 */
+          :root {
+            --home-load-more-bottom-offset: 0rem;
           }
         }
         `}
@@ -1339,8 +1364,8 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
         )}
       </header>
 
-      {/* おすすめの教材 */}
-      {((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView) || (isGuest && guestLimitedRecommendedItems.length > 0)) && (
+      {/* おすすめの教材（管理画面 /admin/home-settings で表示可否を制御） */}
+      {recommendedSectionEnabled && ((demoPreview && visibleRecommendedItems.length > 0) || (user && !isOfficialAdminHomeView) || (isGuest && guestLimitedRecommendedItems.length > 0)) && (
         <div className="px-6 py-8 snap-start">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-5 h-5 text-primary" />
@@ -1445,16 +1470,20 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
             </div>
           ) : (
             <>
-              {/* 見出しとコンテナの間のスナップ吸着ポイント（コンテナ先頭に吸着）。 */}
+              {/* 見出しとリストの間のスナップ吸着ポイント（一覧先頭に吸着）。 */}
               <div aria-hidden="true" className="snap-start scroll-mt-[var(--app-top-offset)]" />
               <div className="relative">
-              <div data-home-board className={`${isGuest ? 'max-h-[60dvh]' : getBoardSizeClass(displayedPopularItems.length, pageSizeFor(popularMobileLayout), hasMore)} overflow-y-auto rounded-2xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain ${isGuest ? 'overflow-hidden' : 'snap-y snap-mandatory scroll-pt-3 scroll-smooth'}`}>
-                <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-4 ${
+              {/* ゲストはゲート付きプレビュー箱のまま。ログイン済みはコンテナをやめて下へ流す。 */}
+              <div
+                {...(isGuest ? { "data-home-board": "" } : {})}
+                className={isGuest ? 'max-h-[60dvh] overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 shadow-inner overscroll-contain' : ''}
+              >
+                <div className={`grid gap-3 md:grid-cols-3 lg:grid-cols-5 ${
                   popularMobileLayout === "image" ? "grid-cols-3" : popularMobileLayout === "square" ? "grid-cols-3" : "grid-cols-1"
                 }`}>
                   {guestLimitedPopularItems.map((item, index) => {
                     return (
-                    <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
+                    <div key={`popular-${item.id}`} className="relative min-w-0">
                       <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
@@ -1468,41 +1497,27 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                     </div>
                   )})}
                 </div>
-                {!isGuest && displayedPopularItems.length === 0 && hasMore && (
-                  <div className="flex h-full items-center justify-center">
-                    <LoadMoreButton
-                      loading={loadingMore}
-                      onClick={() => loadMorePopular()}
-                      label={t('home.load_more')}
-                      loadingLabel={t('home.loading')}
-                    />
-                  </div>
-                )}
               </div>
               {/* Guest overlay for popular section */}
               {isGuest && guestLimitedPopularItems.length > 0 && (
                 <GuestGateOverlay message="すべての出品を見るには会員登録が必要です" />
               )}
-              {!isGuest && hasMore && displayedPopularItems.length > 0 && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex items-end justify-center rounded-b-2xl bg-gradient-to-t from-white from-50% via-white/90 to-transparent px-3 pb-[calc(var(--home-load-more-bottom-offset)+0.75rem)] pt-12 md:pb-3">
-                  <div className="pointer-events-auto">
-                    <LoadMoreButton
-                      loading={loadingMore}
-                      onClick={() => loadMorePopular()}
-                      label={t('home.load_more')}
-                      loadingLabel={t('home.loading')}
-                    />
-                  </div>
-                </div>
-              )}
               </div>
             </>
           )}
 
-          {/* もっと見る / 出品物は以上です */}
+          {/* もっと見る / 出品物は以上です
+              下方向フロー配置にしたため、スマホのボトムバー分だけ末尾を持ち上げてボタンが隠れないようにする。 */}
           {!isGuest && (
-            <div className="mt-8 text-center">
-              {!hasMore && (
+            <div className="mt-8 text-center pb-[var(--home-load-more-bottom-offset)]">
+              {hasMore ? (
+                <LoadMoreButton
+                  loading={loadingMore}
+                  onClick={() => loadMorePopular()}
+                  label={t('home.load_more')}
+                  loadingLabel={t('home.loading')}
+                />
+              ) : (
                 <p className="text-gray-500 py-4">
                   出品物は以上です...!
                 </p>

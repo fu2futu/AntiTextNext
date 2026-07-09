@@ -13,6 +13,10 @@ type NoticeBanner = {
 const COLLAPSE_PREFIX = "textnext-notice-banner-collapsed:";
 const DISMISS_PREFIX = "textnext-notice-banner-dismissed:";
 
+// お知らせバナーはコード側で常に非表示にしている。
+// 再びバナーを表示したい場合は false に戻す（内容は管理画面 /admin/banner で管理）。
+const BANNER_FORCE_HIDDEN = true;
+
 export default function TrialNoticeBanner() {
   const pathname = usePathname();
   const bannerRef = useRef<HTMLDivElement>(null);
@@ -26,6 +30,12 @@ export default function TrialNoticeBanner() {
     let cancelled = false;
 
     const fetchBanner = async () => {
+      // 常に非表示: DBの内容にかかわらず無効扱いにする（オフセット管理はこのまま維持される）。
+      if (BANNER_FORCE_HIDDEN) {
+        setBanner({ enabled: false, message: "" });
+        return;
+      }
+
       const { data } = await (supabase as any)
         .from("app_notice_banner")
         .select("enabled,message,updated_at")

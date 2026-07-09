@@ -11,6 +11,7 @@ import {
   ScrollText,
   UserX,
   Eye,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
   { href: "/admin/demo-home", label: "スクショDemo", icon: Eye },
   { href: "/admin/demo-items", label: "デモ出品管理", icon: BookOpen },
   { href: "/admin/banner", label: "上部お知らせ", icon: Megaphone },
+  { href: "/admin/home-settings", label: "ホーム表示設定", icon: SlidersHorizontal },
   { href: "/admin/book-requests", label: "本リクエスト管理", icon: BookHeart },
   { href: "/admin/restrictions", label: "BAN・制限管理", icon: Ban },
   { href: "/admin/rewards", label: "特典付与", icon: Gift },
