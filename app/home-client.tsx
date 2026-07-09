@@ -1265,7 +1265,9 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
            styled-jsx の global はこのコンポーネントのマウント中だけ html に適用され、離脱時に解除される。
            固定ヘッダー分は scroll-padding-top で吸収する。 */
         html {
-          scroll-snap-type: y mandatory;
+          /* mandatory だと慣性スクロールが即座に殺されるため proximity。
+             勢いよく流して、止まる際に行(セクション)へ吸着させる。 */
+          scroll-snap-type: y proximity;
           scroll-padding-top: calc(var(--app-top-offset) + var(--home-snap-extra-offset));
           scroll-behavior: smooth;
         }
@@ -1483,7 +1485,7 @@ export default function HomeClient({ items: initialRecommendedItems, popularItem
                 }`}>
                   {guestLimitedPopularItems.map((item, index) => {
                     return (
-                    <div key={`popular-${item.id}`} className="relative min-w-0">
+                    <div key={`popular-${item.id}`} className="relative min-w-0 snap-start">
                       <HomeItemCard
                         item={item}
                         isFavorite={favoriteSet.has(item.id)}
