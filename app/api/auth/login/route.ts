@@ -147,7 +147,10 @@ export async function POST(request: NextRequest) {
   if (!data.user.email_confirmed_at) {
     await supabase.auth.signOut();
     await recordLoginAttempt(supabase, email, ipAddress, userAgent, false);
-    return NextResponse.json({ error: GENERIC_LOGIN_ERROR }, { status: 401 });
+    return NextResponse.json(
+      { error: "メール認証が完了していません。新規登録画面から確認コードを受け取り直してください（5分経過後に登録し直せます）。" },
+      { status: 401 }
+    );
   }
 
   await recordLoginAttempt(supabase, email, ipAddress, userAgent, true);

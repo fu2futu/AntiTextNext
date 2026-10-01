@@ -349,6 +349,7 @@ export default function SignupPage() {
                                     <li>• 迷惑メールフォルダを確認してください</li>
                                     <li>• メールアドレスが正しいか確認してください</li>
                                     <li>• 再送は60秒以上あけてください</li>
+                                    <li>• 5分経っても届かない場合は、下の「最初からやり直す」から登録し直せます</li>
                                 </ul>
                             </div>
 
@@ -372,7 +373,7 @@ export default function SignupPage() {
                                     }}
                                     className="block w-full py-3 text-primary font-semibold hover:underline"
                                 >
-                                    別のメールアドレスで登録
+                                    最初からやり直す（別のメールアドレスで登録）
                                 </button>
                             </div>
                         </div>

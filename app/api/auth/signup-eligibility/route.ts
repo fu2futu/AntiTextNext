@@ -7,6 +7,9 @@ export const runtime = "nodejs";
 
 const CAMPUS_EMAIL_DOMAIN = "@m.isct.ac.jp";
 
+// メール未認証のアカウントを再登録のためにリセットできるまでの時間
+const PENDING_SIGNUP_RESET_MS = 5 * 60 * 1000;
+
 // テスト用に登録を許可するメールアドレス。
 // 本番環境でenvを触れないため、ここに直接埋め込む。テスト後は削除すること。
 // env(SIGNUP_TEST_ALLOWED_EMAILS カンマ区切り)でも追加できる。
@@ -65,14 +68,34 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: alreadyRegistered, error: registeredError } = await (serviceClient as any).rpc("is_registered_email", {
+    const { data: statusRows, error: statusError } = await (serviceClient as any).rpc("get_signup_email_status", {
       target_email: email,
     });
 
-    if (registeredError) throw registeredError;
+    if (statusError) throw statusError;
 
-    if (alreadyRegistered) {
-      return NextResponse.json({ allowed: false, error: "このアドレスはすでに登録されています" });
+    const existing = (statusRows ?? [])[0] as
+      | { user_id: string; is_confirmed: boolean; last_sent_at: string | null }
+      | undefined;
+
+    if (existing) {
+      if (existing.is_confirmed) {
+        return NextResponse.json({ allowed: false, error: "このアドレスはすでに登録されています" });
+      }
+
+      // メール認証が完了していない登録途中のアカウント。
+      // 最後の送信から一定時間経っていれば削除して最初から登録し直せるようにする。
+      const elapsedMs = Date.now() - new Date(existing.last_sent_at || 0).getTime();
+      if (elapsedMs < PENDING_SIGNUP_RESET_MS) {
+        const remainingMinutes = Math.max(1, Math.ceil((PENDING_SIGNUP_RESET_MS - elapsedMs) / 60000));
+        return NextResponse.json({
+          allowed: false,
+          error: `このアドレスはメール認証待ちです。届いた確認コードを入力するか、${remainingMinutes}分後に最初から登録し直してください。`,
+        });
+      }
+
+      const { error: deleteError } = await serviceClient.auth.admin.deleteUser(existing.user_id);
+      if (deleteError) throw deleteError;
     }
 
     const emailHash = hashEmail(email);
